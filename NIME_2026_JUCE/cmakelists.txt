@@ -28,10 +28,16 @@ juce_generate_juce_header(NIMEReceiver)
 
 target_sources(NIMEReceiver
     PRIVATE
-        Source/PluginProcessor.cpp
-        Source/PluginProcessor.h
-        Source/PluginEditor.cpp
-        Source/PluginEditor.h
+        Source/Pluginprocessor.cpp
+        Source/Pluginprocessor.h
+        Source/Plugineditor.cpp
+        Source/Plugineditor.h
+        Source/Data/IMUData.h
+        Source/DSP/MathHelpers.h
+        Source/OSC/OscReceiverManager.cpp
+        Source/OSC/OscReceiverManager.h
+        Source/UI/Palette.h
+        Source/UI/StyleHelpers.h
 )
 
 target_compile_definitions(NIMEReceiver

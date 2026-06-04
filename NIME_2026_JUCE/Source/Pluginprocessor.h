@@ -3,53 +3,36 @@
 #include <JuceHeader.h>
 #include <array>
 #include <atomic>
+#include "Data/IMUData.h"
+#include "OSC/OscReceiverManager.h"
 
-
-/**
- * OSC format expected:
- *   /esp32/imu    → float ax, ay, az, gx, gy, gz, mx, my, mz
- *   /esp32/connected → string ipAddress
- */
 class NIMEReceiverProcessor
     : public juce::AudioProcessor,
-      private juce::OSCReceiver::Listener<juce::OSCReceiver::RealtimeCallback>,
       private juce::Timer {
 public:
-  // IMU data snapshot
-  struct IMUData {
-    // Accelerometer (g)
-    std::atomic<float> ax{0.f}, ay{0.f}, az{0.f};
-    // Gyroscope (deg/s)
-    std::atomic<float> gx{0.f}, gy{0.f}, gz{0.f};
-    // Magnetometer (µT)
-    std::atomic<float> mx{0.f}, my{0.f}, mz{0.f};
-    // Orientation Quaternion
-    std::atomic<float> qw{1.f}, qx{0.f}, qy{0.f}, qz{0.f};
-  };
-
   NIMEReceiverProcessor();
   ~NIMEReceiverProcessor() override;
 
   // OSC control
-  bool startOSCReceiver(int port);
-  void stopOSCReceiver();
-  bool isOSCConnected() const noexcept { return oscConnected.load(); }
-  int getCurrentPort() const noexcept { return currentPort.load(); }
+  bool startOSCReceiver(int port) { return oscManager.startOSCReceiver(port); }
+  void stopOSCReceiver() { oscManager.stopOSCReceiver(); }
+  bool isOSCConnected() const noexcept { return oscManager.isOSCConnected(); }
+  int getCurrentPort() const noexcept { return oscManager.getCurrentPort(); }
 
   // Stats
   float getMessagesPerSecond() const noexcept {
-    return messagesPerSecond.load();
+    return oscManager.getMessagesPerSecond();
   }
-  int getTotalMessageCount() const noexcept { return totalMessages.load(); }
+  int getTotalMessageCount() const noexcept { return oscManager.getTotalMessageCount(); }
   int getConnectedDeviceCount() const noexcept {
-    return connectedDeviceCount.load();
+    return oscManager.getConnectedDeviceCount();
   }
 
   // Last known IP of connected device
-  juce::String getLastConnectedIP() const;
+  juce::String getLastConnectedIP() const { return oscManager.getLastConnectedIP(); }
 
   // IMU data access
-  const IMUData &getIMUData() const noexcept { return imuData; }
+  const IMUData &getIMUData() const noexcept { return oscManager.getIMUData(); }
 
   // Standard AudioProcessor overrides
   void prepareToPlay(double, int) override {}
@@ -78,30 +61,10 @@ public:
   std::function<void()> onNewMessage;
 
 private:
-  // OSC callbacks
-  void oscMessageReceived(const juce::OSCMessage &message) override;
-
   // Timer callback - computes msg/sec every second
   void timerCallback() override;
 
-  juce::OSCReceiver oscReceiver;
-
-  std::atomic<bool> oscConnected{false};
-  std::atomic<int> currentPort{0};
-
-  // Rate counting
-  std::atomic<int> messageCountThisTick{0};
-  std::atomic<float> messagesPerSecond{0.f};
-  std::atomic<int> totalMessages{0};
-
-  // Device tracking
-  std::atomic<int> connectedDeviceCount{0};
-
-  mutable juce::CriticalSection ipMutex;
-  juce::String lastConnectedIP;
-
-  // IMU data
-  IMUData imuData;
+  OscReceiverManager oscManager;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverProcessor)
 };

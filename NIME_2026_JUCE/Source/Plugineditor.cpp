@@ -1,47 +1,7 @@
 #include "PluginEditor.h"
-
-// Colour palette
-namespace Palette {
-const juce::Colour bg{0xFF2A2A2A};
-const juce::Colour panel{0xFF333333};
-const juce::Colour border{0xFF555555};
-const juce::Colour accent{0xFF5B9BD5};
-const juce::Colour accentDim{0xFF3A5A7A};
-const juce::Colour textHi{0xFFFFFFFF};
-const juce::Colour textMid{0xFFCCCCCC};
-const juce::Colour textLo{0xFF999999};
-const juce::Colour red{0xFFD9534F};
-const juce::Colour yellow{0xFFF0AD4E};
-const juce::Colour green{0xFF5CB85C};
-} // namespace Palette
-
-namespace
-{
-    struct Vec3 { float x, y, z; };
-    struct Quat { float w, x, y, z; };
-
-    static Vec3 rotate(Vec3 v, Quat q)
-    {
-        float tx = 2.0f * (q.y * v.z - q.z * v.y);
-        float ty = 2.0f * (q.z * v.x - q.x * v.z);
-        float tz = 2.0f * (q.x * v.y - q.y * v.x);
-        return {
-            v.x + q.w * tx + (q.y * tz - q.z * ty),
-            v.y + q.w * ty + (q.z * tx - q.x * tz),
-            v.z + q.w * tz + (q.x * ty - q.y * tx)
-        };
-    }
-}
-
-static void
-styleLabel(juce::Label &l, const juce::String &text, float fontSize,
-           juce::Colour colour,
-           juce::Justification just = juce::Justification::centredLeft) {
-  l.setText(text, juce::dontSendNotification);
-  l.setFont(juce::Font(juce::FontOptions().withHeight(fontSize)));
-  l.setColour(juce::Label::textColourId, colour);
-  l.setJustificationType(just);
-}
+#include "UI/Palette.h"
+#include "UI/StyleHelpers.h"
+#include "DSP/MathHelpers.h"
 
 NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
     : AudioProcessorEditor(&p), processor(p) {
@@ -178,14 +138,14 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   g.drawHorizontalLine(312, 24.f, static_cast<float>(w - 24));
 
   const auto &d = processor.getIMUData();
-  Quat q{d.qw.load(), d.qx.load(), d.qy.load(), d.qz.load()};
+  MathHelpers::Quat q{d.qw.load(), d.qx.load(), d.qy.load(), d.qz.load()};
 
   // Staff resting horizontally along the X-axis
-  Vec3 top = {1.f, 0.f, 0.f};
-  Vec3 bottom = {-1.f, 0.f, 0.f};
+  MathHelpers::Vec3 top = {1.f, 0.f, 0.f};
+  MathHelpers::Vec3 bottom = {-1.f, 0.f, 0.f};
 
-  top = rotate(top, q);
-  bottom = rotate(bottom, q);
+  top = MathHelpers::rotate(top, q);
+  bottom = MathHelpers::rotate(bottom, q);
 
   const float scale = 90.f;
   const float cx = w / 2.f;
