@@ -22,8 +22,6 @@ public:
   juce::String getLastConnectedIP() const;
   const IMUData &getIMUData() const noexcept { return imuData; }
 
-  std::function<void()> onNewMessage;
-
 private:
   void oscMessageReceived(const juce::OSCMessage &message) override;
 

@@ -58,9 +58,6 @@ public:
   void getStateInformation(juce::MemoryBlock &) override {}
   void setStateInformation(const void *, int) override {}
 
-  // Broadcast to editor that new data arrived
-  std::function<void()> onNewMessage;
-
 private:
   // Timer callback - computes msg/sec every second
   void timerCallback() override;

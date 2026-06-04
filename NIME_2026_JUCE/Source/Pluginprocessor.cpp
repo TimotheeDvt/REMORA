@@ -3,10 +3,6 @@
 
 NIMEReceiverProcessor::NIMEReceiverProcessor()
     : AudioProcessor(BusesProperties()) {
-  oscManager.onNewMessage = [this] {
-    if (onNewMessage)
-      onNewMessage();
-  };
   startTimer(1000);
 
   // Automatically attempt to connect to port 8000 on startup

@@ -88,9 +88,6 @@ void OscReceiverManager::oscMessageReceived(const juce::OSCMessage &message) {
 
     messageCountThisTick.fetch_add(1, std::memory_order_relaxed);
     totalMessages.fetch_add(1, std::memory_order_relaxed);
-
-    if (onNewMessage)
-      juce::MessageManager::callAsync([cb = onNewMessage] { cb(); });
   } else if (address == "/esp32/connected") {
     if (message.size() >= 1 && message[0].isString()) {
       const juce::String ip = message[0].getString();
