@@ -1,9 +1,9 @@
+#include "MPU9250.h"
 #include <Arduino.h>
+#include <OSCMessage.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <Wire.h>
-#include <OSCMessage.h>
-#include "MPU9250.h"
 
 // Network Configuration
 const char *WIFI_SSID = "MUSIC-TIM";
@@ -51,7 +51,8 @@ void setup() {
   Serial.begin(115200);
 
   uint32_t tStart = millis();
-  while (!Serial && (millis() - tStart < 5000)) delay(10);
+  while (!Serial && (millis() - tStart < 5000))
+    delay(10);
 
   Serial.println("\n\n=========================================");
   Serial.println("ESP32-S2 IS BOOTING... (MPU-9250 version)");
@@ -62,7 +63,7 @@ void setup() {
   Wire.setTimeOut(20);
 
   Serial.print("Initializing MPU-9250... ");
-  mpu.setup(0x68)
+  mpu.setup(0x68);
   Serial.println("OK");
 
   connectWiFi();
@@ -86,34 +87,44 @@ void loop() {
     return;
   }
 
-  static uint32_t lastUpdate = 0;
-  const uint32_t now = millis();
-
-  if (now - lastUpdate < SEND_INTERVAL_MS) return;
-  lastUpdate = now;
-
   if (mpu.update()) {
-    // Get Accel/Gyro/Mag values (floats)
-    float ax = mpu.getAccX();
-    float ay = mpu.getAccY();
-    float az = mpu.getAccZ();
+    static uint32_t lastUpdate = 0;
+    const uint32_t now = millis();
 
-    float gx = mpu.getGyroX();
-    float gy = mpu.getGyroY();
-    float gz = mpu.getGyroZ();
+    // Only transmit at the desired interval (50 Hz)
+    if (now - lastUpdate >= SEND_INTERVAL_MS) {
+      lastUpdate = now;
 
-    float mx = mpu.getMagX();
-    float my = mpu.getMagY();
-    float mz = mpu.getMagZ();
+      // Get Accel/Gyro/Mag values (floats)
+      float ax = mpu.getAccX();
+      float ay = mpu.getAccY();
+      float az = mpu.getAccZ();
 
-    // Build & Send OSC
-    OSCMessage msg("/esp32/imu");
-    msg.add(ax).add(ay).add(az);
-    msg.add(gx).add(gy).add(gz);
-    msg.add(mx).add(my).add(mz);
+      float gx = mpu.getGyroX();
+      float gy = mpu.getGyroY();
+      float gz = mpu.getGyroZ();
 
-    Udp.beginPacket(outIp, outPort);
-    msg.send(Udp);
-    Udp.endPacket();
+      float mx = mpu.getMagX();
+      float my = mpu.getMagY();
+      float mz = mpu.getMagZ();
+
+      // Get Quaternion (calculated internally by the library)
+      float qw = mpu.getQuaternionW();
+      float qx = mpu.getQuaternionX();
+      float qy = mpu.getQuaternionY();
+      float qz = mpu.getQuaternionZ();
+
+      // Build & Send OSC
+      OSCMessage msg("/esp32/imu");
+      msg.add(ax).add(ay).add(az);
+      msg.add(gx).add(gy).add(gz);
+      msg.add(mx).add(my).add(mz);
+      msg.add(qw).add(qx).add(qy).add(qz);
+      msg.add(WiFi.localIP().toString().c_str());
+
+      Udp.beginPacket(outIp, outPort);
+      msg.send(Udp);
+      Udp.endPacket();
+    }
   }
 }
