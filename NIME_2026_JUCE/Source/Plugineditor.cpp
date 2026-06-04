@@ -97,6 +97,10 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
 
   // 60 Hz UI refresh timer
   startTimerHz(60);
+
+  // Sync UI state with the processor's initial connection
+  connected = processor.isOSCConnected();
+  updateConnectionUI();
 }
 
 NIMEReceiverEditor::~NIMEReceiverEditor() { stopTimer(); }

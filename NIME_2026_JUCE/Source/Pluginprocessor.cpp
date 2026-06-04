@@ -8,6 +8,9 @@ NIMEReceiverProcessor::NIMEReceiverProcessor()
       onNewMessage();
   };
   startTimer(1000);
+
+  // Automatically attempt to connect to port 8000 on startup
+  startOSCReceiver(8000);
 }
 
 NIMEReceiverProcessor::~NIMEReceiverProcessor() {
