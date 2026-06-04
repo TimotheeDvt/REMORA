@@ -4,6 +4,7 @@
 #include <array>
 #include <atomic>
 #include "Data/IMUData.h"
+#include "DSP/MathHelpers.h"
 #include "OSC/OscReceiverManager.h"
 
 class NIMEReceiverProcessor
@@ -35,6 +36,10 @@ public:
   // IMU data access
   const IMUData &getIMUData() const noexcept { return oscManager.getIMUData(); }
 
+  // Calibration
+  void calibrate();
+  MathHelpers::Quat getCalibratedQuat() const;
+
   // Standard AudioProcessor overrides
   void prepareToPlay(double, int) override {}
   void releaseResources() override {}
@@ -63,6 +68,11 @@ private:
   void timerCallback() override;
 
   OscReceiverManager oscManager;
+
+  std::atomic<float> calibW{1.f};
+  std::atomic<float> calibX{0.f};
+  std::atomic<float> calibY{0.f};
+  std::atomic<float> calibZ{0.f};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverProcessor)
 };

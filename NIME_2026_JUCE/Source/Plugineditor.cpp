@@ -49,6 +49,13 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   };
   addAndMakeVisible(showDataButton);
 
+  // Calibrate button
+  calibrateButton.setButtonText("CALIBRATE");
+  calibrateButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
+  calibrateButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
+  calibrateButton.onClick = [this] { processor.calibrate(); };
+  addAndMakeVisible(calibrateButton);
+
   // Status dot (repurposed Label as a coloured dot)
   statusDot.setOpaque(false);
   addAndMakeVisible(statusDot);
@@ -92,8 +99,7 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   g.setColour(Palette::border);
   g.drawHorizontalLine(140, 24.f, static_cast<float>(w - 24));
 
-  const auto &d = processor.getIMUData();
-  MathHelpers::Quat q{d.qw.load(), d.qx.load(), d.qy.load(), d.qz.load()};
+  MathHelpers::Quat q = processor.getCalibratedQuat();
 
   const float scale = 90.f;
   const float cx = w / 2.f;
@@ -159,6 +165,7 @@ void NIMEReceiverEditor::resized() {
   portEditor.setBounds(14, 64, 70, 24);
   connectButton.setBounds(92, 64, 100, 24);
   showDataButton.setBounds(14, 100, 100, 24);
+  calibrateButton.setBounds(122, 100, 100, 24);
 
   // Latency display
   latencyValueLabel.setBounds(w - 200, 44, 130, 60);

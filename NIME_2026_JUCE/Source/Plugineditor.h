@@ -28,6 +28,7 @@ private:
   juce::TextEditor portEditor;
   juce::TextButton connectButton;
   juce::TextButton showDataButton;
+  juce::TextButton calibrateButton;
   juce::Label statusDot;
 
   juce::Label latencyLabel;
