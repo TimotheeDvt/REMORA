@@ -1,111 +1,119 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <Wire.h>
 #include <OSCMessage.h>
+#include "MPU9250.h"
 
+// Network Configuration
 const char *WIFI_SSID = "MUSIC-TIM";
 const char *WIFI_PASSWORD = "***REMOVED***";
 
-// OSC & UDP Settings
 WiFiUDP Udp;
 const IPAddress outIp(192, 168, 137, 1);
-const unsigned int outPort = 8000;
-const unsigned int localPort = 8888;
+const uint16_t outPort = 8000;
+const uint16_t localPort = 8888;
 
+MPU9250 mpu;
+
+#define SEND_INTERVAL_MS 20 // 50 Hz transmission rate
+
+// WiFi
 void connectWiFi() {
   Serial.println("\n--- ESP32-S2 WiFi Connection ---");
-
-  WiFi.disconnect(true, true);
-  delay(1000);
-
   WiFi.mode(WIFI_STA);
-
   WiFi.setSleep(false);
-
-  Serial.printf("Attempting link to SSID: %s\n", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  int attemptCounter = 0;
+  Serial.printf("Connecting to: %s\n", WIFI_SSID);
 
+  uint8_t attempts = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    attemptCounter++;
-
-    wl_status_t status = WiFi.status();
-    Serial.printf("[Attempt %02d] Status Code: %d -> ", attemptCounter, status);
-
-    switch (status) {
-    case WL_NO_SSID_AVAIL:
-      Serial.println(
-          "Error: SSID not found. Is the hotspot hidden or too far?");
-      break;
-    case WL_CONNECT_FAILED:
-      Serial.println(
-          "Error: Connection failed. Double check your password keys.");
-      break;
-    case WL_CONNECTION_LOST:
-      Serial.println("Error: Connection lost.");
-      break;
-    case WL_DISCONNECTED:
-      Serial.println("Searching / Handshaking...");
-      break;
-    case WL_IDLE_STATUS:
-      Serial.println("Idle state...");
-      break;
-    default:
-      Serial.println("Processing...");
-      break;
-    }
-
-    if (attemptCounter >= 20) {
-      Serial.println(
-          "\n[Timeout] Resetting WiFi radio and trying once more...");
+    delay(500);
+    Serial.print('.');
+    if (++attempts >= 40) {
+      Serial.println("\n[Timeout] Retrying...");
+      WiFi.disconnect(true);
+      delay(1000);
       WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-      attemptCounter = 0;
+      attempts = 0;
     }
   }
 
   Serial.println("\n=========================================");
   Serial.println("SUCCESS: CONNECTED");
-  Serial.print("ESP32 IP Address: ");
+  Serial.print("IP   : ");
   Serial.println(WiFi.localIP());
-  Serial.print("Signal Strength (RSSI): ");
-  Serial.print(WiFi.RSSI());
-  Serial.println(" dBm");
-  Serial.println("=========================================");
+  Serial.println("=========================================\n");
 }
 
 void setup() {
   Serial.begin(115200);
 
-  for (int i = 3; i > 0; i--) {
-    Serial.printf("Starting diagnostics in %d...\n", i);
-    delay(1000);
-  }
+  uint32_t tStart = millis();
+  while (!Serial && (millis() - tStart < 5000)) delay(10);
+
+  Serial.println("\n\n=========================================");
+  Serial.println("ESP32-S2 IS BOOTING... (MPU-9250 version)");
+  Serial.println("=========================================\n");
+
+  Wire.begin(1, 2);
+  Wire.setClock(400000);
+  Wire.setTimeOut(20);
+
+  Serial.print("Initializing MPU-9250... ");
+  mpu.setup(0x68)
+  Serial.println("OK");
 
   connectWiFi();
 
-  // Start UDP for OSC
   Udp.begin(localPort);
-  Serial.println("UDP initialized for OSC communication.");
+
+  String ipStr = WiFi.localIP().toString();
+  OSCMessage msg("/esp32/connected");
+  msg.add(ipStr.c_str());
+  Udp.beginPacket(outIp, outPort);
+  msg.send(Udp);
+  Udp.endPacket();
+
+  Serial.println("\nSetup complete - streaming at 50 Hz");
 }
 
 void loop() {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Connection dropped! Reconnecting...");
+    Serial.println("WiFi lost - reconnecting...");
     connectWiFi();
-  } else {
-    Serial.println("Connection stable... sending OSC test message.");
+    return;
+  }
 
-    OSCMessage msg("/esp32/test");
-    msg.add("hello from ESP32!");
-    msg.add((int32_t)millis());
+  static uint32_t lastUpdate = 0;
+  const uint32_t now = millis();
+
+  if (now - lastUpdate < SEND_INTERVAL_MS) return;
+  lastUpdate = now;
+
+  if (mpu.update()) {
+    // Get Accel/Gyro/Mag values (floats)
+    float ax = mpu.getAccX();
+    float ay = mpu.getAccY();
+    float az = mpu.getAccZ();
+
+    float gx = mpu.getGyroX();
+    float gy = mpu.getGyroY();
+    float gz = mpu.getGyroZ();
+
+    float mx = mpu.getMagX();
+    float my = mpu.getMagY();
+    float mz = mpu.getMagZ();
+
+    // Build & Send OSC
+    OSCMessage msg("/esp32/imu");
+    msg.add(ax).add(ay).add(az);
+    msg.add(gx).add(gy).add(gz);
+    msg.add(mx).add(my).add(mz);
 
     Udp.beginPacket(outIp, outPort);
     msg.send(Udp);
     Udp.endPacket();
-    msg.empty();
-
-    // delay(2000);
   }
 }
