@@ -41,9 +41,21 @@ public:
   MathHelpers::Quat getCalibratedQuat() const;
 
   // Standard AudioProcessor overrides
-  void prepareToPlay(double, int) override {}
+  void prepareToPlay(double sampleRate, int samplesPerBlock) override;
   void releaseResources() override {}
-  void processBlock(juce::AudioBuffer<float> &, juce::MidiBuffer &) override {}
+  void processBlock(juce::AudioBuffer<float> &buffer, juce::MidiBuffer &midiMessages) override;
+
+  // Tell the host we only support Mono or Stereo output
+  bool isBusesLayoutSupported(const BusesLayout &layouts) const override {
+    // Reject any input buses
+    if (layouts.getMainInputChannelSet() != juce::AudioChannelSet::disabled())
+      return false;
+
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono() &&
+        layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+      return false;
+    return true;
+  }
 
   juce::AudioProcessorEditor *createEditor() override;
   bool hasEditor() const override { return true; }
@@ -73,6 +85,13 @@ private:
   std::atomic<float> calibX{0.f};
   std::atomic<float> calibY{0.f};
   std::atomic<float> calibZ{0.f};
+
+  // Simple Synth State
+  float currentSampleRate = 44100.0f;
+  float currentAngle = 0.0f;
+  float angleDelta = 0.0f;
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> smoothedFreq { 440.0f };
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedGain { 0.0f };
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverProcessor)
 };
