@@ -15,6 +15,24 @@ const juce::Colour yellow{0xFFF0AD4E};
 const juce::Colour green{0xFF5CB85C};
 } // namespace Palette
 
+namespace
+{
+    struct Vec3 { float x, y, z; };
+    struct Quat { float w, x, y, z; };
+
+    static Vec3 rotate(Vec3 v, Quat q)
+    {
+        float tx = 2.0f * (q.y * v.z - q.z * v.y);
+        float ty = 2.0f * (q.z * v.x - q.x * v.z);
+        float tz = 2.0f * (q.x * v.y - q.y * v.x);
+        return {
+            v.x + q.w * tx + (q.y * tz - q.z * ty),
+            v.y + q.w * ty + (q.z * tx - q.x * tz),
+            v.z + q.w * tz + (q.x * ty - q.y * tx)
+        };
+    }
+}
+
 static void
 styleLabel(juce::Label &l, const juce::String &text, float fontSize,
            juce::Colour colour,
@@ -154,6 +172,40 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   const bool isReceivingData = processor.getMessagesPerSecond() > 0.f;
   g.setColour(isReceivingData ? Palette::green : Palette::red);
   g.fillEllipse(static_cast<float>(getWidth() - 28), 14.f, 8.f, 8.f);
+
+  // Draw 3D Staff Simulation
+  g.setColour(Palette::border);
+  g.drawHorizontalLine(312, 24.f, static_cast<float>(w - 24));
+
+  const auto &d = processor.getIMUData();
+  Quat q{d.qw.load(), d.qx.load(), d.qy.load(), d.qz.load()};
+
+  // Staff resting horizontally along the X-axis
+  Vec3 top = {1.f, 0.f, 0.f};
+  Vec3 bottom = {-1.f, 0.f, 0.f};
+
+  top = rotate(top, q);
+  bottom = rotate(bottom, q);
+
+  const float scale = 90.f;
+  const float cx = w / 2.f;
+  const float cy = 410.f; // Centered in the empty space below IMU numbers
+
+  // Orthographic 3D -> 2D projection (X -> Screen X, Z -> Screen Y inverted)
+  float topX = cx + top.x * scale;
+  float topY = cy - top.z * scale;
+  float botX = cx + bottom.x * scale;
+  float botY = cy - bottom.z * scale;
+
+  // Draw the staff line
+  g.setColour(Palette::textMid);
+  g.drawLine(botX, botY, topX, topY, 8.f);
+
+  // Draw colored tips to help orient
+  g.setColour(Palette::accentDim);
+  g.fillEllipse(botX - 6.f, botY - 6.f, 12.f, 12.f);
+  g.setColour(Palette::red);
+  g.fillEllipse(topX - 6.f, topY - 6.f, 12.f, 12.f);
 }
 
 void NIMEReceiverEditor::resized() {

@@ -46,7 +46,7 @@ void NIMEReceiverProcessor::oscMessageReceived(
   const auto address = message.getAddressPattern().toString();
 
   if (address == "/esp32/imu") {
-    // Expected: ax ay az  gx gy gz  mx my mz  (9 floats)
+    // Expected: ax ay az  gx gy gz  mx my mz  qw qx qy qz ip (13 floats + 1 string)
     if (message.size() >= 9) {
       auto getFloat = [&](int idx) -> float {
         const auto &arg = message[idx];
@@ -68,6 +68,22 @@ void NIMEReceiverProcessor::oscMessageReceived(
       imuData.mx.store(getFloat(6), std::memory_order_relaxed);
       imuData.my.store(getFloat(7), std::memory_order_relaxed);
       imuData.mz.store(getFloat(8), std::memory_order_relaxed);
+
+      // Fallback in case old code sends only 9 floats
+      if (message.size() >= 13) {
+        imuData.qw.store(getFloat(9), std::memory_order_relaxed);
+        imuData.qx.store(getFloat(10), std::memory_order_relaxed);
+        imuData.qy.store(getFloat(11), std::memory_order_relaxed);
+        imuData.qz.store(getFloat(12), std::memory_order_relaxed);
+      }
+
+      // Check for the IP address string
+      if (message.size() >= 14 && message[13].isString()) {
+        const juce::String ip = message[13].getString();
+
+        juce::ScopedLock sl(ipMutex);
+        lastConnectedIP = ip;
+      }
     }
 
     messageCountThisTick.fetch_add(1, std::memory_order_relaxed);
