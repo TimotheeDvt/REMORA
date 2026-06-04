@@ -56,11 +56,6 @@ private:
   juce::Label mxLabel, myLabel, mzLabel;
   juce::Label mxVal, myVal, mzVal;
 
-  // Sparkline (last N msg/sec values)
-  static constexpr int kSparklineSize = 60;
-  std::array<float, kSparklineSize> sparkline{};
-  int sparklineHead = 0;
-
   // State
   bool connected = false;
 

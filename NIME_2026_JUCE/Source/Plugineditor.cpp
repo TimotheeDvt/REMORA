@@ -2,16 +2,17 @@
 
 // Colour palette
 namespace Palette {
-const juce::Colour bg{0xFF0E1117};
-const juce::Colour panel{0xFF1A1F2E};
-const juce::Colour border{0xFF2A3040};
-const juce::Colour accent{0xFF00D4AA};
-const juce::Colour accentDim{0xFF007A62};
-const juce::Colour textHi{0xFFEEF2FF};
-const juce::Colour textMid{0xFF8892A4};
-const juce::Colour textLo{0xFF4A5568};
-const juce::Colour red{0xFFFF4757};
-const juce::Colour yellow{0xFFFFD32A};
+const juce::Colour bg{0xFF2A2A2A};
+const juce::Colour panel{0xFF333333};
+const juce::Colour border{0xFF555555};
+const juce::Colour accent{0xFF5B9BD5};
+const juce::Colour accentDim{0xFF3A5A7A};
+const juce::Colour textHi{0xFFFFFFFF};
+const juce::Colour textMid{0xFFCCCCCC};
+const juce::Colour textLo{0xFF999999};
+const juce::Colour red{0xFFD9534F};
+const juce::Colour yellow{0xFFF0AD4E};
+const juce::Colour green{0xFF5CB85C};
 } // namespace Palette
 
 static void
@@ -141,34 +142,6 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   g.setColour(Palette::border);
   g.drawRoundedRectangle(ratePanel, 6.f, 1.f);
 
-  // Sparkline
-  {
-    const float sx = 16.f;
-    const float sy = 148.f;
-    const float sw = static_cast<float>(w - 32);
-    const float sh = 6.f;
-
-    // Background track
-    g.setColour(Palette::border);
-    g.fillRoundedRectangle(sx, sy, sw, sh, 3.f);
-
-    // Find max for scaling
-    float maxVal = 1.f;
-    for (float v : sparkline)
-      maxVal = std::max(maxVal, v);
-
-    // Draw bars
-    const float barW = sw / static_cast<float>(kSparklineSize);
-    for (int i = 0; i < kSparklineSize; ++i) {
-      const int idx = (sparklineHead + i) % kSparklineSize;
-      const float norm = sparkline[idx] / maxVal;
-      const float bh = sh * norm;
-      g.setColour(rateColour(sparkline[idx]).withAlpha(0.7f + 0.3f * norm));
-      g.fillRoundedRectangle(sx + barW * static_cast<float>(i), sy + sh - bh,
-                             barW - 1.f, bh, 1.f);
-    }
-  }
-
   // IMU panel outline
   juce::Rectangle<float> imuPanel(12.f, 164.f, static_cast<float>(w - 24),
                                   static_cast<float>(h - 176));
@@ -178,13 +151,9 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   g.drawRoundedRectangle(imuPanel, 6.f, 1.f);
 
   // Status dot
-  const bool isConnected = processor.isOSCConnected();
-  g.setColour(isConnected ? Palette::accent : Palette::red);
+  const bool isReceivingData = processor.getMessagesPerSecond() > 0.f;
+  g.setColour(isReceivingData ? Palette::green : Palette::red);
   g.fillEllipse(static_cast<float>(getWidth() - 28), 14.f, 8.f, 8.f);
-  if (isConnected) {
-    g.setColour(Palette::accent.withAlpha(0.25f));
-    g.fillEllipse(static_cast<float>(getWidth() - 32), 10.f, 16.f, 16.f);
-  }
 }
 
 void NIMEReceiverEditor::resized() {
@@ -250,10 +219,6 @@ void NIMEReceiverEditor::refreshStats() {
   rateValueLabel.setText(juce::String(static_cast<int>(mps)),
                          juce::dontSendNotification);
   rateValueLabel.setColour(juce::Label::textColourId, rateColour(mps));
-
-  // Sparkline
-  sparkline[sparklineHead] = mps;
-  sparklineHead = (sparklineHead + 1) % kSparklineSize;
 
   // Totals
   totalValueLabel.setText(juce::String(processor.getTotalMessageCount()),
