@@ -41,11 +41,15 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   showDataButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
   showDataButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
   showDataButton.onClick = [this] {
-    if (!rawDataWindow) {
-      rawDataWindow = std::make_unique<RawDataWindow>(processor);
+    if (rawDataWindow && rawDataWindow->isVisible()) {
+      rawDataWindow->setVisible(false);
+    } else {
+      if (!rawDataWindow) {
+        rawDataWindow = std::make_unique<RawDataWindow>(processor);
+      }
+      rawDataWindow->setVisible(true);
+      rawDataWindow->toFront(true);
     }
-    rawDataWindow->setVisible(true);
-    rawDataWindow->toFront(true);
   };
   addAndMakeVisible(showDataButton);
 
