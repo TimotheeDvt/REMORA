@@ -1,13 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 project(NIMEReceiver VERSION 0.1.0)
 
-# ── Point this at your JUCE checkout ─────────────────────────────────────────
-# Option A – already installed via FetchContent / subdirectory:
 add_subdirectory(JUCE)
-
-# Option B – if JUCE is somewhere else on disk, use:
-# add_subdirectory(/path/to/JUCE JUCE)
-# ─────────────────────────────────────────────────────────────────────────────
 
 juce_add_plugin(NIMEReceiver
     PLUGIN_MANUFACTURER_CODE  Nime
