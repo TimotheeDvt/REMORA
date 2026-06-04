@@ -1,7 +1,7 @@
 #include "PluginEditor.h"
+#include "DSP/MathHelpers.h"
 #include "UI/Palette.h"
 #include "UI/StyleHelpers.h"
-#include "DSP/MathHelpers.h"
 
 NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
     : AudioProcessorEditor(&p), processor(p) {
@@ -144,6 +144,38 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   const auto &d = processor.getIMUData();
   MathHelpers::Quat q{d.qw.load(), d.qx.load(), d.qy.load(), d.qz.load()};
 
+  const float scale = 90.f;
+  const float cx = w / 2.f;
+  const float cy = 410.f; // Centered in the empty space below IMU numbers
+
+  // 3D -> 2D projection (Cabinet-style isometric)
+  auto project = [cx, cy, scale](MathHelpers::Vec3 v) {
+    const float depth = 0.3f; // Depth scaling factor for the Y axis
+    return juce::Point<float>(cx + (v.x - v.y * depth) * scale,
+                              cy - (v.z - v.y * depth) * scale);
+  };
+
+  // Draw world axes (X = Right/Red, Y = Depth/Green, Z = Up/Blue)
+  auto pOrigin = project({0.f, 0.f, 0.f});
+  auto pX = project({1.f, 0.f, 0.f});
+  auto pY = project({0.f, 1.f, 0.f});
+  auto pZ = project({0.f, 0.f, 1.f});
+
+  g.setColour(Palette::red.withAlpha(0.6f));
+  g.drawLine(pOrigin.x, pOrigin.y, pX.x, pX.y, 2.f);
+  g.drawText("X", juce::Rectangle<float>(pX.x - 10.f, pX.y - 10.f, 20.f, 20.f),
+             juce::Justification::centred);
+
+  g.setColour(Palette::green.withAlpha(0.6f));
+  g.drawLine(pOrigin.x, pOrigin.y, pY.x, pY.y, 2.f);
+  g.drawText("Y", juce::Rectangle<float>(pY.x - 10.f, pY.y - 10.f, 20.f, 20.f),
+             juce::Justification::centred);
+
+  g.setColour(Palette::accent.withAlpha(0.6f));
+  g.drawLine(pOrigin.x, pOrigin.y, pZ.x, pZ.y, 2.f);
+  g.drawText("Z", juce::Rectangle<float>(pZ.x - 10.f, pZ.y - 10.f, 20.f, 20.f),
+             juce::Justification::centred);
+
   // Staff resting horizontally along the X-axis
   MathHelpers::Vec3 top = {1.f, 0.f, 0.f};
   MathHelpers::Vec3 bottom = {-1.f, 0.f, 0.f};
@@ -151,25 +183,18 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   top = MathHelpers::rotate(top, q);
   bottom = MathHelpers::rotate(bottom, q);
 
-  const float scale = 90.f;
-  const float cx = w / 2.f;
-  const float cy = 410.f; // Centered in the empty space below IMU numbers
-
-  // Orthographic 3D -> 2D projection (X -> Screen X, Z -> Screen Y inverted)
-  float topX = cx + top.x * scale;
-  float topY = cy - top.z * scale;
-  float botX = cx + bottom.x * scale;
-  float botY = cy - bottom.z * scale;
+  auto pTop = project(top);
+  auto pBot = project(bottom);
 
   // Draw the staff line
   g.setColour(Palette::textMid);
-  g.drawLine(botX, botY, topX, topY, 8.f);
+  g.drawLine(pBot.x, pBot.y, pTop.x, pTop.y, 8.f);
 
   // Draw colored tips to help orient
   g.setColour(Palette::accentDim);
-  g.fillEllipse(botX - 6.f, botY - 6.f, 12.f, 12.f);
+  g.fillEllipse(pBot.x - 6.f, pBot.y - 6.f, 12.f, 12.f);
   g.setColour(Palette::red);
-  g.fillEllipse(topX - 6.f, topY - 6.f, 12.f, 12.f);
+  g.fillEllipse(pTop.x - 6.f, pTop.y - 6.f, 12.f, 12.f);
 }
 
 void NIMEReceiverEditor::resized() {
