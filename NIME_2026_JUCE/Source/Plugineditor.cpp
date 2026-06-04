@@ -5,7 +5,7 @@
 
 NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
     : AudioProcessorEditor(&p), processor(p) {
-  setSize(520, 520);
+  setSize(520, 560);
   setResizable(false, false);
 
   // Title
@@ -54,10 +54,16 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   styleLabel(totalValueLabel, "0", 12.f, Palette::textMid);
   styleLabel(ipLabel, "DEVICE IP", 9.f, Palette::textLo);
   styleLabel(ipValueLabel, "-", 12.f, Palette::textMid);
+  styleLabel(latencyValueLabel, "-", 52.f, Palette::textHi,
+             juce::Justification::centredRight);
+  styleLabel(latencyLabel, "ms latency", 11.f, Palette::textMid,
+             juce::Justification::centredLeft);
   addAndMakeVisible(totalLabel);
   addAndMakeVisible(totalValueLabel);
   addAndMakeVisible(ipLabel);
   addAndMakeVisible(ipValueLabel);
+  addAndMakeVisible(latencyLabel);
+  addAndMakeVisible(latencyValueLabel);
 
   // IMU labels - helper lambda
   auto addIMURow = [&](juce::Label &header, const juce::String &title,
@@ -89,10 +95,10 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   addIMURow(accelHeaderLabel, "ACCELEROMETER  (g)", axLabel, ayLabel, azLabel,
             axVal, ayVal, azVal, "X", "Y", "Z");
 
-  addIMURow(gyroHeaderLabel, "GYROSCOPE  (°/s)", gxLabel, gyLabel, gzLabel,
+  addIMURow(gyroHeaderLabel, "GYROSCOPE  (deg/s)", gxLabel, gyLabel, gzLabel,
             gxVal, gyVal, gzVal, "X", "Y", "Z");
 
-  addIMURow(magHeaderLabel, "MAGNETOMETER  (µT)", mxLabel, myLabel, mzLabel,
+  addIMURow(magHeaderLabel, "MAGNETOMETER  (microT)", mxLabel, myLabel, mzLabel,
             mxVal, myVal, mzVal, "X", "Y", "Z");
 
   // 60 Hz UI refresh timer
@@ -118,15 +124,15 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
 
   // Rate panel outline
   juce::Rectangle<float> ratePanel(12.f, 44.f, static_cast<float>(w - 24),
-                                   110.f);
+                                   150.f);
   g.setColour(Palette::panel);
   g.fillRoundedRectangle(ratePanel, 6.f);
   g.setColour(Palette::border);
   g.drawRoundedRectangle(ratePanel, 6.f, 1.f);
 
   // IMU panel outline
-  juce::Rectangle<float> imuPanel(12.f, 164.f, static_cast<float>(w - 24),
-                                  static_cast<float>(h - 176));
+  juce::Rectangle<float> imuPanel(12.f, 204.f, static_cast<float>(w - 24),
+                                  static_cast<float>(h - 216));
   g.setColour(Palette::panel);
   g.fillRoundedRectangle(imuPanel, 6.f);
   g.setColour(Palette::border);
@@ -139,14 +145,14 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
 
   // Draw 3D Staff Simulation
   g.setColour(Palette::border);
-  g.drawHorizontalLine(312, 24.f, static_cast<float>(w - 24));
+  g.drawHorizontalLine(352, 24.f, static_cast<float>(w - 24));
 
   const auto &d = processor.getIMUData();
   MathHelpers::Quat q{d.qw.load(), d.qx.load(), d.qy.load(), d.qz.load()};
 
   const float scale = 90.f;
   const float cx = w / 2.f;
-  const float cy = 410.f; // Centered in the empty space below IMU numbers
+  const float cy = 470.f; // Centered in the empty space below IMU numbers
 
   // 3D -> 2D projection (Cabinet-style isometric)
   auto project = [cx, cy, scale](MathHelpers::Vec3 v) {
@@ -212,15 +218,19 @@ void NIMEReceiverEditor::resized() {
   rateValueLabel.setBounds(w - 200, 50, 130, 60);
   rateUnitLabel.setBounds(w - 68, 88, 60, 18);
 
+  // Latency display
+  latencyValueLabel.setBounds(w - 200, 110, 130, 60);
+  latencyLabel.setBounds(w - 68, 148, 80, 18);
+
   // Totals / IP
-  totalLabel.setBounds(14, 98, 60, 14);
-  totalValueLabel.setBounds(14, 112, 100, 16);
-  ipLabel.setBounds(130, 98, 80, 14);
-  ipValueLabel.setBounds(130, 112, 200, 16);
+  totalLabel.setBounds(14, 134, 60, 14);
+  totalValueLabel.setBounds(14, 148, 100, 16);
+  ipLabel.setBounds(130, 134, 80, 14);
+  ipValueLabel.setBounds(130, 148, 180, 16);
 
   // IMU rows
   const int imuX = 20;
-  const int imuY0 = 172;
+  const int imuY0 = 212;
   const int rowH = 44;
   const int colW = (w - 40) / 3;
 
@@ -268,6 +278,29 @@ void NIMEReceiverEditor::refreshStats() {
   // IP
   const juce::String ip = processor.getLastConnectedIP();
   ipValueLabel.setText(ip.isEmpty() ? "-" : ip, juce::dontSendNotification);
+
+  // Latency
+  const int64_t lastTicks = processor.getLastMessageReceivedTicks();
+  if (lastTicks > 0) {
+    const double latencyMs = juce::Time::highResolutionTicksToSeconds(juce::Time::getHighResolutionTicks() - lastTicks) * 1000.0;
+    // Only show valid latency if we're actively receiving (e.g. less than 1 second ago)
+    if (latencyMs < 1000.0) {
+      const juce::uint32 now = juce::Time::getMillisecondCounter();
+      if (lastLatencyUpdateMs == 0 || now - lastLatencyUpdateMs >= 2000) {
+        lastLatencyUpdateMs = now;
+        latencyValueLabel.setText(juce::String(latencyMs, 1), juce::dontSendNotification);
+        latencyValueLabel.setColour(juce::Label::textColourId, latencyMs > 10.0 ? Palette::red : (latencyMs > 5.0 ? Palette::yellow : Palette::green));
+      }
+    } else {
+      latencyValueLabel.setText("-", juce::dontSendNotification);
+      latencyValueLabel.setColour(juce::Label::textColourId, Palette::textMid);
+      lastLatencyUpdateMs = 0; // reset so it instantly updates when reconnected
+    }
+  } else {
+    latencyValueLabel.setText("-", juce::dontSendNotification);
+    latencyValueLabel.setColour(juce::Label::textColourId, Palette::textMid);
+    lastLatencyUpdateMs = 0;
+  }
 
   // IMU values
   const auto &d = processor.getIMUData();

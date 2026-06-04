@@ -39,6 +39,8 @@ private:
   juce::Label totalValueLabel;
   juce::Label ipLabel;
   juce::Label ipValueLabel;
+  juce::Label latencyLabel;
+  juce::Label latencyValueLabel;
 
   // IMU panel
   // Accelerometer
@@ -58,6 +60,7 @@ private:
 
   // State
   bool connected = false;
+  juce::uint32 lastLatencyUpdateMs = 0;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverEditor)
 };

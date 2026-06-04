@@ -55,6 +55,8 @@ void OscReceiverManager::oscMessageReceived(const juce::OSCMessage &message) {
         return 0.f;
       };
 
+      lastMessageReceivedTicks.store(juce::Time::getHighResolutionTicks(), std::memory_order_relaxed);
+
       imuData.ax.store(getFloat(0), std::memory_order_relaxed);
       imuData.ay.store(getFloat(1), std::memory_order_relaxed);
       imuData.az.store(getFloat(2), std::memory_order_relaxed);

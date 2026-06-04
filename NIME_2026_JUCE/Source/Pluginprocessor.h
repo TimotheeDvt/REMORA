@@ -27,6 +27,7 @@ public:
   int getConnectedDeviceCount() const noexcept {
     return oscManager.getConnectedDeviceCount();
   }
+  int64_t getLastMessageReceivedTicks() const noexcept { return oscManager.getLastMessageReceivedTicks(); }
 
   // Last known IP of connected device
   juce::String getLastConnectedIP() const { return oscManager.getLastConnectedIP(); }
