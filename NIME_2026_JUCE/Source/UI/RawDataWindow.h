@@ -34,6 +34,10 @@ private:
   juce::Label mxLabel, myLabel, mzLabel;
   juce::Label mxVal, myVal, mzVal;
 
+  juce::Label eulerHeaderLabel;
+  juce::Label pitchLabel, rollLabel, yawLabel;
+  juce::Slider pitchSlider, rollSlider, yawSlider;
+
   static juce::String fmt(float v, int decimals = 3);
   static juce::Colour rateColour(float msgPerSec);
 

@@ -1,9 +1,10 @@
 #include "RawDataWindow.h"
 #include "Palette.h"
 #include "StyleHelpers.h"
+#include "../DSP/MathHelpers.h"
 
 RawDataComponent::RawDataComponent(NIMEReceiverProcessor &p) : processor(p) {
-  setSize(500, 240);
+  setSize(500, 360);
 
   // Rate display
   styleLabel(rateValueLabel, "0", 52.f, Palette::textHi,
@@ -55,6 +56,35 @@ RawDataComponent::RawDataComponent(NIMEReceiverProcessor &p) : processor(p) {
             gxVal, gyVal, gzVal, "X", "Y", "Z");
   addIMURow(magHeaderLabel, "MAGNETOMETER  (microT)", mxLabel, myLabel, mzLabel,
             mxVal, myVal, mzVal, "X", "Y", "Z");
+
+  styleLabel(eulerHeaderLabel, "EULER ANGLES  (rad)", 9.f, Palette::accent);
+  addAndMakeVisible(eulerHeaderLabel);
+
+  styleLabel(pitchLabel, "Pitch", 9.f, Palette::textLo);
+  styleLabel(rollLabel, "Roll", 9.f, Palette::textLo);
+  styleLabel(yawLabel, "Yaw", 9.f, Palette::textLo);
+  addAndMakeVisible(pitchLabel);
+  addAndMakeVisible(rollLabel);
+  addAndMakeVisible(yawLabel);
+
+  for (auto *slider : {&pitchSlider, &rollSlider, &yawSlider}) {
+    slider->setSliderStyle(juce::Slider::LinearHorizontal);
+    slider->setTextBoxStyle(juce::Slider::TextBoxRight, true, 60, 20);
+    slider->setInterceptsMouseClicks(false, false); // Make read-only
+    slider->setColour(juce::Slider::thumbColourId, juce::Colours::transparentBlack);
+    slider->setColour(juce::Slider::trackColourId, Palette::accent);
+    slider->setColour(juce::Slider::textBoxTextColourId, Palette::textHi);
+    slider->setColour(juce::Slider::textBoxBackgroundColourId, Palette::bg);
+    slider->setColour(juce::Slider::textBoxOutlineColourId, Palette::border);
+    addAndMakeVisible(slider);
+  }
+
+  pitchSlider.setRange(-juce::MathConstants<float>::halfPi,
+                       juce::MathConstants<float>::halfPi, 0.001);
+  rollSlider.setRange(-juce::MathConstants<float>::pi,
+                      juce::MathConstants<float>::pi, 0.001);
+  yawSlider.setRange(-juce::MathConstants<float>::pi,
+                     juce::MathConstants<float>::pi, 0.001);
 
   startTimerHz(60);
 }
@@ -118,6 +148,18 @@ void RawDataComponent::resized() {
               1);
   placeIMURow(magHeaderLabel, mxLabel, myLabel, mzLabel, mxVal, myVal, mzVal,
               2);
+
+  const int eulerY = imuY0 + 3 * rowH + 10;
+  eulerHeaderLabel.setBounds(imuX, eulerY, w - 40, 13);
+
+  pitchLabel.setBounds(imuX, eulerY + 20, 40, 12);
+  pitchSlider.setBounds(imuX + 40, eulerY + 16, w - 80, 20);
+
+  rollLabel.setBounds(imuX, eulerY + 45, 40, 12);
+  rollSlider.setBounds(imuX + 40, eulerY + 41, w - 80, 20);
+
+  yawLabel.setBounds(imuX, eulerY + 70, 40, 12);
+  yawSlider.setBounds(imuX + 40, eulerY + 66, w - 80, 20);
 }
 
 void RawDataComponent::timerCallback() {
@@ -145,6 +187,13 @@ void RawDataComponent::timerCallback() {
   mxVal.setText(fmt(d.mx.load()), juce::dontSendNotification);
   myVal.setText(fmt(d.my.load()), juce::dontSendNotification);
   mzVal.setText(fmt(d.mz.load()), juce::dontSendNotification);
+
+  // Convert raw quaternion to Euler angles & update sliders 
+  auto q = processor.getCalibratedQuat();
+  auto euler = MathHelpers::toEuler(q);
+  pitchSlider.setValue(euler.pitch, juce::dontSendNotification);
+  rollSlider.setValue(euler.roll, juce::dontSendNotification);
+  yawSlider.setValue(euler.yaw, juce::dontSendNotification);
 }
 
 juce::String RawDataComponent::fmt(float v, int decimals) {
