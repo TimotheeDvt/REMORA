@@ -27,6 +27,7 @@ private:
   juce::Label portLabel;
   juce::TextEditor portEditor;
   juce::TextButton connectButton;
+  juce::TextButton soundButton;
   juce::TextButton showDataButton;
   juce::TextButton calibrateButton;
   juce::Label statusDot;

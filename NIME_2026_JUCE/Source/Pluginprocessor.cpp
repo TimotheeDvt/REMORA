@@ -59,8 +59,8 @@ void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                          juce::MidiBuffer &) {
   buffer.clear();
 
-  // If not receiving data, smoothly ramp volume to zero
-  if (!isOSCConnected() || getMessagesPerSecond() == 0.f) {
+  // If not receiving data or sound is muted, smoothly ramp volume to zero
+  if (!isOSCConnected() || getMessagesPerSecond() == 0.f || !isSoundEnabled()) {
     smoothedGain.setTargetValue(0.0f);
   } else {
     auto q = getCalibratedQuat();

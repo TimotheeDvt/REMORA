@@ -40,6 +40,10 @@ public:
   void calibrate();
   MathHelpers::Quat getCalibratedQuat() const;
 
+  // Sound toggle
+  void setSoundEnabled(bool shouldBeEnabled) { soundEnabled.store(shouldBeEnabled); }
+  bool isSoundEnabled() const { return soundEnabled.load(); }
+
   // Standard AudioProcessor overrides
   void prepareToPlay(double sampleRate, int samplesPerBlock) override;
   void releaseResources() override {}
@@ -92,6 +96,7 @@ private:
   float angleDelta = 0.0f;
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> smoothedFreq { 440.0f };
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedGain { 0.0f };
+  std::atomic<bool> soundEnabled { true };
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverProcessor)
 };

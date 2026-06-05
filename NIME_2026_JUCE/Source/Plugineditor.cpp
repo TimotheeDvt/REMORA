@@ -36,6 +36,21 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   connectButton.onClick = [this] { toggleConnection(); };
   addAndMakeVisible(connectButton);
 
+  // Sound toggle button
+  soundButton.setClickingTogglesState(true);
+  soundButton.setToggleState(processor.isSoundEnabled(), juce::dontSendNotification);
+  soundButton.setColour(juce::TextButton::textColourOffId, Palette::textHi);
+  soundButton.onClick = [this] {
+    const bool isEnabled = soundButton.getToggleState();
+    processor.setSoundEnabled(isEnabled);
+    soundButton.setButtonText(isEnabled ? "SOUND ON" : "MUTED");
+    soundButton.setColour(juce::TextButton::buttonColourId, isEnabled ? Palette::accentDim : Palette::red.darker(0.3f));
+    soundButton.setColour(juce::TextButton::buttonOnColourId, isEnabled ? Palette::accentDim : Palette::red.darker(0.3f));
+  };
+  soundButton.onClick(); // Trigger once to set initial text and colors
+  soundButton.addShortcut(juce::KeyPress(juce::KeyPress::spaceKey, 0, 0));
+  addAndMakeVisible(soundButton);
+
   // Show Data button
   showDataButton.setButtonText("RAW DATA");
   showDataButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
@@ -168,6 +183,7 @@ void NIMEReceiverEditor::resized() {
   portLabel.setBounds(14, 50, 70, 12);
   portEditor.setBounds(14, 64, 70, 24);
   connectButton.setBounds(92, 64, 100, 24);
+  soundButton.setBounds(200, 64, 100, 24);
   showDataButton.setBounds(14, 100, 100, 24);
   calibrateButton.setBounds(122, 100, 100, 24);
 
