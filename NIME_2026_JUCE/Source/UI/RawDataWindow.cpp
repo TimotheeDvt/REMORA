@@ -201,13 +201,13 @@ juce::String RawDataComponent::fmt(float v, int decimals) {
 }
 
 juce::Colour RawDataComponent::rateColour(float mps) {
-  if (mps <= 0.f)
-    return Palette::textLo;
+  if (mps <= 10.f)
+    return Palette::red;
   if (mps < 50.f)
     return Palette::yellow;
-  if (mps < 200.f)
+  if (mps < 90.f)
     return Palette::accent;
-  return Palette::textHi;
+  return Palette::green;
 }
 
 RawDataWindow::RawDataWindow(NIMEReceiverProcessor &p)
