@@ -184,23 +184,33 @@ void NIMEReceiverEditor::timerCallback() {
 void NIMEReceiverEditor::refreshMainStats() {
   const int64_t lastTicks = processor.getLastMessageReceivedTicks();
   if (lastTicks > 0) {
-    const double latencyMs =
+    const double dataAgeMs =
         juce::Time::highResolutionTicksToSeconds(
             juce::Time::getHighResolutionTicks() - lastTicks) *
         1000.0;
+
+    double audioBufferMs = 0.0;
+    const double sampleRate = processor.getSampleRate();
+    if (sampleRate > 0.0) {
+      audioBufferMs += (processor.getBlockSize() / sampleRate) * 1000.0;
+      audioBufferMs += (processor.getLatencySamples() / sampleRate) * 1000.0;
+    }
+
+    const double totalLatencyMs = dataAgeMs + audioBufferMs;
+
     // Only show valid latency if we're actively receiving (e.g. less than 1
     // second ago)
-    if (latencyMs < 1000.0) {
+    if (dataAgeMs < 1000.0) {
       const juce::uint32 now = juce::Time::getMillisecondCounter();
       if (lastLatencyUpdateMs == 0 || now - lastLatencyUpdateMs >= 2000) {
         lastLatencyUpdateMs = now;
-        latencyValueLabel.setText(juce::String(latencyMs, 1),
+        latencyValueLabel.setText(juce::String(totalLatencyMs, 1),
                                   juce::dontSendNotification);
         latencyValueLabel.setColour(
             juce::Label::textColourId,
-            latencyMs > 10.0
+            totalLatencyMs > 10.0
                 ? Palette::red
-                : (latencyMs > 5.0 ? Palette::yellow : Palette::green));
+                : (totalLatencyMs > 20.0 ? Palette::yellow : Palette::green));
       }
     } else {
       latencyValueLabel.setText("-", juce::dontSendNotification);
