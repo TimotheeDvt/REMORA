@@ -50,9 +50,9 @@ MathHelpers::Quat NIMEReceiverProcessor::getCalibratedQuat() const {
 void NIMEReceiverProcessor::prepareToPlay(double sampleRate,
                                           int /*samplesPerBlock*/) {
   currentSampleRate = static_cast<float>(sampleRate);
-  // 50ms smoothing to prevent audio glitches/clicks from fast IMU movement
-  smoothedFreq.reset(sampleRate, 0.05);
-  smoothedGain.reset(sampleRate, 0.05);
+  // 5ms smoothing for minimum latency while preventing audio glitches
+  smoothedFreq.reset(sampleRate, 0.005);
+  smoothedGain.reset(sampleRate, 0.005);
 }
 
 void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
