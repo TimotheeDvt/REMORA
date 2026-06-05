@@ -1,38 +1,36 @@
 # NIME 2026 JUCE Project
 
-This project is built using JUCE and CMake, utilizing the Visual Studio 2022 MSVC compiler.
+This project is a JUCE-based audio plugin and standalone application developed as a NIME (New Interface for Musical Expression). It functions as an OSC receiver for a custom ESP32-based IMU sensor, translating physical movements and gestures directly into sound.
 
-## Prerequisites
-- **CMake** (v3.15 or higher)
-- **Visual Studio 2022** (with "Desktop development with C++" workload installed)
-- **Visual Studio Code** (Recommended)
+## How it Works
 
-## How to Build via Command Line (PowerShell)
+The software receives high-speed OSC packets over Wi-Fi containing 9DOF data (quaternions, accelerometer, gyroscope, magnetometer). The plugin maintains a relative orientation state based on user calibration, preventing drift and ensuring intuitive control regardless of the performer's starting position. The received motion data is smoothed to minimize latency while preventing audio artifacts, and is then fed into an internal synthesizer.
 
-CMake acts as a meta-build system. First, you configure the project (which generates the Visual Studio files in the `build/` folder), and then you instruct CMake to execute the build.
+## Current Mapping
 
-### 1. Configure the Project
+At present, the plugin acts as a simple synthesizer mapping device orientation to sound parameters:
+
+- **Pitch (Tilt Up/Down):** Controls the frequency of a sine wave oscillator. Pointing the device down plays a low tone (~100 Hz), while pointing it up plays a high tone (~1000 Hz).
+- **Roll (Twist Left/Right):** Controls the volume (gain) of the oscillator. There is a quiet base volume (5%) that increases up to 20% as the device is twisted away from the center.
+
+## Future Directions
+
+- Implement mode switching triggered by specific gesture conditions (e.g., changing modes when the device is rolling but not translating).
+- Extract and utilize Laban Effort Descriptors from the raw sensor data to map the qualitative feeling of the movement (Weight, Space, Time, Flow) to advanced synthesis parameters.
+
+---
+
+## Building
+
+Requires **CMake 3.15+** and **Visual Studio 2022** (Desktop C++). Outputs to `build/NIMEReceiver_artefacts/`.
+
 Run the following command in the root of the project to generate the build files:
 ```powershell
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 ```
-*Note: CMake automatically detects Visual Studio 2022 on your system.*
 
-### 2. Build the Plugin
 Once configured, compile the plugin using:
 ```powershell
 cmake --build build --config Release
 ```
 Your compiled `.vst3` or standalone application will be located inside the `build/NIMEReceiver_artefacts/` directory.
-
-## How to Build in Visual Studio Code
-
-1. Press `Ctrl + Shift + B`.
-2. Select **CMake: Build Release** from the dropdown menu.
-*(If you modify the CMakeLists.txt or add new files, run the **CMake: Configure** task first).*
-
-## Troubleshooting
-
-- **Missing `JuceHeader.h`**: Ensure `juce_generate_juce_header(NIMEReceiver)` exists in `CMakeLists.txt`.
-- **Spaces in Bundle ID**: Ensure the `BUNDLE_ID` in `juce_add_plugin` uses dots without spaces (e.g., `com.NIMEProject.NIMEReceiver`).
-- **Clean Rebuild**: If things get stuck, delete the `build/` folder entirely and run the Configure step again.
