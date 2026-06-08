@@ -38,25 +38,36 @@ void BoStaffVisualizer::updateStaff(MathHelpers::Quat q) {
   tip2History.push_back({pTop, now});
 
   // Remove expired points to fade out the trails
-  auto isOld = [&](const TracePoint &p) { return (now - p.timestamp) > trailLifetimeMs; };
-  tip1History.erase(std::remove_if(tip1History.begin(), tip1History.end(), isOld), tip1History.end());
-  tip2History.erase(std::remove_if(tip2History.begin(), tip2History.end(), isOld), tip2History.end());
+  auto isOld = [&](const TracePoint &p) {
+    return (now - p.timestamp) > trailLifetimeMs;
+  };
+  tip1History.erase(
+      std::remove_if(tip1History.begin(), tip1History.end(), isOld),
+      tip1History.end());
+  tip2History.erase(
+      std::remove_if(tip2History.begin(), tip2History.end(), isOld),
+      tip2History.end());
 
   repaint();
 }
 
-void BoStaffVisualizer::drawTrail(juce::Graphics &g, const std::vector<TracePoint> &history, juce::uint32 currentTime, juce::Colour colour) {
-  if (history.size() < 2) return;
-  
+void BoStaffVisualizer::drawTrail(juce::Graphics &g,
+                                  const std::vector<TracePoint> &history,
+                                  juce::uint32 currentTime,
+                                  juce::Colour colour) {
+  if (history.size() < 2)
+    return;
+
   for (size_t i = 1; i < history.size(); ++i) {
     auto &p1 = history[i - 1];
     auto &p2 = history[i];
-    
+
     float ageMs = static_cast<float>(currentTime - p2.timestamp);
     float lifeRatio = 1.0f - juce::jlimit(0.0f, 1.0f, ageMs / trailLifetimeMs);
-    
+
     g.setColour(colour.withAlpha(lifeRatio));
-    g.drawLine(juce::Line<float>(p1.position, p2.position), 1.0f + (6.0f * lifeRatio));
+    g.drawLine(juce::Line<float>(p1.position, p2.position),
+               1.0f + (6.0f * lifeRatio));
   }
 }
 
@@ -81,21 +92,24 @@ void BoStaffVisualizer::paint(juce::Graphics &g) {
 
   g.setColour(Palette::red.withAlpha(0.6f));
   g.drawLine(pOrigin.x, pOrigin.y, pX.x, pX.y, 2.f);
-  g.drawText("X", juce::Rectangle<float>(pX.x - 10.f, pX.y - 10.f, 20.f, 20.f), juce::Justification::centred);
+  g.drawText("X", juce::Rectangle<float>(pX.x - 10.f, pX.y - 10.f, 20.f, 20.f),
+             juce::Justification::centred);
 
   g.setColour(Palette::green.withAlpha(0.6f));
   g.drawLine(pOrigin.x, pOrigin.y, pY.x, pY.y, 2.f);
-  g.drawText("Y", juce::Rectangle<float>(pY.x - 10.f, pY.y - 10.f, 20.f, 20.f), juce::Justification::centred);
+  g.drawText("Y", juce::Rectangle<float>(pY.x - 10.f, pY.y - 10.f, 20.f, 20.f),
+             juce::Justification::centred);
 
   g.setColour(Palette::accent.withAlpha(0.6f));
   g.drawLine(pOrigin.x, pOrigin.y, pZ.x, pZ.y, 2.f);
-  g.drawText("Z", juce::Rectangle<float>(pZ.x - 10.f, pZ.y - 10.f, 20.f, 20.f), juce::Justification::centred);
+  g.drawText("Z", juce::Rectangle<float>(pZ.x - 10.f, pZ.y - 10.f, 20.f, 20.f),
+             juce::Justification::centred);
 
   // 2. Draw the Trails
   auto now = juce::Time::getMillisecondCounter();
   drawTrail(g, tip1History, now, Palette::accentDim);
   drawTrail(g, tip2History, now, Palette::red);
-  
+
   // 3. Draw the active Staff over the trails
   MathHelpers::Vec3 top = {1.f, 0.f, 0.f};
   MathHelpers::Vec3 bottom = {-1.f, 0.f, 0.f};
