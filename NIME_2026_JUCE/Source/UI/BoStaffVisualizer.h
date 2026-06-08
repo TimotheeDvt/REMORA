@@ -19,8 +19,14 @@ private:
     juce::uint32 timestamp;
   };
 
+  struct OrientationPoint {
+    MathHelpers::Quat orientation;
+    juce::uint32 timestamp;
+  };
+
   std::vector<TracePoint> tip1History;
   std::vector<TracePoint> tip2History;
+  std::vector<OrientationPoint> orientationHistory;
   float trailLifetimeMs = 500.0f;
 
   MathHelpers::Quat currentQuat{1.f, 0.f, 0.f, 0.f};

@@ -36,9 +36,10 @@ void BoStaffVisualizer::updateStaff(MathHelpers::Quat q) {
   auto now = juce::Time::getMillisecondCounter();
   tip1History.push_back({pBot, now});
   tip2History.push_back({pTop, now});
+  orientationHistory.push_back({q, now});
 
   // Remove expired points to fade out the trails
-  auto isOld = [&](const TracePoint &p) {
+  auto isOld = [&](const auto &p) {
     return (now - p.timestamp) > trailLifetimeMs;
   };
   tip1History.erase(
@@ -47,6 +48,9 @@ void BoStaffVisualizer::updateStaff(MathHelpers::Quat q) {
   tip2History.erase(
       std::remove_if(tip2History.begin(), tip2History.end(), isOld),
       tip2History.end());
+  orientationHistory.erase(
+      std::remove_if(orientationHistory.begin(), orientationHistory.end(), isOld),
+      orientationHistory.end());
 
   repaint();
 }
