@@ -1,10 +1,9 @@
 #pragma once
 
 #include "PluginProcessor.h"
-#include "UI/RawDataWindow.h"
 #include "UI/BoStaffVisualizer.h"
+#include "UI/RawDataWindow.h"
 #include <JuceHeader.h>
-
 
 class NIMEReceiverEditor : public juce::AudioProcessorEditor,
                            private juce::Timer {
@@ -28,7 +27,6 @@ private:
   juce::TextButton connectButton;
   juce::TextButton soundButton;
   juce::TextButton showDataButton;
-  juce::TextButton calibrateButton;
   juce::Label statusDot;
 
   juce::Label latencyLabel;
@@ -41,8 +39,7 @@ private:
 
   std::unique_ptr<RawDataWindow> rawDataWindow;
 
-  std::unique_ptr<juce::DocumentWindow> axisMappingWindow;
-  juce::TextButton axisMapButton;
+  juce::TextButton calibrateButton;
 
   BoStaffVisualizer boStaffVisualizer;
 

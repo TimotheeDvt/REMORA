@@ -4,106 +4,6 @@
 #include "UI/StyleHelpers.h"
 #include <BinaryData.h>
 
-class AxisMappingComponent : public juce::Component {
-public:
-  AxisMappingComponent(NIMEReceiverProcessor& p) : processor(p) {
-    setSize(460, 260);
-    
-    auto setupCombo = [&](juce::ComboBox& cb, int axisIdx) {
-        addAndMakeVisible(cb);
-        cb.addItem("+ Raw X", 1);
-        cb.addItem("- Raw X", 2);
-        cb.addItem("+ Raw Y", 3);
-        cb.addItem("- Raw Y", 4);
-        cb.addItem("+ Raw Z", 5);
-        cb.addItem("- Raw Z", 6);
-        cb.setSelectedId(processor.getAxisMap(axisIdx) + 1, juce::dontSendNotification);
-        
-        cb.onChange = [this, &cb, axisIdx] {
-            processor.setAxisMap(axisIdx, cb.getSelectedId() - 1);
-            updateCodeSnippet();
-        };
-    };
-    
-    setupCombo(comboX, 0);
-    setupCombo(comboY, 1);
-    setupCombo(comboZ, 2);
-
-    addAndMakeVisible(xLabel); styleLabel(xLabel, "Visualizer X =", 14.f, Palette::textHi);
-    addAndMakeVisible(yLabel); styleLabel(yLabel, "Visualizer Y =", 14.f, Palette::textHi);
-    addAndMakeVisible(zLabel); styleLabel(zLabel, "Visualizer Z =", 14.f, Palette::textHi);
-
-    addAndMakeVisible(codeLabel);
-    codeLabel.setJustificationType(juce::Justification::topLeft);
-    codeLabel.setFont(juce::Font(juce::Font::getDefaultMonospacedFontName(), 13.f, juce::Font::plain));
-    codeLabel.setColour(juce::Label::textColourId, Palette::accent);
-    
-    updateCodeSnippet();
-  }
-
-  void resized() override {
-    auto bounds = getLocalBounds().reduced(20);
-    
-    auto row = bounds.removeFromTop(24);
-    xLabel.setBounds(row.removeFromLeft(120));
-    comboX.setBounds(row);
-    bounds.removeFromTop(10);
-    
-    row = bounds.removeFromTop(24);
-    yLabel.setBounds(row.removeFromLeft(120));
-    comboY.setBounds(row);
-    bounds.removeFromTop(10);
-    
-    row = bounds.removeFromTop(24);
-    zLabel.setBounds(row.removeFromLeft(120));
-    comboZ.setBounds(row);
-    
-    bounds.removeFromTop(20);
-    codeLabel.setBounds(bounds);
-  }
-
-private:
-  void updateCodeSnippet() {
-      auto getVarName = [](int code) {
-          switch(code) {
-              case 0: return " d.qx.load(std::memory_order_relaxed)";
-              case 1: return "-d.qx.load(std::memory_order_relaxed)";
-              case 2: return " d.qy.load(std::memory_order_relaxed)";
-              case 3: return "-d.qy.load(std::memory_order_relaxed)";
-              case 4: return " d.qz.load(std::memory_order_relaxed)";
-              case 5: return "-d.qz.load(std::memory_order_relaxed)";
-              default: return " 0.f";
-          }
-      };
-      
-      juce::String code = "// Hardcode this snippet back into getMappedRawQuat():\n\n";
-      code << "return {\n";
-      code << "    d.qw.load(std::memory_order_relaxed),\n";
-      code << "    " << getVarName(processor.getAxisMap(0)) << ",\n";
-      code << "    " << getVarName(processor.getAxisMap(1)) << ",\n";
-      code << "    " << getVarName(processor.getAxisMap(2)) << "\n";
-      code << "};";
-      
-      codeLabel.setText(code, juce::dontSendNotification);
-  }
-
-  NIMEReceiverProcessor& processor;
-  juce::ComboBox comboX, comboY, comboZ;
-  juce::Label xLabel, yLabel, zLabel, codeLabel;
-};
-
-class AxisMappingWindow : public juce::DocumentWindow {
-public:
-    AxisMappingWindow(NIMEReceiverProcessor& p)
-        : DocumentWindow("Axis Mapper", Palette::bg, DocumentWindow::closeButton), content(p) {
-        setContentNonOwned(&content, true);
-        setResizable(false, false);
-    }
-    void closeButtonPressed() override { setVisible(false); }
-private:
-    AxisMappingComponent content;
-};
-
 NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
     : AudioProcessorEditor(&p), processor(p) {
   setSize(520, 360);
@@ -159,29 +59,24 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   };
   addAndMakeVisible(showDataButton);
 
-  // Axis Mapper button
-  axisMapButton.setButtonText("MAP AXES");
-  axisMapButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
-  axisMapButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
-  axisMapButton.onClick = [this] {
-    if (axisMappingWindow && axisMappingWindow->isVisible()) {
-      axisMappingWindow->setVisible(false);
-    } else {
-      if (!axisMappingWindow) {
-        axisMappingWindow = std::make_unique<AxisMappingWindow>(processor);
-      }
-      axisMappingWindow->setVisible(true);
-      axisMappingWindow->toFront(true);
-    }
-  };
-  addAndMakeVisible(axisMapButton);
-
-  // Calibrate button
   calibrateButton.setButtonText("CALIBRATE");
   calibrateButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
   calibrateButton.setColour(juce::TextButton::textColourOffId,
                             Palette::textMid);
-  calibrateButton.onClick = [this] { processor.calibrate(); };
+  calibrateButton.onClick = [this] {
+    auto state = (NIMEReceiverProcessor::CalibState)processor.getCalibState();
+    if (state == NIMEReceiverProcessor::CalibState::Idle ||
+        state == NIMEReceiverProcessor::CalibState::Done) {
+      processor.startCalibration();
+      calibrateButton.setButtonText("POSE A ->");
+    } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseA) {
+      processor.recordPoseA();
+      calibrateButton.setButtonText("POSE B ->");
+    } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseB) {
+      processor.recordPoseB();
+      calibrateButton.setButtonText("CALIBRATE");
+    }
+  };
   addAndMakeVisible(calibrateButton);
 
   // Status dot (repurposed Label as a coloured dot)
@@ -209,7 +104,6 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
 NIMEReceiverEditor::~NIMEReceiverEditor() {
   stopTimer();
   rawDataWindow.reset();
-  axisMappingWindow.reset();
 }
 
 void NIMEReceiverEditor::paint(juce::Graphics &g) {
@@ -249,9 +143,8 @@ void NIMEReceiverEditor::resized() {
   // Controls
   connectButton.setBounds(14, 64, 100, 24);
   soundButton.setBounds(122, 64, 100, 24);
-  showDataButton.setBounds(14, 100, 66, 24);
-  axisMapButton.setBounds(84, 100, 66, 24);
-  calibrateButton.setBounds(154, 100, 66, 24);
+  showDataButton.setBounds(14, 100, 80, 24);
+  calibrateButton.setBounds(104, 100, 115, 24);
 
   // Latency display
   latencyValueLabel.setBounds(w - 200, 44, 130, 60);
