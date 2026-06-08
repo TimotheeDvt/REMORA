@@ -16,9 +16,15 @@ juce_add_plugin(NIMEReceiver
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     VST3_CATEGORIES           Tools
     BUNDLE_ID                 com.NIMEProject.NIMEReceiver
+    ICON_BIG                  "Assets/logo.png"
 )
 
 juce_generate_juce_header(NIMEReceiver)
+
+juce_add_binary_data(NIMEReceiverData
+    SOURCES
+        Assets/logo.png
+)
 
 target_sources(NIMEReceiver
     PRIVATE
@@ -47,6 +53,7 @@ target_compile_definitions(NIMEReceiver
 
 target_link_libraries(NIMEReceiver
     PRIVATE
+        NIMEReceiverData
         juce::juce_audio_utils
         juce::juce_osc
     PUBLIC

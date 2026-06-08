@@ -2,6 +2,7 @@
 #include "DSP/MathHelpers.h"
 #include "UI/Palette.h"
 #include "UI/StyleHelpers.h"
+#include <BinaryData.h>
 
 NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
     : AudioProcessorEditor(&p), processor(p) {
@@ -108,6 +109,12 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
 
   const auto w = getWidth();
 
+  // Draw the logo at the top right (next to the status dot)
+  juce::Image logo = juce::ImageCache::getFromMemory(BinaryData::logo_png, BinaryData::logo_pngSize);
+  if (logo.isValid()) {
+    g.drawImageWithin(logo, w - 80, 6.f, 40, 24, juce::RectanglePlacement::centred);
+  }
+
   // Top divider
   g.setColour(Palette::border);
   g.drawHorizontalLine(36, 12.f, static_cast<float>(w - 12));
@@ -117,7 +124,7 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   g.setColour(isReceivingData ? Palette::green : Palette::red);
   g.fillEllipse(static_cast<float>(getWidth() - 28), 14.f, 8.f, 8.f);
 
-  // Draw 3D Staff Simulation
+  // Draw 3D Staff separation
   g.setColour(Palette::border);
   g.drawHorizontalLine(140, 24.f, static_cast<float>(w - 24));
 }
