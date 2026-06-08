@@ -34,6 +34,8 @@ target_sources(NIMEReceiver
         Source/UI/RawDataWindow.cpp
         Source/UI/RawDataWindow.h
         Source/UI/StyleHelpers.h
+        Source/UI/BoStaffVisualizer.h
+        Source/UI/BoStaffVisualizer.cpp
 )
 
 target_compile_definitions(NIMEReceiver

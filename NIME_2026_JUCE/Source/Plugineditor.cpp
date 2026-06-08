@@ -86,6 +86,9 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   addAndMakeVisible(latencyLabel);
   addAndMakeVisible(latencyValueLabel);
 
+  boStaffVisualizer.setTrailLifetime(0.6f);
+  addAndMakeVisible(boStaffVisualizer);
+
   // 60 Hz UI refresh timer
   startTimerHz(60);
 
@@ -117,60 +120,6 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   // Draw 3D Staff Simulation
   g.setColour(Palette::border);
   g.drawHorizontalLine(140, 24.f, static_cast<float>(w - 24));
-
-  MathHelpers::Quat q = processor.getCalibratedQuat();
-
-  const float scale = 90.f;
-  const float cx = w / 2.f;
-  const float cy = 250.f;
-
-  // 3D -> 2D projection (Cabinet-style isometric)
-  auto project = [cx, cy, scale](MathHelpers::Vec3 v) {
-    const float depth = 0.3f; // Depth scaling factor for the Y axis
-    return juce::Point<float>(cx + (v.x - v.y * depth) * scale,
-                              cy - (v.z - v.y * depth) * scale);
-  };
-
-  // Draw world axes (X = Right/Red, Y = Depth/Green, Z = Up/Blue)
-  auto pOrigin = project({0.f, 0.f, 0.f});
-  auto pX = project({1.f, 0.f, 0.f});
-  auto pY = project({0.f, 1.f, 0.f});
-  auto pZ = project({0.f, 0.f, 1.f});
-
-  g.setColour(Palette::red.withAlpha(0.6f));
-  g.drawLine(pOrigin.x, pOrigin.y, pX.x, pX.y, 2.f);
-  g.drawText("X", juce::Rectangle<float>(pX.x - 10.f, pX.y - 10.f, 20.f, 20.f),
-             juce::Justification::centred);
-
-  g.setColour(Palette::green.withAlpha(0.6f));
-  g.drawLine(pOrigin.x, pOrigin.y, pY.x, pY.y, 2.f);
-  g.drawText("Y", juce::Rectangle<float>(pY.x - 10.f, pY.y - 10.f, 20.f, 20.f),
-             juce::Justification::centred);
-
-  g.setColour(Palette::accent.withAlpha(0.6f));
-  g.drawLine(pOrigin.x, pOrigin.y, pZ.x, pZ.y, 2.f);
-  g.drawText("Z", juce::Rectangle<float>(pZ.x - 10.f, pZ.y - 10.f, 20.f, 20.f),
-             juce::Justification::centred);
-
-  // Staff resting horizontally along the X-axis
-  MathHelpers::Vec3 top = {1.f, 0.f, 0.f};
-  MathHelpers::Vec3 bottom = {-1.f, 0.f, 0.f};
-
-  top = MathHelpers::rotate(top, q);
-  bottom = MathHelpers::rotate(bottom, q);
-
-  auto pTop = project(top);
-  auto pBot = project(bottom);
-
-  // Draw the staff line
-  g.setColour(Palette::textMid);
-  g.drawLine(pBot.x, pBot.y, pTop.x, pTop.y, 8.f);
-
-  // Draw colored tips to help orient
-  g.setColour(Palette::accentDim);
-  g.fillEllipse(pBot.x - 6.f, pBot.y - 6.f, 12.f, 12.f);
-  g.setColour(Palette::red);
-  g.fillEllipse(pTop.x - 6.f, pTop.y - 6.f, 12.f, 12.f);
 }
 
 void NIMEReceiverEditor::resized() {
@@ -190,10 +139,13 @@ void NIMEReceiverEditor::resized() {
   // Latency display
   latencyValueLabel.setBounds(w - 200, 44, 130, 60);
   latencyLabel.setBounds(w - 68, 82, 80, 18);
+
+  boStaffVisualizer.setBounds(0, 140, w, getHeight() - 140);
 }
 
 void NIMEReceiverEditor::timerCallback() {
   refreshMainStats();
+  boStaffVisualizer.updateStaff(processor.getCalibratedQuat());
   repaint();
 }
 
