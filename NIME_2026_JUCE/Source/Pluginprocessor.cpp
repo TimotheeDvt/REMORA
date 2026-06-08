@@ -17,34 +17,67 @@ void NIMEReceiverProcessor::timerCallback() {
   oscManager.updateMessagesPerSecond();
 }
 
-void NIMEReceiverProcessor::calibrate() {
+MathHelpers::Quat NIMEReceiverProcessor::getMappedRawQuat() const {
   const auto &d = getIMUData();
+  float raw[3] = {
+      d.qx.load(std::memory_order_relaxed),
+      d.qy.load(std::memory_order_relaxed),
+      d.qz.load(std::memory_order_relaxed)
+  };
+
+  auto getMapped = [&](int mapCode) {
+    int axis = mapCode / 2;
+    float sign = (mapCode % 2 == 0) ? 1.0f : -1.0f;
+    return raw[axis] * sign;
+  };
+
+  return {
+      d.qw.load(std::memory_order_relaxed),
+      getMapped(axisMapX.load(std::memory_order_relaxed)),
+      getMapped(axisMapY.load(std::memory_order_relaxed)),
+      getMapped(axisMapZ.load(std::memory_order_relaxed))
+  };
+}
+
+int NIMEReceiverProcessor::getAxisMap(int axisIndex) const {
+  if (axisIndex == 0) return axisMapX.load(std::memory_order_relaxed);
+  if (axisIndex == 1) return axisMapY.load(std::memory_order_relaxed);
+  return axisMapZ.load(std::memory_order_relaxed);
+}
+
+void NIMEReceiverProcessor::setAxisMap(int axisIndex, int mapCode) {
+  if (axisIndex == 0) axisMapX.store(mapCode, std::memory_order_relaxed);
+  else if (axisIndex == 1) axisMapY.store(mapCode, std::memory_order_relaxed);
+  else if (axisIndex == 2) axisMapZ.store(mapCode, std::memory_order_relaxed);
+}
+
+void NIMEReceiverProcessor::calibrate() {
+  auto q = getMappedRawQuat();
   // Store conjugate of current rotation
-  calibW.store(d.qw.load(std::memory_order_relaxed), std::memory_order_relaxed);
-  calibX.store(-d.qx.load(std::memory_order_relaxed),
-               std::memory_order_relaxed);
-  calibY.store(-d.qy.load(std::memory_order_relaxed),
-               std::memory_order_relaxed);
-  calibZ.store(-d.qz.load(std::memory_order_relaxed),
-               std::memory_order_relaxed);
+  calibW.store(q.w, std::memory_order_relaxed);
+  calibX.store(-q.x, std::memory_order_relaxed);
+  calibY.store(-q.y, std::memory_order_relaxed);
+  calibZ.store(-q.z, std::memory_order_relaxed);
 }
 
 MathHelpers::Quat NIMEReceiverProcessor::getCalibratedQuat() const {
-  const auto &d = getIMUData();
-  const float rw = d.qw.load(std::memory_order_relaxed);
-  const float rx = d.qx.load(std::memory_order_relaxed);
-  const float ry = d.qy.load(std::memory_order_relaxed);
-  const float rz = d.qz.load(std::memory_order_relaxed);
+  auto raw = getMappedRawQuat();
+  const float rw = raw.w;
+  const float rx = raw.x;
+  const float ry = raw.y;
+  const float rz = raw.z;
 
   const float cw = calibW.load(std::memory_order_relaxed);
   const float cx = calibX.load(std::memory_order_relaxed);
   const float cy = calibY.load(std::memory_order_relaxed);
   const float cz = calibZ.load(std::memory_order_relaxed);
 
-  return MathHelpers::Quat{cw * rw - cx * rx - cy * ry - cz * rz,
-                           cw * rx + cx * rw + cy * rz - cz * ry,
-                           cw * ry - cx * rz + cy * rw + cz * rx,
-                           cw * rz + cx * ry - cy * rx + cz * rw};
+  // Multiply Q_raw * Q_calib to map global physical rotation to global virtual rotation
+  // (making the visualizer and synth invariant to how the sensor is physically mounted)
+  return MathHelpers::Quat{rw * cw - rx * cx - ry * cy - rz * cz,
+                           rw * cx + rx * cw + ry * cz - rz * cy,
+                           rw * cy - rx * cz + ry * cw + rz * cx,
+                           rw * cz + rx * cy - ry * cx + rz * cw};
 }
 
 void NIMEReceiverProcessor::prepareToPlay(double sampleRate,
@@ -62,8 +95,7 @@ void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   if (isReceivingValidData) {
     auto now = juce::Time::getMillisecondCounter();
     size_t idx = historyWriteIndex.load(std::memory_order_relaxed);
-    orientationHistory[idx % orientationHistory.size()] = {getCalibratedQuat(),
-                                                           now};
+    orientationHistory[idx % orientationHistory.size()] = {getCalibratedQuat(), now};
     historyWriteIndex.store(idx + 1, std::memory_order_release);
   }
 
@@ -71,8 +103,7 @@ void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   synth.processBlock(buffer, getCalibratedQuat(), isReceivingValidData);
 }
 
-std::vector<OrientationPoint>
-NIMEReceiverProcessor::getRecentOrientations(float maxAgeMs) const {
+std::vector<OrientationPoint> NIMEReceiverProcessor::getRecentOrientations(float maxAgeMs) const {
   std::vector<OrientationPoint> recent;
   auto now = juce::Time::getMillisecondCounter();
   size_t writeIdx = historyWriteIndex.load(std::memory_order_acquire);

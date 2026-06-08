@@ -1,21 +1,22 @@
 #pragma once
 
-#include "DSP/BoStaffSynth.h"
-#include "DSP/MathHelpers.h"
-#include "Data/IMUData.h"
-#include "OSC/OscReceiverManager.h"
 #include <JuceHeader.h>
 #include <array>
 #include <atomic>
 #include <vector>
-
+#include "Data/IMUData.h"
+#include "DSP/MathHelpers.h"
+#include "DSP/BoStaffSynth.h"
+#include "OSC/OscReceiverManager.h"
 
 struct OrientationPoint {
   MathHelpers::Quat orientation;
   juce::uint32 timestamp;
 };
 
-class NIMEReceiverProcessor : public juce::AudioProcessor, private juce::Timer {
+class NIMEReceiverProcessor
+    : public juce::AudioProcessor,
+      private juce::Timer {
 public:
   NIMEReceiverProcessor();
   ~NIMEReceiverProcessor() override;
@@ -30,20 +31,14 @@ public:
   float getMessagesPerSecond() const noexcept {
     return oscManager.getMessagesPerSecond();
   }
-  int getTotalMessageCount() const noexcept {
-    return oscManager.getTotalMessageCount();
-  }
+  int getTotalMessageCount() const noexcept { return oscManager.getTotalMessageCount(); }
   int getConnectedDeviceCount() const noexcept {
     return oscManager.getConnectedDeviceCount();
   }
-  int64_t getLastMessageReceivedTicks() const noexcept {
-    return oscManager.getLastMessageReceivedTicks();
-  }
+  int64_t getLastMessageReceivedTicks() const noexcept { return oscManager.getLastMessageReceivedTicks(); }
 
   // Last known IP of connected device
-  juce::String getLastConnectedIP() const {
-    return oscManager.getLastConnectedIP();
-  }
+  juce::String getLastConnectedIP() const { return oscManager.getLastConnectedIP(); }
 
   // IMU data access
   const IMUData &getIMUData() const noexcept { return oscManager.getIMUData(); }
@@ -52,17 +47,19 @@ public:
   void calibrate();
   MathHelpers::Quat getCalibratedQuat() const;
 
+  MathHelpers::Quat getMappedRawQuat() const;
+
+  int getAxisMap(int axisIndex) const;
+  void setAxisMap(int axisIndex, int mapCode);
+
   // Sound toggle
-  void setSoundEnabled(bool shouldBeEnabled) {
-    synth.setSoundEnabled(shouldBeEnabled);
-  }
+  void setSoundEnabled(bool shouldBeEnabled) { synth.setSoundEnabled(shouldBeEnabled); }
   bool isSoundEnabled() const { return synth.isSoundEnabled(); }
 
   // Standard AudioProcessor overrides
   void prepareToPlay(double sampleRate, int samplesPerBlock) override;
   void releaseResources() override {}
-  void processBlock(juce::AudioBuffer<float> &buffer,
-                    juce::MidiBuffer &midiMessages) override;
+  void processBlock(juce::AudioBuffer<float> &buffer, juce::MidiBuffer &midiMessages) override;
 
   std::vector<OrientationPoint> getRecentOrientations(float maxAgeMs) const;
 
@@ -110,8 +107,12 @@ private:
   // DSP Engine
   BoStaffSynth synth;
 
+  std::atomic<int> axisMapX { 0 }; // default: +Raw X
+  std::atomic<int> axisMapY { 2 }; // default: +Raw Y
+  std::atomic<int> axisMapZ { 4 }; // default: +Raw Z
+
   std::array<OrientationPoint, 2048> orientationHistory;
-  std::atomic<size_t> historyWriteIndex{0};
+  std::atomic<size_t> historyWriteIndex { 0 };
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverProcessor)
 };

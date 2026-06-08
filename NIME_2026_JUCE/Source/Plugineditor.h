@@ -41,6 +41,9 @@ private:
 
   std::unique_ptr<RawDataWindow> rawDataWindow;
 
+  std::unique_ptr<juce::DocumentWindow> axisMappingWindow;
+  juce::TextButton axisMapButton;
+
   BoStaffVisualizer boStaffVisualizer;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverEditor)
