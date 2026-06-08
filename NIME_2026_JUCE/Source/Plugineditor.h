@@ -25,8 +25,6 @@ private:
 
   // Connection bar
   juce::Label titleLabel;
-  juce::Label portLabel;
-  juce::TextEditor portEditor;
   juce::TextButton connectButton;
   juce::TextButton soundButton;
   juce::TextButton showDataButton;
@@ -38,6 +36,7 @@ private:
 
   // State
   bool connected = false;
+  int udpPort = 8000;
   juce::uint32 lastLatencyUpdateMs = 0;
 
   std::unique_ptr<RawDataWindow> rawDataWindow;

@@ -14,20 +14,6 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
              juce::Justification::centredLeft);
   addAndMakeVisible(titleLabel);
 
-  // Port
-  styleLabel(portLabel, "UDP PORT", 10.f, Palette::textLo);
-  addAndMakeVisible(portLabel);
-
-  portEditor.setText("8000");
-  portEditor.setFont(juce::Font(juce::FontOptions().withHeight(13.f)));
-  portEditor.setColour(juce::TextEditor::backgroundColourId, Palette::panel);
-  portEditor.setColour(juce::TextEditor::textColourId, Palette::textHi);
-  portEditor.setColour(juce::TextEditor::outlineColourId, Palette::border);
-  portEditor.setColour(juce::TextEditor::focusedOutlineColourId,
-                       Palette::accent);
-  portEditor.setInputRestrictions(5, "0123456789");
-  portEditor.setJustification(juce::Justification::centred);
-  addAndMakeVisible(portEditor);
 
   // Connect button
   connectButton.setButtonText("CONNECT");
@@ -135,11 +121,9 @@ void NIMEReceiverEditor::resized() {
   // Title
   titleLabel.setBounds(14, 10, 220, 20);
 
-  // Port + connect
-  portLabel.setBounds(14, 50, 70, 12);
-  portEditor.setBounds(14, 64, 70, 24);
-  connectButton.setBounds(92, 64, 100, 24);
-  soundButton.setBounds(200, 64, 100, 24);
+  // Controls
+  connectButton.setBounds(14, 64, 100, 24);
+  soundButton.setBounds(122, 64, 100, 24);
   showDataButton.setBounds(14, 100, 100, 24);
   calibrateButton.setBounds(122, 100, 100, 24);
 
@@ -201,12 +185,7 @@ void NIMEReceiverEditor::refreshMainStats() {
 
 void NIMEReceiverEditor::toggleConnection() {
   if (!connected) {
-    const int port = portEditor.getText().getIntValue();
-    if (port < 1 || port > 65535) {
-      portEditor.setColour(juce::TextEditor::outlineColourId, Palette::red);
-      return;
-    }
-    portEditor.setColour(juce::TextEditor::outlineColourId, Palette::border);
+    const int port = udpPort;
 
     if (processor.startOSCReceiver(port)) {
       connected = true;
@@ -224,11 +203,9 @@ void NIMEReceiverEditor::updateConnectionUI() {
     connectButton.setButtonText("DISCONNECT");
     connectButton.setColour(juce::TextButton::buttonColourId,
                             Palette::red.darker(0.3f));
-    portEditor.setEnabled(false);
   } else {
     connectButton.setButtonText("CONNECT");
     connectButton.setColour(juce::TextButton::buttonColourId,
                             Palette::accentDim);
-    portEditor.setEnabled(true);
   }
 }
