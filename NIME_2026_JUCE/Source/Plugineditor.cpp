@@ -14,7 +14,6 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
              juce::Justification::centredLeft);
   addAndMakeVisible(titleLabel);
 
-
   // Connect button
   connectButton.setButtonText("CONNECT");
   connectButton.setColour(juce::TextButton::buttonColourId, Palette::accentDim);
@@ -25,14 +24,19 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
 
   // Sound toggle button
   soundButton.setClickingTogglesState(true);
-  soundButton.setToggleState(processor.isSoundEnabled(), juce::dontSendNotification);
+  soundButton.setToggleState(processor.isSoundEnabled(),
+                             juce::dontSendNotification);
   soundButton.setColour(juce::TextButton::textColourOffId, Palette::textHi);
   soundButton.onClick = [this] {
     const bool isEnabled = soundButton.getToggleState();
     processor.setSoundEnabled(isEnabled);
     soundButton.setButtonText(isEnabled ? "SOUND ON" : "MUTED");
-    soundButton.setColour(juce::TextButton::buttonColourId, isEnabled ? Palette::accentDim : Palette::red.darker(0.3f));
-    soundButton.setColour(juce::TextButton::buttonOnColourId, isEnabled ? Palette::accentDim : Palette::red.darker(0.3f));
+    soundButton.setColour(juce::TextButton::buttonColourId,
+                          isEnabled ? Palette::accentDim
+                                    : Palette::red.darker(0.3f));
+    soundButton.setColour(juce::TextButton::buttonOnColourId,
+                          isEnabled ? Palette::accentDim
+                                    : Palette::red.darker(0.3f));
   };
   soundButton.onClick(); // Trigger once to set initial text and colors
   soundButton.addShortcut(juce::KeyPress(juce::KeyPress::spaceKey, 0, 0));
@@ -58,7 +62,8 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   // Calibrate button
   calibrateButton.setButtonText("CALIBRATE");
   calibrateButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
-  calibrateButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
+  calibrateButton.setColour(juce::TextButton::textColourOffId,
+                            Palette::textMid);
   calibrateButton.onClick = [this] { processor.calibrate(); };
   addAndMakeVisible(calibrateButton);
 
@@ -96,9 +101,11 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   const auto w = getWidth();
 
   // Draw the logo at the top right (next to the status dot)
-  juce::Image logo = juce::ImageCache::getFromMemory(BinaryData::logo_png, BinaryData::logo_pngSize);
+  juce::Image logo = juce::ImageCache::getFromMemory(BinaryData::logo_png,
+                                                     BinaryData::logo_pngSize);
   if (logo.isValid()) {
-    g.drawImageWithin(logo, w - 80, 6, 40, 24, juce::RectanglePlacement::centred);
+    g.drawImageWithin(logo, w - 80, 6, 40, 24,
+                      juce::RectanglePlacement::centred);
   }
 
   // Top divider
@@ -136,7 +143,9 @@ void NIMEReceiverEditor::resized() {
 
 void NIMEReceiverEditor::timerCallback() {
   refreshMainStats();
-  boStaffVisualizer.updateStaff(processor.getCalibratedQuat());
+  boStaffVisualizer.updateStaff(
+      processor.getCalibratedQuat(),
+      processor.getRecentOrientations(boStaffVisualizer.getTrailLifetimeMs()));
   repaint();
 }
 

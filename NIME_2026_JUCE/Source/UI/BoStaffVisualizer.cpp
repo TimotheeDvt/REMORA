@@ -9,69 +9,30 @@ void BoStaffVisualizer::setTrailLifetime(float lifetimeInSeconds) {
   trailLifetimeMs = lifetimeInSeconds * 1000.0f;
 }
 
-void BoStaffVisualizer::updateStaff(MathHelpers::Quat q) {
+void BoStaffVisualizer::updateStaff(
+    MathHelpers::Quat q, const std::vector<OrientationPoint> &history) {
   currentQuat = q;
-
-  const float w = static_cast<float>(getWidth());
-  const float h = static_cast<float>(getHeight());
-  const float scale = 90.f;
-  const float cx = w / 2.f;
-  const float cy = h / 2.f;
-
-  auto project = [cx, cy, scale](MathHelpers::Vec3 v) {
-    const float depth = 0.3f;
-    return juce::Point<float>(cx + (v.x - v.y * depth) * scale,
-                              cy - (v.z - v.y * depth) * scale);
-  };
-
-  MathHelpers::Vec3 top = {1.f, 0.f, 0.f};
-  MathHelpers::Vec3 bottom = {-1.f, 0.f, 0.f};
-
-  top = MathHelpers::rotate(top, q);
-  bottom = MathHelpers::rotate(bottom, q);
-
-  auto pTop = project(top);
-  auto pBot = project(bottom);
-
-  auto now = juce::Time::getMillisecondCounter();
-  tip1History.push_back({pBot, now});
-  tip2History.push_back({pTop, now});
-  orientationHistory.push_back({q, now});
-
-  // Remove expired points to fade out the trails
-  auto isOld = [&](const auto &p) {
-    return (now - p.timestamp) > trailLifetimeMs;
-  };
-  tip1History.erase(
-      std::remove_if(tip1History.begin(), tip1History.end(), isOld),
-      tip1History.end());
-  tip2History.erase(
-      std::remove_if(tip2History.begin(), tip2History.end(), isOld),
-      tip2History.end());
-  orientationHistory.erase(
-      std::remove_if(orientationHistory.begin(), orientationHistory.end(), isOld),
-      orientationHistory.end());
-
+  orientationHistory = history;
   repaint();
 }
 
 void BoStaffVisualizer::drawTrail(juce::Graphics &g,
-                                  const std::vector<TracePoint> &history,
+                                  const std::vector<juce::Point<float>> &points,
+                                  const std::vector<juce::uint32> &timestamps,
                                   juce::uint32 currentTime,
                                   juce::Colour colour) {
-  if (history.size() < 2)
+  if (points.size() < 2)
     return;
 
-  for (size_t i = 1; i < history.size(); ++i) {
-    auto &p1 = history[i - 1];
-    auto &p2 = history[i];
+  for (size_t i = 1; i < points.size(); ++i) {
+    auto p1 = points[i - 1];
+    auto p2 = points[i];
 
-    float ageMs = static_cast<float>(currentTime - p2.timestamp);
+    float ageMs = static_cast<float>(currentTime - timestamps[i]);
     float lifeRatio = 1.0f - juce::jlimit(0.0f, 1.0f, ageMs / trailLifetimeMs);
 
     g.setColour(colour.withAlpha(lifeRatio));
-    g.drawLine(juce::Line<float>(p1.position, p2.position),
-               1.0f + (6.0f * lifeRatio));
+    g.drawLine(juce::Line<float>(p1, p2), 1.0f + (6.0f * lifeRatio));
   }
 }
 
@@ -111,8 +72,23 @@ void BoStaffVisualizer::paint(juce::Graphics &g) {
 
   // 2. Draw the Trails
   auto now = juce::Time::getMillisecondCounter();
-  drawTrail(g, tip1History, now, Palette::accentDim);
-  drawTrail(g, tip2History, now, Palette::red);
+
+  std::vector<juce::Point<float>> tip1Points, tip2Points;
+  std::vector<juce::uint32> timestamps;
+  tip1Points.reserve(orientationHistory.size());
+  tip2Points.reserve(orientationHistory.size());
+  timestamps.reserve(orientationHistory.size());
+
+  for (const auto &pt : orientationHistory) {
+    MathHelpers::Vec3 t = {1.f, 0.f, 0.f};
+    MathHelpers::Vec3 b = {-1.f, 0.f, 0.f};
+    tip1Points.push_back(project(MathHelpers::rotate(b, pt.orientation)));
+    tip2Points.push_back(project(MathHelpers::rotate(t, pt.orientation)));
+    timestamps.push_back(pt.timestamp);
+  }
+
+  drawTrail(g, tip1Points, timestamps, now, Palette::accentDim);
+  drawTrail(g, tip2Points, timestamps, now, Palette::red);
 
   // 3. Draw the active Staff over the trails
   MathHelpers::Vec3 top = {1.f, 0.f, 0.f};

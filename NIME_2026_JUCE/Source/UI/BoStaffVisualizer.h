@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../DSP/MathHelpers.h"
+#include "../PluginProcessor.h"
 #include <JuceHeader.h>
-
 
 class BoStaffVisualizer : public juce::Component {
 public:
@@ -10,28 +10,20 @@ public:
   ~BoStaffVisualizer() override;
 
   void paint(juce::Graphics &) override;
-  void updateStaff(MathHelpers::Quat q);
+  void updateStaff(MathHelpers::Quat q,
+                   const std::vector<OrientationPoint> &history);
   void setTrailLifetime(float lifetimeInSeconds);
+  float getTrailLifetimeMs() const { return trailLifetimeMs; }
 
 private:
-  struct TracePoint {
-    juce::Point<float> position;
-    juce::uint32 timestamp;
-  };
-
-  struct OrientationPoint {
-    MathHelpers::Quat orientation;
-    juce::uint32 timestamp;
-  };
-
-  std::vector<TracePoint> tip1History;
-  std::vector<TracePoint> tip2History;
   std::vector<OrientationPoint> orientationHistory;
   float trailLifetimeMs = 500.0f;
 
   MathHelpers::Quat currentQuat{1.f, 0.f, 0.f, 0.f};
 
-  void drawTrail(juce::Graphics &g, const std::vector<TracePoint> &history,
+  void drawTrail(juce::Graphics &g,
+                 const std::vector<juce::Point<float>> &points,
+                 const std::vector<juce::uint32> &timestamps,
                  juce::uint32 currentTime, juce::Colour colour);
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BoStaffVisualizer)

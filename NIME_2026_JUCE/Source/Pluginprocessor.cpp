@@ -58,8 +58,35 @@ void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   bool isReceivingValidData =
       isOSCConnected() && (getMessagesPerSecond() > 0.f);
 
+  // Record orientation into the lock-free circular buffer
+  if (isReceivingValidData) {
+    auto now = juce::Time::getMillisecondCounter();
+    size_t idx = historyWriteIndex.load(std::memory_order_relaxed);
+    orientationHistory[idx % orientationHistory.size()] = {getCalibratedQuat(),
+                                                           now};
+    historyWriteIndex.store(idx + 1, std::memory_order_release);
+  }
+
   // Offload all sound generation and data mapping to the dedicated DSP class
   synth.processBlock(buffer, getCalibratedQuat(), isReceivingValidData);
+}
+
+std::vector<OrientationPoint>
+NIMEReceiverProcessor::getRecentOrientations(float maxAgeMs) const {
+  std::vector<OrientationPoint> recent;
+  auto now = juce::Time::getMillisecondCounter();
+  size_t writeIdx = historyWriteIndex.load(std::memory_order_acquire);
+  size_t startIdx = (writeIdx > orientationHistory.size())
+                        ? writeIdx - orientationHistory.size()
+                        : 0;
+
+  for (size_t i = startIdx; i < writeIdx; ++i) {
+    auto point = orientationHistory[i % orientationHistory.size()];
+    if (now - point.timestamp <= maxAgeMs) {
+      recent.push_back(point);
+    }
+  }
+  return recent;
 }
 
 juce::AudioProcessorEditor *NIMEReceiverProcessor::createEditor() {
