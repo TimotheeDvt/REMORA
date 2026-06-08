@@ -5,6 +5,7 @@
 #include <atomic>
 #include "Data/IMUData.h"
 #include "DSP/MathHelpers.h"
+#include "DSP/BoStaffSynth.h"
 #include "OSC/OscReceiverManager.h"
 
 class NIMEReceiverProcessor
@@ -41,8 +42,8 @@ public:
   MathHelpers::Quat getCalibratedQuat() const;
 
   // Sound toggle
-  void setSoundEnabled(bool shouldBeEnabled) { soundEnabled.store(shouldBeEnabled); }
-  bool isSoundEnabled() const { return soundEnabled.load(); }
+  void setSoundEnabled(bool shouldBeEnabled) { synth.setSoundEnabled(shouldBeEnabled); }
+  bool isSoundEnabled() const { return synth.isSoundEnabled(); }
 
   // Standard AudioProcessor overrides
   void prepareToPlay(double sampleRate, int samplesPerBlock) override;
@@ -90,13 +91,8 @@ private:
   std::atomic<float> calibY{0.f};
   std::atomic<float> calibZ{0.f};
 
-  // Simple Synth State
-  float currentSampleRate = 44100.0f;
-  float currentAngle = 0.0f;
-  float angleDelta = 0.0f;
-  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> smoothedFreq { 440.0f };
-  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedGain { 0.0f };
-  std::atomic<bool> soundEnabled { true };
+  // DSP Engine
+  BoStaffSynth synth;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverProcessor)
 };

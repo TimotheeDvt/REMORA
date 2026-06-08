@@ -34,6 +34,8 @@ target_sources(NIMEReceiver
         Source/Plugineditor.h
         Source/Data/IMUData.h
         Source/DSP/MathHelpers.h
+        Source/DSP/BoStaffSynth.h
+        Source/DSP/BoStaffSynth.cpp
         Source/OSC/OscReceiverManager.cpp
         Source/OSC/OscReceiverManager.h
         Source/UI/Palette.h

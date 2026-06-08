@@ -12,8 +12,8 @@ void BoStaffVisualizer::setTrailLifetime(float lifetimeInSeconds) {
 void BoStaffVisualizer::updateStaff(MathHelpers::Quat q) {
   currentQuat = q;
 
-  const float w = getWidth();
-  const float h = getHeight();
+  const float w = static_cast<float>(getWidth());
+  const float h = static_cast<float>(getHeight());
   const float scale = 90.f;
   const float cx = w / 2.f;
   const float cy = h / 2.f;
@@ -72,8 +72,8 @@ void BoStaffVisualizer::drawTrail(juce::Graphics &g,
 }
 
 void BoStaffVisualizer::paint(juce::Graphics &g) {
-  const float w = getWidth();
-  const float h = getHeight();
+  const float w = static_cast<float>(getWidth());
+  const float h = static_cast<float>(getHeight());
   const float scale = 90.f;
   const float cx = w / 2.f;
   const float cy = h / 2.f;

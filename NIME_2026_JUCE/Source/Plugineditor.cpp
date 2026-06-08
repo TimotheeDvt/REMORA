@@ -98,7 +98,7 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   // Draw the logo at the top right (next to the status dot)
   juce::Image logo = juce::ImageCache::getFromMemory(BinaryData::logo_png, BinaryData::logo_pngSize);
   if (logo.isValid()) {
-    g.drawImageWithin(logo, w - 80, 6.f, 40, 24, juce::RectanglePlacement::centred);
+    g.drawImageWithin(logo, w - 80, 6, 40, 24, juce::RectanglePlacement::centred);
   }
 
   // Top divider
