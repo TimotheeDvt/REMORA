@@ -69,15 +69,31 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
         state == NIMEReceiverProcessor::CalibState::Done) {
       processor.startCalibration();
       calibrateButton.setButtonText("POSE A ->");
+      calibHintLabel.setText("Hold staff HORIZONTAL pointing FORWARD, then click",
+                             juce::dontSendNotification);
+      calibHintLabel.setColour(juce::Label::textColourId, Palette::yellow);
     } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseA) {
       processor.recordPoseA();
       calibrateButton.setButtonText("POSE B ->");
+      calibHintLabel.setText("Hold staff VERTICAL pointing UP, then click",
+                             juce::dontSendNotification);
     } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseB) {
       processor.recordPoseB();
+      calibrateButton.setButtonText("POSE C ->");
+      calibHintLabel.setText("Hold staff HORIZONTAL pointing RIGHT, then click",
+                             juce::dontSendNotification);
+    } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseC) {
+      processor.recordPoseC();
       calibrateButton.setButtonText("CALIBRATE");
+      calibHintLabel.setText("Calibration complete.",
+                             juce::dontSendNotification);
+      calibHintLabel.setColour(juce::Label::textColourId, Palette::green);
     }
   };
   addAndMakeVisible(calibrateButton);
+
+  styleLabel(calibHintLabel, "", 10.f, Palette::textLo, juce::Justification::centredLeft);
+  addAndMakeVisible(calibHintLabel);
 
   // Status dot (repurposed Label as a coloured dot)
   statusDot.setOpaque(false);
@@ -131,7 +147,7 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
 
   // Draw 3D Staff separation
   g.setColour(Palette::border);
-  g.drawHorizontalLine(140, 24.f, static_cast<float>(w - 24));
+  g.drawHorizontalLine(142, 24.f, static_cast<float>(w - 24));
 }
 
 void NIMEReceiverEditor::resized() {
@@ -145,12 +161,13 @@ void NIMEReceiverEditor::resized() {
   soundButton.setBounds(122, 64, 100, 24);
   showDataButton.setBounds(14, 100, 80, 24);
   calibrateButton.setBounds(104, 100, 115, 24);
+  calibHintLabel.setBounds(14, 128, w - 28, 14);
 
   // Latency display
   latencyValueLabel.setBounds(w - 200, 44, 130, 60);
   latencyLabel.setBounds(w - 68, 82, 80, 18);
 
-  boStaffVisualizer.setBounds(0, 140, w, getHeight() - 140);
+  boStaffVisualizer.setBounds(0, 144, w, getHeight() - 144);
 }
 
 void NIMEReceiverEditor::timerCallback() {

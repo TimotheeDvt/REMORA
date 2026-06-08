@@ -49,10 +49,11 @@ public:
   const IMUData &getIMUData() const noexcept { return oscManager.getIMUData(); }
 
   // Calibration
-  enum class CalibState { Idle, WaitingPoseA, WaitingPoseB, Done };
+  enum class CalibState { Idle, WaitingPoseA, WaitingPoseB, WaitingPoseC, Done };
   void startCalibration();
   void recordPoseA();
   void recordPoseB();
+  void recordPoseC();
   void computeCorrection();
   int getCalibState() const { return calibState.load(); }
   MathHelpers::Quat getCalibratedQuat() const;
@@ -107,11 +108,6 @@ private:
 
   OscReceiverManager oscManager;
 
-  std::atomic<float> calibW{1.f};
-  std::atomic<float> calibX{0.f};
-  std::atomic<float> calibY{0.f};
-  std::atomic<float> calibZ{0.f};
-
   // DSP Engine
   BoStaffSynth synth;
 
@@ -119,6 +115,7 @@ private:
 
   std::atomic<float> poseAw{1.f}, poseAx{0.f}, poseAy{0.f}, poseAz{0.f};
   std::atomic<float> poseBw{1.f}, poseBx{0.f}, poseBy{0.f}, poseBz{0.f};
+  std::atomic<float> poseCw{1.f}, poseCx{0.f}, poseCy{0.f}, poseCz{0.f};
 
   // The derived correction quaternion
   std::atomic<float> corrW{1.f}, corrX{0.f}, corrY{0.f}, corrZ{0.f};

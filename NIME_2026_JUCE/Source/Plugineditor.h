@@ -40,6 +40,7 @@ private:
   std::unique_ptr<RawDataWindow> rawDataWindow;
 
   juce::TextButton calibrateButton;
+  juce::Label calibHintLabel;
 
   BoStaffVisualizer boStaffVisualizer;
 

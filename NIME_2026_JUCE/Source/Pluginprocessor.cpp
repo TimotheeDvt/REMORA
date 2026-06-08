@@ -36,80 +36,97 @@ void NIMEReceiverProcessor::recordPoseB() {
   poseBx.store(d.qx.load(std::memory_order_relaxed));
   poseBy.store(d.qy.load(std::memory_order_relaxed));
   poseBz.store(d.qz.load(std::memory_order_relaxed));
+  calibState.store((int)CalibState::WaitingPoseC);
+}
+
+void NIMEReceiverProcessor::recordPoseC() {
+  const auto &d = getIMUData();
+  poseCw.store(d.qw.load(std::memory_order_relaxed));
+  poseCx.store(d.qx.load(std::memory_order_relaxed));
+  poseCy.store(d.qy.load(std::memory_order_relaxed));
+  poseCz.store(d.qz.load(std::memory_order_relaxed));
   computeCorrection();
   calibState.store((int)CalibState::Done);
 }
 
 void NIMEReceiverProcessor::computeCorrection() {
-  // The staff tip direction in sensor space for each pose
-  // (staff long axis is virtual X = {1,0,0}, rotated by the recorded quat)
   MathHelpers::Vec3 staffAxis{1.f, 0.f, 0.f};
 
   MathHelpers::Quat qA{poseAw.load(), poseAx.load(), poseAy.load(),
                        poseAz.load()};
   MathHelpers::Quat qB{poseBw.load(), poseBx.load(), poseBy.load(),
                        poseBz.load()};
+  MathHelpers::Quat qC{poseCw.load(), poseCx.load(), poseCy.load(),
+                       poseCz.load()};
 
-  // Physical directions the sensor measured for each pose
-  auto physA =
-      MathHelpers::rotate(staffAxis, qA); // should become virtual (1,0,0)
-  auto physB =
-      MathHelpers::rotate(staffAxis, qB); // should become virtual (0,0,1)
+  // What the sensor actually measured for each pose
+  auto b0 = MathHelpers::normalize(MathHelpers::rotate(staffAxis, qA)); // measured "forward"
+  auto b1 = MathHelpers::normalize(MathHelpers::rotate(staffAxis, qB)); // measured "up"
+  auto b2 = MathHelpers::normalize(MathHelpers::rotate(staffAxis, qC)); // measured "right"
 
-  auto cross = [](MathHelpers::Vec3 a, MathHelpers::Vec3 b) {
-    return MathHelpers::Vec3{a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z,
-                             a.x * b.y - a.y * b.x};
+  // What we WANT those directions to map to in virtual space
+  MathHelpers::Vec3 r0{1.f, 0.f, 0.f}; // virtual +X (forward)
+  MathHelpers::Vec3 r1{0.f, 0.f, 1.f}; // virtual +Z (up)
+  MathHelpers::Vec3 r2{0.f, 1.f, 0.f}; // virtual +Y (right)
+
+  // Build the cross-covariance matrix H = sum(r_i * b_i^T)
+  // H is 3x3, stored as columns c0, c1, c2
+  // H = r0*b0^T + r1*b1^T + r2*b2^T
+  // Column j of H = sum_i(r_i * b_i[j])
+  float H[3][3] = {};
+  auto addOuter = [&](MathHelpers::Vec3 r, MathHelpers::Vec3 b) {
+    float rv[3] = {r.x, r.y, r.z};
+    float bv[3] = {b.x, b.y, b.z};
+    for (int i = 0; i < 3; ++i)
+      for (int j = 0; j < 3; ++j)
+        H[i][j] += rv[i] * bv[j];
   };
-  auto norm = [](MathHelpers::Vec3 v) {
-    float l = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-    return l > 0.0f ? MathHelpers::Vec3{v.x / l, v.y / l, v.z / l}
-                    : MathHelpers::Vec3{1.f, 0.f, 0.f};
-  };
+  addOuter(r0, b0);
+  addOuter(r1, b1);
+  addOuter(r2, b2);
 
-  // Triad method: build two orthonormal frames, find rotation between them
-  auto r1 = norm(physA);
-  auto r2 = norm(cross(physA, physB));
-  auto r3 = cross(r1, r2);
+  // For a 3x3 rotation matrix the best-fit solution is R = U * V^T from SVD.
+  // Since we have exactly 3 non-degenerate vectors we can extract it directly:
+  // Build the best rotation matrix using the explicit polar decomposition shortcut.
+  // We compute R such that R * b_i ≈ r_i for all i.
+  // The closed-form for 3 vectors: build R directly from the two frames.
 
-  // Virtual target frame: X=(1,0,0), Y=(0,1,0), Z=(0,0,1)
-  // Rotation matrix from physical to virtual = R_virtual * R_physical^T
-  // Convert that 3x3 matrix to a quaternion:
-  float m00 = r1.x, m01 = r2.x, m02 = r3.x;
-  float m10 = r1.y, m11 = r2.y, m12 = r3.y;
-  float m20 = r1.z, m21 = r2.z, m22 = r3.z;
+  // Build an orthonormal "measured" frame from b0, b1, b2
+  auto e0 = b0;
+  auto e1 = MathHelpers::normalize(MathHelpers::cross(b0, b1)); // perp to b0 in the b0-b1 plane
+  auto e2 = MathHelpers::cross(e0, e1);
 
-  float trace = m00 + m11 + m22;
-  float cw, cx, cy, cz;
-  if (trace > 0.f) {
-    float s = 0.5f / std::sqrt(trace + 1.f);
-    cw = 0.25f / s;
-    cx = (m21 - m12) * s;
-    cy = (m02 - m20) * s;
-    cz = (m10 - m01) * s;
-  } else if (m00 > m11 && m00 > m22) {
-    float s = 2.f * std::sqrt(1.f + m00 - m11 - m22);
-    cw = (m21 - m12) / s;
-    cx = 0.25f * s;
-    cy = (m01 + m10) / s;
-    cz = (m02 + m20) / s;
-  } else if (m11 > m22) {
-    float s = 2.f * std::sqrt(1.f + m11 - m00 - m22);
-    cw = (m02 - m20) / s;
-    cx = (m01 + m10) / s;
-    cy = 0.25f * s;
-    cz = (m12 + m21) / s;
-  } else {
-    float s = 2.f * std::sqrt(1.f + m22 - m00 - m11);
-    cw = (m10 - m01) / s;
-    cx = (m02 + m20) / s;
-    cy = (m12 + m21) / s;
-    cz = 0.25f * s;
-  }
+  // Build corresponding orthonormal "virtual" frame from r0, r1, r2
+  auto f0 = r0;
+  auto f1 = MathHelpers::normalize(MathHelpers::cross(r0, r1));
+  auto f2 = MathHelpers::cross(f0, f1);
 
-  corrW.store(cw);
-  corrX.store(cx);
-  corrY.store(cy);
-  corrZ.store(cz);
+  // The rotation R that takes the measured frame to the virtual frame:
+  // R = [f0 f1 f2] * [e0 e1 e2]^T
+  // Each f_i is a column of the target, each e_i is a column of the source.
+  // R_ij = sum_k f_k[i] * e_k[j]
+  float R[3][3];
+  float fv[3][3] = {{f0.x, f1.x, f2.x}, {f0.y, f1.y, f2.y}, {f0.z, f1.z, f2.z}};
+  float ev[3][3] = {{e0.x, e1.x, e2.x}, {e0.y, e1.y, e2.y}, {e0.z, e1.z, e2.z}};
+  for (int i = 0; i < 3; ++i)
+    for (int j = 0; j < 3; ++j) {
+      R[i][j] = 0.f;
+      for (int k = 0; k < 3; ++k)
+        R[i][j] += fv[i][k] * ev[j][k]; // f col k row i * e col k row j
+    }
+
+  // Convert rotation matrix to quaternion
+  // R is stored row-major: R[row][col]
+  // Pass columns to fromMatrix
+  MathHelpers::Vec3 col0{R[0][0], R[1][0], R[2][0]};
+  MathHelpers::Vec3 col1{R[0][1], R[1][1], R[2][1]};
+  MathHelpers::Vec3 col2{R[0][2], R[1][2], R[2][2]};
+  auto corr = MathHelpers::fromMatrix(col0, col1, col2);
+
+  corrW.store(corr.w);
+  corrX.store(corr.x);
+  corrY.store(corr.y);
+  corrZ.store(corr.z);
 }
 
 MathHelpers::Quat NIMEReceiverProcessor::getCalibratedQuat() const {
