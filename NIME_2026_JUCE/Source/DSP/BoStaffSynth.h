@@ -10,6 +10,7 @@
 #include "Mappings/BowedChordMapping.h"
 #include "Mappings/SimpleMapping.h"
 #include "Mappings/LeadDroneMapping.h"
+#include "Mappings/SpinFilterMapping.h"
 #include <memory>
 
 struct StaffSoundParams {
@@ -117,6 +118,7 @@ private:
   SimpleMapping     mappingSimple;
   BowedChordMapping mappingBowedChord;
   LeadDroneMapping  mappingLeadDrone;
+  SpinFilterMapping mappingSpinFilter;
 
   std::atomic<int> activeMappingIndex{1};
 

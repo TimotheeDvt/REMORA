@@ -16,6 +16,7 @@ void BoStaffSynth::prepareToPlay(double sampleRate, int) {
     mappingSimple.prepare(sampleRate);
     mappingBowedChord.prepare(sampleRate);
     mappingLeadDrone.prepare(sampleRate);
+    mappingSpinFilter.prepare(sampleRate);
 
     masterGain.reset(sampleRate, 0.010);
     masterGain.setCurrentAndTargetValue(0.0f);
@@ -53,11 +54,12 @@ const char* BoStaffSynth::getMappingName(int index) {
         case 0: return SimpleMapping{}.getName();
         case 1: return BowedChordMapping{}.getName();
         case 2: return LeadDroneMapping{}.getName();
+        case 3: return SpinFilterMapping{}.getName();
         default: return nullptr;
     }
 }
 
-int BoStaffSynth::getMappingCount() { return 3; }
+int BoStaffSynth::getMappingCount() { return 4; }
 
 void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
                                 const StaffSoundParams& params)
@@ -94,7 +96,8 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
     int activeIndex = activeMappingIndex.load();
     IMappingStrategy* mapping = (activeIndex == 0) ? static_cast<IMappingStrategy*>(&mappingSimple)
                               : (activeIndex == 1) ? static_cast<IMappingStrategy*>(&mappingBowedChord)
-                                                   : static_cast<IMappingStrategy*>(&mappingLeadDrone);
+                              : (activeIndex == 2) ? static_cast<IMappingStrategy*>(&mappingLeadDrone)
+                                                   : static_cast<IMappingStrategy*>(&mappingSpinFilter);
 
     mapping->process(params, mappingOut);
 

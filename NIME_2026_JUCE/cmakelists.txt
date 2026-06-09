@@ -45,6 +45,8 @@ target_sources(NIMEReceiver
         Source/DSP/Mappings/SimpleMapping.cpp
         Source/DSP/Mappings/LeadDroneMapping.h
         Source/DSP/Mappings/LeadDroneMapping.cpp
+        Source/DSP/Mappings/SpinFilterMapping.h
+        Source/DSP/Mappings/SpinFilterMapping.cpp
         Source/DSP/BoStaffSynth.h
         Source/DSP/BoStaffSynth.cpp
         Source/OSC/OscReceiverManager.cpp

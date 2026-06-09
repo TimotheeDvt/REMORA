@@ -50,6 +50,13 @@ A mapping based on rotation around two axes (pitch and yaw).
 - Yaw → Modulates the automatic drone bass accompaniment's pan and swell.
 - Acceleration/Gyro → Modulates master volume, drone swell, and timbre brightness (drive/partials).
 
+### Spin Filter
+Designed for heavy Y/Z-axis rotation, avoiding the chaos of direct angle-to-pitch mapping.
+- Rotation Speed (Gyro) → Climbs a C minor pentatonic scale. Faster spins hold higher notes.
+- Roll (twist) → Acts as a frequency cutoff filter, fading out the upper harmonics smoothly.
+- Pitch (tilt up/down) → Controls vibrato depth.
+- Yaw (horizontal swing) → Slowly pans the two voices in opposite directions.
+
 ## Future Directions
 
 - Implement mode switching triggered by specific gesture conditions (e.g., changing modes when the device is rolling but not translating).
