@@ -114,6 +114,11 @@ void NIMEReceiverProcessor::computeCorrection() {
       poseBx.load(), poseBy.load(), poseBz.load(), poseCw.load(), poseCx.load(),
       poseCy.load(), poseCz.load());
 
+  alignW.store(qAlign.w);
+  alignX.store(qAlign.x);
+  alignY.store(qAlign.y);
+  alignZ.store(qAlign.z);
+
   MathHelpers::Vec3 staffAxis = MathHelpers::rotate({1.f, 0.f, 0.f}, qAlign);
 
   // What the sensor actually measured for each pose
@@ -202,21 +207,10 @@ MathHelpers::Quat NIMEReceiverProcessor::getCalibratedQuat() const {
                             corrY.load(std::memory_order_acquire),
                             corrZ.load(std::memory_order_acquire)};
 
-  MathHelpers::Quat qAlign = {1.f, 0.f, 0.f, 0.f};
-  if (calibState.load(std::memory_order_relaxed) == (int)CalibState::Done) {
-    qAlign = computeAlignQuat(poseAw.load(std::memory_order_relaxed),
-                              poseAx.load(std::memory_order_relaxed),
-                              poseAy.load(std::memory_order_relaxed),
-                              poseAz.load(std::memory_order_relaxed),
-                              poseBw.load(std::memory_order_relaxed),
-                              poseBx.load(std::memory_order_relaxed),
-                              poseBy.load(std::memory_order_relaxed),
-                              poseBz.load(std::memory_order_relaxed),
-                              poseCw.load(std::memory_order_relaxed),
-                              poseCx.load(std::memory_order_relaxed),
-                              poseCy.load(std::memory_order_relaxed),
-                              poseCz.load(std::memory_order_relaxed));
-  }
+  MathHelpers::Quat qAlign = {alignW.load(std::memory_order_acquire),
+                            alignX.load(std::memory_order_acquire),
+                            alignY.load(std::memory_order_acquire),
+                            alignZ.load(std::memory_order_acquire)};
 
   // First align local physical axis to X, then apply raw orientation, then
   // apply global correction

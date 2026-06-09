@@ -120,6 +120,9 @@ private:
   // The derived correction quaternion
   std::atomic<float> corrW{1.f}, corrX{0.f}, corrY{0.f}, corrZ{0.f};
 
+  // The derived alignment quaternion (cached for performance)
+  std::atomic<float> alignW{1.f}, alignX{0.f}, alignY{0.f}, alignZ{0.f};
+
   std::array<OrientationPoint, 2048> orientationHistory;
   std::atomic<size_t> historyWriteIndex{0};
 
