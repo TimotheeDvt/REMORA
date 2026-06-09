@@ -219,7 +219,22 @@ void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   }
 
   // Offload all sound generation and data mapping to the dedicated DSP class
-  synth.processBlock(buffer, calibratedQ, isReceivingValidData);
+  StaffSoundParams params;
+  params.isReceivingValidData = isReceivingValidData;
+
+  if (isReceivingValidData) {
+      auto euler   = MathHelpers::toEuler(calibratedQ);
+      params.pitch = euler.pitch;
+      params.roll  = euler.roll;
+      params.yaw   = euler.yaw;
+
+      IMURawSnapshot snap;
+      while (!getIMUData().trySnapshot(snap)) {}
+      params.gx = snap.gx;  params.gy = snap.gy;  params.gz = snap.gz;
+      params.ax = snap.ax;  params.ay = snap.ay;  params.az = snap.az;
+  }
+
+  synth.processBlock(buffer, params);
 }
 
 std::vector<OrientationPoint>

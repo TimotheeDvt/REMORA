@@ -8,10 +8,29 @@ The software receives high-speed OSC packets over Wi-Fi containing 9DOF data (qu
 
 ## Current Mapping
 
-At present, the plugin acts as a simple synthesizer mapping device orientation to sound parameters:
+The plugin uses a 4-voice additive chord synthesiser with a bowed-string physical model.
 
-- **Pitch (Tilt Up/Down):** Controls the frequency of a sine wave oscillator. Pointing the device down plays a low tone (~100 Hz), while pointing it up plays a high tone (~1000 Hz).
-- **Roll (Twist Left/Right):** Controls the volume (gain) of the oscillator. There is a quiet base volume (5%) that increases up to 20% as the device is twisted away from the center.
+**Pitch (tilt up/down):** Controls the root note, quantized to the chromatic scale across two octaves (C2–C4). Each degree of tilt snaps to the nearest semitone. A 150ms glide smooths transitions between notes.
+
+**Yaw (horizontal swing):** Selects the chord type voiced above the root:
+- Far left → minor triad
+- Center-left → power chord (open fifth)  
+- Center-right → major triad
+- Far right → suspended 4th
+- High roll + left → minor 7th
+- High roll + right → major 7th
+
+Chord changes crossfade over 200ms.
+
+**Roll (twist):** Below 70% twist — controls vibrato depth and spectral brightness (timbre shifts from flute to bowed string). Above 70% twist — unlocks the 7th chord vocabulary in the yaw mapping.
+
+**Gyroscope magnitude (motion speed):** Acts as bow pressure. The staff must be moving to produce sound. Slow motion = quiet sustain. Fast motion = loud, driven, saturated tone. Holding the staff still causes the sound to fade.
+
+**Yaw angular velocity (gz):** Controls tremolo rate and depth — spinning the staff adds amplitude flutter.
+
+**Accelerometer spike:** Striking or sharply changing direction triggers a percussive noise burst layered over the chord. Vertical acceleration (az) controls the brightness of the hit.
+
+**Stereo spread:** The four chord voices are spread L → R, giving the sound spatial width.
 
 ## Future Directions
 
