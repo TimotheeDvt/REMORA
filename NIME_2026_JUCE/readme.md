@@ -13,12 +13,12 @@ The plugin uses a 4-voice additive chord synthesiser with a bowed-string physica
 **Pitch (tilt up/down):** Controls the root note, quantized to the chromatic scale across two octaves (C2–C4). Each degree of tilt snaps to the nearest semitone. A 150ms glide smooths transitions between notes.
 
 **Yaw (horizontal swing):** Selects the chord type voiced above the root:
-- Far left → minor triad
-- Center-left → power chord (open fifth)
-- Center-right → major triad
-- Far right → suspended 4th
-- High roll + left → minor 7th
-- High roll + right → major 7th
+- Far left: minor triad
+- Center-left: power chord (open fifth)
+- Center-right: major triad
+- Far right: suspended 4th
+- High roll + left: minor 7th
+- High roll + right: major 7th
 
 Chord changes crossfade over 200ms.
 
@@ -38,24 +38,24 @@ The plugin supports multiple mapping strategies, selectable via the "mapping" dr
 
 ### Simple (Pitch+Roll)
 The original minimal mapping. A single continuous sine wave; no chords, no motion gate.
-- Tilt → frequency (100–1000 Hz, not quantized)
-- Twist → volume
+- Tilt: frequency (100-1000 Hz, not quantized)
+- Twist: volume
 
 ### Bowed Chord
 The full expressive mapping. See "Current Mapping" above for details.
 
 ### Lead + Drone
 A mapping based on rotation around two axes (pitch and yaw).
-- Pitch (tilt) → Lead voice pitch, quantized to a major scale.
-- Yaw → Modulates the automatic drone bass accompaniment's pan and swell.
-- Acceleration/Gyro → Modulates master volume, drone swell, and timbre brightness (drive/partials).
+- Pitch (tilt): Lead voice pitch, quantized to a major scale.
+- Yaw: Modulates the automatic drone bass accompaniment's pan and swell.
+- Acceleration/Gyro: Modulates master volume, drone swell, and timbre brightness.
 
 ### Spin Filter
-Designed for heavy Y/Z-axis rotation, avoiding the chaos of direct angle-to-pitch mapping.
-- Rotation Speed (Gyro) → Climbs a C minor pentatonic scale. Faster spins hold higher notes.
-- Roll (twist) → Acts as a frequency cutoff filter, fading out the upper harmonics smoothly.
-- Pitch (tilt up/down) → Controls vibrato depth.
-- Yaw (horizontal swing) → Slowly pans the two voices in opposite directions.
+Designed for heavy Y/Z-axis rotation.
+- Rotation Speed (Gyro): Climbs a C minor pentatonic scale. Faster spins hold higher notes.
+- Roll (twist): Acts as a frequency cutoff filter, fading out upper harmonics.
+- Pitch (tilt up/down): Controls vibrato depth.
+- Yaw (horizontal swing): Slowly pans the two voices in opposite directions.
 
 ## Future Directions
 
