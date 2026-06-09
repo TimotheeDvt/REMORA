@@ -4,6 +4,7 @@
 NIMEReceiverProcessor::NIMEReceiverProcessor()
     : AudioProcessor(BusesProperties().withOutput(
           "Output", juce::AudioChannelSet::stereo(), true)) {
+  recentOrientationsScratch.reserve(512);
   startTimer(1000);
 
   // Automatically attempt to connect to port 8000 on startup
@@ -49,14 +50,9 @@ void NIMEReceiverProcessor::recordPoseC() {
   calibState.store((int)CalibState::Done);
 }
 
-static MathHelpers::Quat computeAlignQuat(float aw, float ax, float ay,
-                                          float az, float bw, float bx,
-                                          float by, float bz, float cw,
-                                          float cx, float cy, float cz) {
-  MathHelpers::Quat qA{aw, ax, ay, az};
-  MathHelpers::Quat qB{bw, bx, by, bz};
-  MathHelpers::Quat qC{cw, cx, cy, cz};
-
+static MathHelpers::Quat computeAlignQuat(MathHelpers::Quat qA,
+                                          MathHelpers::Quat qB,
+                                          MathHelpers::Quat qC) {
   MathHelpers::Vec3 bestL{1.f, 0.f, 0.f};
   float minError = 1e9f;
 
@@ -110,14 +106,9 @@ void NIMEReceiverProcessor::computeCorrection() {
                        poseCz.load()};
 
   MathHelpers::Quat qAlign = computeAlignQuat(
-      poseAw.load(), poseAx.load(), poseAy.load(), poseAz.load(), poseBw.load(),
-      poseBx.load(), poseBy.load(), poseBz.load(), poseCw.load(), poseCx.load(),
-      poseCy.load(), poseCz.load());
+      qA, qB, qC);
 
-  alignW.store(qAlign.w);
-  alignX.store(qAlign.x);
-  alignY.store(qAlign.y);
-  alignZ.store(qAlign.z);
+  alignQuat.store(qAlign);
 
   MathHelpers::Vec3 staffAxis = MathHelpers::rotate({1.f, 0.f, 0.f}, qAlign);
 
@@ -189,28 +180,17 @@ void NIMEReceiverProcessor::computeCorrection() {
   MathHelpers::Vec3 col2{R[0][2], R[1][2], R[2][2]};
   auto corr = MathHelpers::fromMatrix(col0, col1, col2);
 
-  corrW.store(corr.w);
-  corrX.store(corr.x);
-  corrY.store(corr.y);
-  corrZ.store(corr.z);
+  corrQuat.store(corr);
 }
 
 MathHelpers::Quat NIMEReceiverProcessor::getCalibratedQuat() const {
   const auto &d = getIMUData();
-  MathHelpers::Quat q_raw = {d.qw.load(std::memory_order_relaxed),
-                             d.qx.load(std::memory_order_relaxed),
-                             d.qy.load(std::memory_order_relaxed),
-                             d.qz.load(std::memory_order_relaxed)};
+  IMURawSnapshot snap;
+  while (!d.trySnapshot(snap)) {}
+  MathHelpers::Quat q_raw = {snap.qw, snap.qx, snap.qy, snap.qz};
 
-  MathHelpers::Quat corr = {corrW.load(std::memory_order_acquire),
-                            corrX.load(std::memory_order_acquire),
-                            corrY.load(std::memory_order_acquire),
-                            corrZ.load(std::memory_order_acquire)};
-
-  MathHelpers::Quat qAlign = {alignW.load(std::memory_order_acquire),
-                            alignX.load(std::memory_order_acquire),
-                            alignY.load(std::memory_order_acquire),
-                            alignZ.load(std::memory_order_acquire)};
+  MathHelpers::Quat corr = corrQuat.load();
+  MathHelpers::Quat qAlign = alignQuat.load();
 
   // First align local physical axis to X, then apply raw orientation, then
   // apply global correction
@@ -228,35 +208,38 @@ void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   bool isReceivingValidData =
       isOSCConnected() && (getMessagesPerSecond() > 0.f);
 
+  const auto calibratedQ = getCalibratedQuat();
+
   // Record orientation into the lock-free circular buffer
   if (isReceivingValidData) {
     auto now = juce::Time::getMillisecondCounter();
     size_t idx = historyWriteIndex.load(std::memory_order_relaxed);
-    orientationHistory[idx % orientationHistory.size()] = {getCalibratedQuat(),
-                                                           now};
+    orientationHistory[idx % orientationHistory.size()] = {calibratedQ, now};
     historyWriteIndex.store(idx + 1, std::memory_order_release);
   }
 
   // Offload all sound generation and data mapping to the dedicated DSP class
-  synth.processBlock(buffer, getCalibratedQuat(), isReceivingValidData);
+  synth.processBlock(buffer, calibratedQ, isReceivingValidData);
 }
 
 std::vector<OrientationPoint>
 NIMEReceiverProcessor::getRecentOrientations(float maxAgeMs) const {
-  std::vector<OrientationPoint> recent;
+  recentOrientationsScratch.clear();
   auto now = juce::Time::getMillisecondCounter();
   size_t writeIdx = historyWriteIndex.load(std::memory_order_acquire);
-  size_t startIdx = (writeIdx > orientationHistory.size())
-                        ? writeIdx - orientationHistory.size()
-                        : 0;
 
-  for (size_t i = startIdx; i < writeIdx; ++i) {
-    auto point = orientationHistory[i % orientationHistory.size()];
+  size_t count = std::min(writeIdx, orientationHistory.size());
+  for (size_t i = 0; i < count; ++i) {
+    size_t idx = writeIdx - 1 - i;
+    auto point = orientationHistory[idx % orientationHistory.size()];
     if (now - point.timestamp <= maxAgeMs) {
-      recent.push_back(point);
+      recentOrientationsScratch.push_back(point);
+    } else {
+      break; // Older entries will be even further back
     }
   }
-  return recent;
+  std::reverse(recentOrientationsScratch.begin(), recentOrientationsScratch.end());
+  return recentOrientationsScratch;
 }
 
 juce::AudioProcessorEditor *NIMEReceiverProcessor::createEditor() {

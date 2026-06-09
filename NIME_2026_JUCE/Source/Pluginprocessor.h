@@ -3,17 +3,12 @@
 #include "DSP/BoStaffSynth.h"
 #include "DSP/MathHelpers.h"
 #include "Data/IMUData.h"
+#include "Data/OrientationPoint.h"
 #include "OSC/OscReceiverManager.h"
 #include <JuceHeader.h>
 #include <array>
 #include <atomic>
 #include <vector>
-
-
-struct OrientationPoint {
-  MathHelpers::Quat orientation;
-  juce::uint32 timestamp;
-};
 
 class NIMEReceiverProcessor : public juce::AudioProcessor, private juce::Timer {
 public:
@@ -41,6 +36,7 @@ public:
   }
 
   // Last known IP of connected device
+  int getIPVersion() const { return oscManager.getIPVersion(); }
   juce::String getLastConnectedIP() const {
     return oscManager.getLastConnectedIP();
   }
@@ -117,14 +113,43 @@ private:
   std::atomic<float> poseBw{1.f}, poseBx{0.f}, poseBy{0.f}, poseBz{0.f};
   std::atomic<float> poseCw{1.f}, poseCx{0.f}, poseCy{0.f}, poseCz{0.f};
 
+  struct AtomicQuat {
+    std::atomic<float> w{1.f}, x{0.f}, y{0.f}, z{0.f};
+    std::atomic<unsigned> gen{0};
+
+    void store(MathHelpers::Quat q) {
+      gen.fetch_add(1, std::memory_order_release);
+      w.store(q.w, std::memory_order_relaxed);
+      x.store(q.x, std::memory_order_relaxed);
+      y.store(q.y, std::memory_order_relaxed);
+      z.store(q.z, std::memory_order_relaxed);
+      gen.fetch_add(1, std::memory_order_release);
+    }
+
+    MathHelpers::Quat load() const {
+      MathHelpers::Quat q;
+      unsigned g;
+      do {
+        g = gen.load(std::memory_order_acquire);
+        q.w = w.load(std::memory_order_relaxed);
+        q.x = x.load(std::memory_order_relaxed);
+        q.y = y.load(std::memory_order_relaxed);
+        q.z = z.load(std::memory_order_relaxed);
+      } while (gen.load(std::memory_order_acquire) != g || (g & 1));
+      return q;
+    }
+  };
+
   // The derived correction quaternion
-  std::atomic<float> corrW{1.f}, corrX{0.f}, corrY{0.f}, corrZ{0.f};
+  AtomicQuat corrQuat;
 
   // The derived alignment quaternion (cached for performance)
-  std::atomic<float> alignW{1.f}, alignX{0.f}, alignY{0.f}, alignZ{0.f};
+  AtomicQuat alignQuat;
 
-  std::array<OrientationPoint, 2048> orientationHistory;
+  std::array<OrientationPoint, 512> orientationHistory;
   std::atomic<size_t> historyWriteIndex{0};
+
+  mutable std::vector<OrientationPoint> recentOrientationsScratch;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverProcessor)
 };

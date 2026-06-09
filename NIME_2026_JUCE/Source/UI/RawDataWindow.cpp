@@ -174,19 +174,38 @@ void RawDataComponent::timerCallback() {
   totalValueLabel.setText(juce::String(processor.getTotalMessageCount()),
                           juce::dontSendNotification);
 
-  const juce::String ip = processor.getLastConnectedIP();
-  ipValueLabel.setText(ip.isEmpty() ? "-" : ip, juce::dontSendNotification);
+  static int lastIpVersion = -1;
+  if (processor.getIPVersion() != lastIpVersion) {
+    lastIpVersion = processor.getIPVersion();
+    const juce::String ip = processor.getLastConnectedIP();
+    ipValueLabel.setText(ip.isEmpty() ? "-" : ip, juce::dontSendNotification);
+  }
 
   const auto &d = processor.getIMUData();
-  axVal.setText(fmt(d.ax.load()), juce::dontSendNotification);
-  ayVal.setText(fmt(d.ay.load()), juce::dontSendNotification);
-  azVal.setText(fmt(d.az.load()), juce::dontSendNotification);
-  gxVal.setText(fmt(d.gx.load()), juce::dontSendNotification);
-  gyVal.setText(fmt(d.gy.load()), juce::dontSendNotification);
-  gzVal.setText(fmt(d.gz.load()), juce::dontSendNotification);
-  mxVal.setText(fmt(d.mx.load()), juce::dontSendNotification);
-  myVal.setText(fmt(d.my.load()), juce::dontSendNotification);
-  mzVal.setText(fmt(d.mz.load()), juce::dontSendNotification);
+
+  static float prevAx = 0.f, prevAy = 0.f, prevAz = 0.f;
+  static float prevGx = 0.f, prevGy = 0.f, prevGz = 0.f;
+  static float prevMx = 0.f, prevMy = 0.f, prevMz = 0.f;
+
+  auto updateIfChanged = [&](juce::Label& lbl, float& prev, float next) {
+    if (std::abs(next - prev) > 0.0005f) {
+      prev = next;
+      lbl.setText(fmt(next), juce::dontSendNotification);
+    }
+  };
+
+  IMURawSnapshot snap;
+  if (d.trySnapshot(snap)) {
+    updateIfChanged(axVal, prevAx, snap.ax);
+    updateIfChanged(ayVal, prevAy, snap.ay);
+    updateIfChanged(azVal, prevAz, snap.az);
+    updateIfChanged(gxVal, prevGx, snap.gx);
+    updateIfChanged(gyVal, prevGy, snap.gy);
+    updateIfChanged(gzVal, prevGz, snap.gz);
+    updateIfChanged(mxVal, prevMx, snap.mx);
+    updateIfChanged(myVal, prevMy, snap.my);
+    updateIfChanged(mzVal, prevMz, snap.mz);
+  }
 
   // Convert raw quaternion to Euler angles & update sliders 
   auto q = processor.getCalibratedQuat();

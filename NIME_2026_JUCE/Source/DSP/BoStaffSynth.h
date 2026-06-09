@@ -24,8 +24,9 @@ private:
   float currentSampleRate = 44100.0f;
   float currentAngle = 0.0f;
   float angleDelta = 0.0f;
+  float sampleRateRecip = 1.0f / 44100.0f;
 
-  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative>
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>
       smoothedFreq{440.0f};
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedGain{
       0.0f};

@@ -6,6 +6,7 @@ BoStaffSynth::~BoStaffSynth() {}
 
 void BoStaffSynth::prepareToPlay(double sampleRate, int /*samplesPerBlock*/) {
   currentSampleRate = static_cast<float>(sampleRate);
+  sampleRateRecip = 1.0f / currentSampleRate;
   // 5ms smoothing for minimum latency while preventing audio glitches
   smoothedFreq.reset(sampleRate, 0.005);
   smoothedGain.reset(sampleRate, 0.005);
@@ -50,17 +51,23 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
   auto *right =
       buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : nullptr;
 
+  constexpr float twoPi = 2.0f * juce::MathConstants<float>::pi;
+
   // Generate a continuous sine wave
   for (int i = 0; i < buffer.getNumSamples(); ++i) {
-    float cyclesPerSample = smoothedFreq.getNextValue() / currentSampleRate;
-    angleDelta = cyclesPerSample * 2.0f * juce::MathConstants<float>::pi;
+    const float freq = smoothedFreq.getNextValue();
+    const float gain = smoothedGain.getNextValue();
+    const float cyclesPerSample = freq * sampleRateRecip;
+    angleDelta = cyclesPerSample * twoPi;
 
-    float currentSample = std::sin(currentAngle) * smoothedGain.getNextValue();
-    currentAngle = std::fmod(currentAngle + angleDelta,
-                             2.0f * juce::MathConstants<float>::pi);
+    const float currentSample = std::sin(currentAngle) * gain;
+    currentAngle += angleDelta;
+    if (currentAngle >= twoPi)
+      currentAngle -= twoPi;
 
     left[i] = currentSample;
-    if (right != nullptr)
-      right[i] = currentSample;
   }
+
+  if (right != nullptr)
+    juce::FloatVectorOperations::copy(right, left, buffer.getNumSamples());
 }

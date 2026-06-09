@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../DSP/MathHelpers.h"
-#include "../PluginProcessor.h"
+#include "../Data/OrientationPoint.h"
 #include <JuceHeader.h>
 
 class BoStaffVisualizer : public juce::Component {
@@ -20,6 +20,9 @@ private:
   float trailLifetimeMs = 500.0f;
 
   MathHelpers::Quat currentQuat{1.f, 0.f, 0.f, 0.f};
+
+  std::vector<juce::Point<float>> tip1Points, tip2Points;
+  std::vector<juce::uint32> paintTimestamps;
 
   void drawTrail(juce::Graphics &g,
                  const std::vector<juce::Point<float>> &points,

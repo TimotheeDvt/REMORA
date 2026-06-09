@@ -1,7 +1,11 @@
 #include "BoStaffVisualizer.h"
 #include "Palette.h"
 
-BoStaffVisualizer::BoStaffVisualizer() {}
+BoStaffVisualizer::BoStaffVisualizer() {
+  tip1Points.reserve(512);
+  tip2Points.reserve(512);
+  paintTimestamps.reserve(512);
+}
 
 BoStaffVisualizer::~BoStaffVisualizer() {}
 
@@ -36,6 +40,12 @@ void BoStaffVisualizer::drawTrail(juce::Graphics &g,
   }
 }
 
+static juce::Point<float> project(MathHelpers::Vec3 v, float cx, float cy, float scale) {
+  constexpr float depth = 0.3f;
+  return juce::Point<float>(cx + (v.x - v.y * depth) * scale,
+                            cy - (v.z - v.y * depth) * scale);
+}
+
 void BoStaffVisualizer::paint(juce::Graphics &g) {
   const float w = static_cast<float>(getWidth());
   const float h = static_cast<float>(getHeight());
@@ -43,17 +53,11 @@ void BoStaffVisualizer::paint(juce::Graphics &g) {
   const float cx = w / 2.f;
   const float cy = h / 2.f;
 
-  auto project = [cx, cy, scale](MathHelpers::Vec3 v) {
-    const float depth = 0.3f;
-    return juce::Point<float>(cx + (v.x - v.y * depth) * scale,
-                              cy - (v.z - v.y * depth) * scale);
-  };
-
   // 1. Draw Axis Reference
-  auto pOrigin = project({0.f, 0.f, 0.f});
-  auto pX = project({1.f, 0.f, 0.f});
-  auto pY = project({0.f, 1.f, 0.f});
-  auto pZ = project({0.f, 0.f, 1.f});
+  auto pOrigin = project({0.f, 0.f, 0.f}, cx, cy, scale);
+  auto pX = project({1.f, 0.f, 0.f}, cx, cy, scale);
+  auto pY = project({0.f, 1.f, 0.f}, cx, cy, scale);
+  auto pZ = project({0.f, 0.f, 1.f}, cx, cy, scale);
 
   g.setColour(Palette::red.withAlpha(0.6f));
   g.drawLine(pOrigin.x, pOrigin.y, pX.x, pX.y, 2.f);
@@ -73,22 +77,22 @@ void BoStaffVisualizer::paint(juce::Graphics &g) {
   // 2. Draw the Trails
   auto now = juce::Time::getMillisecondCounter();
 
-  std::vector<juce::Point<float>> tip1Points, tip2Points;
-  std::vector<juce::uint32> timestamps;
-  tip1Points.reserve(orientationHistory.size());
-  tip2Points.reserve(orientationHistory.size());
-  timestamps.reserve(orientationHistory.size());
+  tip1Points.clear();
+  tip2Points.clear();
+  paintTimestamps.clear();
 
-  for (const auto &pt : orientationHistory) {
-    MathHelpers::Vec3 t = {1.f, 0.f, 0.f};
-    MathHelpers::Vec3 b = {-1.f, 0.f, 0.f};
-    tip1Points.push_back(project(MathHelpers::rotate(b, pt.orientation)));
-    tip2Points.push_back(project(MathHelpers::rotate(t, pt.orientation)));
-    timestamps.push_back(pt.timestamp);
+  if (!orientationHistory.empty()) {
+    for (const auto &pt : orientationHistory) {
+      MathHelpers::Vec3 t = {1.f, 0.f, 0.f};
+      MathHelpers::Vec3 b = {-1.f, 0.f, 0.f};
+      tip1Points.push_back(project(MathHelpers::rotate(b, pt.orientation), cx, cy, scale));
+      tip2Points.push_back(project(MathHelpers::rotate(t, pt.orientation), cx, cy, scale));
+      paintTimestamps.push_back(pt.timestamp);
+    }
+
+    drawTrail(g, tip1Points, paintTimestamps, now, Palette::accentDim);
+    drawTrail(g, tip2Points, paintTimestamps, now, Palette::red);
   }
-
-  drawTrail(g, tip1Points, timestamps, now, Palette::accentDim);
-  drawTrail(g, tip2Points, timestamps, now, Palette::red);
 
   // 3. Draw the active Staff over the trails
   MathHelpers::Vec3 top = {1.f, 0.f, 0.f};
@@ -97,8 +101,8 @@ void BoStaffVisualizer::paint(juce::Graphics &g) {
   top = MathHelpers::rotate(top, currentQuat);
   bottom = MathHelpers::rotate(bottom, currentQuat);
 
-  auto pTop = project(top);
-  auto pBot = project(bottom);
+  auto pTop = project(top, cx, cy, scale);
+  auto pBot = project(bottom, cx, cy, scale);
 
   g.setColour(Palette::textMid);
   g.drawLine(pBot.x, pBot.y, pTop.x, pTop.y, 8.f);

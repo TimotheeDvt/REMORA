@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
 project(NIMEReceiver VERSION 0.1.0)
 
-# Tell CMake to export compile commands so the IDE's linter can find JUCE headers
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_subdirectory(JUCE)
@@ -28,6 +29,15 @@ juce_add_binary_data(NIMEReceiverData
     SOURCES
         Assets/logo.png
 )
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(MSVC)
+        target_compile_options(NIMEReceiver PRIVATE /O2 /Oi /GL /arch:AVX2)
+        target_link_options(NIMEReceiver PRIVATE /LTCG)
+    else()
+        target_compile_options(NIMEReceiver PRIVATE -O3 -march=native -ffast-math)
+    endif()
+endif()
 
 target_sources(NIMEReceiver
     PRIVATE
@@ -66,3 +76,5 @@ target_link_libraries(NIMEReceiver
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
 )
+
+target_compile_features(NIMEReceiver PUBLIC cxx_std_17)
