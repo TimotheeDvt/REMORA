@@ -28,6 +28,7 @@ private:
   juce::TextButton soundButton;
   juce::TextButton showDataButton;
   juce::Label statusDot;
+  juce::ComboBox mappingCombo;
 
   juce::Label latencyLabel;
   juce::Label latencyValueLabel;

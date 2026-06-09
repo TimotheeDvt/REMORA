@@ -14,7 +14,7 @@ The plugin uses a 4-voice additive chord synthesiser with a bowed-string physica
 
 **Yaw (horizontal swing):** Selects the chord type voiced above the root:
 - Far left → minor triad
-- Center-left → power chord (open fifth)  
+- Center-left → power chord (open fifth)
 - Center-right → major triad
 - Far right → suspended 4th
 - High roll + left → minor 7th
@@ -31,6 +31,18 @@ Chord changes crossfade over 200ms.
 **Accelerometer spike:** Striking or sharply changing direction triggers a percussive noise burst layered over the chord. Vertical acceleration (az) controls the brightness of the hit.
 
 **Stereo spread:** The four chord voices are spread L → R, giving the sound spatial width.
+
+## Mapping Strategies
+
+The plugin supports multiple mapping strategies, selectable via the "mapping" dropdown in the UI at runtime with no interruption to audio.
+
+### Simple (Pitch+Roll)
+The original minimal mapping. A single continuous sine wave; no chords, no motion gate.
+- Tilt → frequency (100–1000 Hz, not quantized)
+- Twist → volume
+
+### Bowed Chord
+The full expressive mapping. See "Current Mapping" above for details.
 
 ## Future Directions
 

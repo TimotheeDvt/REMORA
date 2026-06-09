@@ -96,6 +96,25 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   styleLabel(calibHintLabel, "", 10.f, Palette::textLo, juce::Justification::centredLeft);
   addAndMakeVisible(calibHintLabel);
 
+  // Mapping selector
+  mappingCombo.setColour(juce::ComboBox::backgroundColourId, Palette::panel);
+  mappingCombo.setColour(juce::ComboBox::textColourId, Palette::textHi);
+  mappingCombo.setColour(juce::ComboBox::outlineColourId, Palette::border);
+  mappingCombo.setColour(juce::ComboBox::arrowColourId, Palette::textMid);
+
+  // Populate from the synth's static name list
+  for (int i = 0; i < BoStaffSynth::getMappingCount(); ++i) {
+      const char* name = BoStaffSynth::getMappingName(i);
+      if (name != nullptr)
+          mappingCombo.addItem(name, i + 1);   // ComboBox IDs are 1-based
+  }
+  mappingCombo.setSelectedId(processor.getMappingStrategy() + 1,
+                             juce::dontSendNotification);
+  mappingCombo.onChange = [this] {
+      processor.setMappingStrategy(mappingCombo.getSelectedId() - 1);
+  };
+  addAndMakeVisible(mappingCombo);
+
   // Status dot (repurposed Label as a coloured dot)
   statusDot.setOpaque(false);
   addAndMakeVisible(statusDot);
@@ -164,6 +183,8 @@ void NIMEReceiverEditor::resized() {
   calibrateButton.setBounds(104, 100, 115, 24);
   calibHintLabel.setBounds(14, 128, w - 28, 14);
 
+  mappingCombo.setBounds(228, 100, 160, 24);
+
   // Latency display
   latencyValueLabel.setBounds(w - 200, 44, 130, 60);
   latencyLabel.setBounds(w - 68, 82, 80, 18);
@@ -173,6 +194,11 @@ void NIMEReceiverEditor::resized() {
 
 void NIMEReceiverEditor::timerCallback() {
   refreshMainStats();
+
+  const int currentMapping = processor.getMappingStrategy();
+  if (mappingCombo.getSelectedId() != currentMapping + 1)
+      mappingCombo.setSelectedId(currentMapping + 1, juce::dontSendNotification);
+
   boStaffVisualizer.updateStaff(
       processor.getCalibratedQuat(),
       processor.getRecentOrientations(boStaffVisualizer.getTrailLifetimeMs()));

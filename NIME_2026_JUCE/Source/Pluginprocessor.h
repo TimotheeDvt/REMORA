@@ -60,6 +60,9 @@ public:
   }
   bool isSoundEnabled() const { return synth.isSoundEnabled(); }
 
+  void setMappingStrategy(int index) { synth.setMappingStrategy(index); }
+  int  getMappingStrategy() const noexcept { return synth.getMappingStrategy(); }
+
   // Standard AudioProcessor overrides
   void prepareToPlay(double sampleRate, int samplesPerBlock) override;
   void releaseResources() override {}

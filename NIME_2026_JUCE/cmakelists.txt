@@ -30,15 +30,6 @@ juce_add_binary_data(NIMEReceiverData
         Assets/logo.png
 )
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    if(MSVC)
-        target_compile_options(NIMEReceiver PRIVATE /O2 /Oi /GL /arch:AVX2)
-        target_link_options(NIMEReceiver PRIVATE /LTCG)
-    else()
-        target_compile_options(NIMEReceiver PRIVATE -O3 -march=native -ffast-math)
-    endif()
-endif()
-
 target_sources(NIMEReceiver
     PRIVATE
         Source/Pluginprocessor.cpp
@@ -47,6 +38,11 @@ target_sources(NIMEReceiver
         Source/Plugineditor.h
         Source/Data/IMUData.h
         Source/DSP/MathHelpers.h
+        Source/DSP/IMappingStrategy.h
+        Source/DSP/Mappings/BowedChordMapping.h
+        Source/DSP/Mappings/BowedChordMapping.cpp
+        Source/DSP/Mappings/SimpleMapping.h
+        Source/DSP/Mappings/SimpleMapping.cpp
         Source/DSP/BoStaffSynth.h
         Source/DSP/BoStaffSynth.cpp
         Source/OSC/OscReceiverManager.cpp
