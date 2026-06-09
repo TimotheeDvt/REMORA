@@ -4,7 +4,7 @@
 #include "../DSP/MathHelpers.h"
 
 RawDataComponent::RawDataComponent(NIMEReceiverProcessor &p) : processor(p) {
-  setSize(500, 360);
+  setSize(500, 350);
 
   // Rate display
   styleLabel(rateValueLabel, "0", 52.f, Palette::textHi,

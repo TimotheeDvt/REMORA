@@ -6,8 +6,9 @@
 
 NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
     : AudioProcessorEditor(&p), processor(p) {
-  setSize(520, 360);
-  setResizable(false, false);
+  setResizable(true, true);
+  setResizeLimits(520, 300, 4096, 4096);
+  setSize(520, 300);
 
   // Title
   styleLabel(titleLabel, "NIME  OSC  RECEIVER", 13.f, Palette::textMid,

@@ -39,7 +39,7 @@ void BoStaffVisualizer::drawTrail(juce::Graphics &g,
 void BoStaffVisualizer::paint(juce::Graphics &g) {
   const float w = static_cast<float>(getWidth());
   const float h = static_cast<float>(getHeight());
-  const float scale = 90.f;
+  const float scale = juce::jmin(w, h) * 0.4f;
   const float cx = w / 2.f;
   const float cy = h / 2.f;
 
