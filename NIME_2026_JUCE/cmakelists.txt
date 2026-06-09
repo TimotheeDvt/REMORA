@@ -43,6 +43,8 @@ target_sources(NIMEReceiver
         Source/DSP/Mappings/BowedChordMapping.cpp
         Source/DSP/Mappings/SimpleMapping.h
         Source/DSP/Mappings/SimpleMapping.cpp
+        Source/DSP/Mappings/LeadDroneMapping.h
+        Source/DSP/Mappings/LeadDroneMapping.cpp
         Source/DSP/BoStaffSynth.h
         Source/DSP/BoStaffSynth.cpp
         Source/OSC/OscReceiverManager.cpp

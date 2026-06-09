@@ -9,6 +9,7 @@
 #include "IMappingStrategy.h"
 #include "Mappings/BowedChordMapping.h"
 #include "Mappings/SimpleMapping.h"
+#include "Mappings/LeadDroneMapping.h"
 #include <memory>
 
 struct StaffSoundParams {
@@ -115,6 +116,7 @@ private:
 
   SimpleMapping     mappingSimple;
   BowedChordMapping mappingBowedChord;
+  LeadDroneMapping  mappingLeadDrone;
 
   std::atomic<int> activeMappingIndex{1};
 

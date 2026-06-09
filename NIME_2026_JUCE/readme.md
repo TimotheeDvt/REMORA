@@ -44,6 +44,12 @@ The original minimal mapping. A single continuous sine wave; no chords, no motio
 ### Bowed Chord
 The full expressive mapping. See "Current Mapping" above for details.
 
+### Lead + Drone
+A mapping based on rotation around two axes (pitch and yaw).
+- Pitch (tilt) → Lead voice pitch, quantized to a major scale.
+- Yaw → Modulates the automatic drone bass accompaniment's pan and swell.
+- Acceleration/Gyro → Modulates master volume, drone swell, and timbre brightness (drive/partials).
+
 ## Future Directions
 
 - Implement mode switching triggered by specific gesture conditions (e.g., changing modes when the device is rolling but not translating).
