@@ -195,9 +195,11 @@ void NIMEReceiverEditor::resized() {
 void NIMEReceiverEditor::timerCallback() {
   refreshMainStats();
 
-  const int currentMapping = processor.getMappingStrategy();
-  if (mappingCombo.getSelectedId() != currentMapping + 1)
-      mappingCombo.setSelectedId(currentMapping + 1, juce::dontSendNotification);
+  if (!mappingCombo.isPopupActive()) {
+    const int currentMapping = processor.getMappingStrategy();
+    if (mappingCombo.getSelectedId() != currentMapping + 1)
+        mappingCombo.setSelectedId(currentMapping + 1, juce::dontSendNotification);
+  }
 
   boStaffVisualizer.updateStaff(
       processor.getCalibratedQuat(),
