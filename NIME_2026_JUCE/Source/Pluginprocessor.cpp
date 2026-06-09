@@ -49,9 +49,59 @@ void NIMEReceiverProcessor::recordPoseC() {
   calibState.store((int)CalibState::Done);
 }
 
-void NIMEReceiverProcessor::computeCorrection() {
-  MathHelpers::Vec3 staffAxis{1.f, 0.f, 0.f};
+static MathHelpers::Quat computeAlignQuat(float aw, float ax, float ay,
+                                          float az, float bw, float bx,
+                                          float by, float bz, float cw,
+                                          float cx, float cy, float cz) {
+  MathHelpers::Quat qA{aw, ax, ay, az};
+  MathHelpers::Quat qB{bw, bx, by, bz};
+  MathHelpers::Quat qC{cw, cx, cy, cz};
 
+  MathHelpers::Vec3 bestL{1.f, 0.f, 0.f};
+  float minError = 1e9f;
+
+  MathHelpers::Vec3 candidates[6] = {{1.f, 0.f, 0.f}, {-1.f, 0.f, 0.f},
+                                     {0.f, 1.f, 0.f}, {0.f, -1.f, 0.f},
+                                     {0.f, 0.f, 1.f}, {0.f, 0.f, -1.f}};
+
+  auto dot = [](MathHelpers::Vec3 a, MathHelpers::Vec3 b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+  };
+  auto abs_f = [](float x) { return x < 0.f ? -x : x; };
+
+  for (auto L : candidates) {
+    auto vA = MathHelpers::normalize(MathHelpers::rotate(L, qA));
+    auto vB = MathHelpers::normalize(MathHelpers::rotate(L, qB));
+    auto vC = MathHelpers::normalize(MathHelpers::rotate(L, qC));
+
+    float err = abs_f(dot(vA, vB)) + abs_f(dot(vB, vC)) + abs_f(dot(vC, vA));
+    float handedness = dot(MathHelpers::cross(vA, vB), vC);
+
+    // Ensure we maintain a right-handed coordinate system match
+    if (handedness < 0.f) {
+      if (err < minError) {
+        minError = err;
+        bestL = L;
+      }
+    }
+  }
+
+  if (bestL.x == 1.f)
+    return {1.f, 0.f, 0.f, 0.f};
+  if (bestL.x == -1.f)
+    return {0.f, 0.f, 1.f, 0.f};
+  if (bestL.y == 1.f)
+    return {0.70710678f, 0.f, 0.f, 0.70710678f};
+  if (bestL.y == -1.f)
+    return {0.70710678f, 0.f, 0.f, -0.70710678f};
+  if (bestL.z == 1.f)
+    return {0.70710678f, 0.f, -0.70710678f, 0.f};
+  if (bestL.z == -1.f)
+    return {0.70710678f, 0.f, 0.70710678f, 0.f};
+  return {1.f, 0.f, 0.f, 0.f};
+}
+
+void NIMEReceiverProcessor::computeCorrection() {
   MathHelpers::Quat qA{poseAw.load(), poseAx.load(), poseAy.load(),
                        poseAz.load()};
   MathHelpers::Quat qB{poseBw.load(), poseBx.load(), poseBy.load(),
@@ -59,10 +109,20 @@ void NIMEReceiverProcessor::computeCorrection() {
   MathHelpers::Quat qC{poseCw.load(), poseCx.load(), poseCy.load(),
                        poseCz.load()};
 
+  MathHelpers::Quat qAlign = computeAlignQuat(
+      poseAw.load(), poseAx.load(), poseAy.load(), poseAz.load(), poseBw.load(),
+      poseBx.load(), poseBy.load(), poseBz.load(), poseCw.load(), poseCx.load(),
+      poseCy.load(), poseCz.load());
+
+  MathHelpers::Vec3 staffAxis = MathHelpers::rotate({1.f, 0.f, 0.f}, qAlign);
+
   // What the sensor actually measured for each pose
-  auto b0 = MathHelpers::normalize(MathHelpers::rotate(staffAxis, qA)); // measured "forward"
-  auto b1 = MathHelpers::normalize(MathHelpers::rotate(staffAxis, qB)); // measured "up"
-  auto b2 = MathHelpers::normalize(MathHelpers::rotate(staffAxis, qC)); // measured "right"
+  auto b0 = MathHelpers::normalize(
+      MathHelpers::rotate(staffAxis, qA)); // measured "forward"
+  auto b1 = MathHelpers::normalize(
+      MathHelpers::rotate(staffAxis, qB)); // measured "up"
+  auto b2 = MathHelpers::normalize(
+      MathHelpers::rotate(staffAxis, qC)); // measured "right"
 
   // What we WANT those directions to map to in virtual space
   MathHelpers::Vec3 r0{1.f, 0.f, 0.f}; // virtual +X (forward)
@@ -87,13 +147,14 @@ void NIMEReceiverProcessor::computeCorrection() {
 
   // For a 3x3 rotation matrix the best-fit solution is R = U * V^T from SVD.
   // Since we have exactly 3 non-degenerate vectors we can extract it directly:
-  // Build the best rotation matrix using the explicit polar decomposition shortcut.
-  // We compute R such that R * b_i ≈ r_i for all i.
-  // The closed-form for 3 vectors: build R directly from the two frames.
+  // Build the best rotation matrix using the explicit polar decomposition
+  // shortcut. We compute R such that R * b_i ≈ r_i for all i. The closed-form
+  // for 3 vectors: build R directly from the two frames.
 
   // Build an orthonormal "measured" frame from b0, b1, b2
   auto e0 = b0;
-  auto e1 = MathHelpers::normalize(MathHelpers::cross(b0, b1)); // perp to b0 in the b0-b1 plane
+  auto e1 = MathHelpers::normalize(
+      MathHelpers::cross(b0, b1)); // perp to b0 in the b0-b1 plane
   auto e2 = MathHelpers::cross(e0, e1);
 
   // Build corresponding orthonormal "virtual" frame from r0, r1, r2
@@ -141,8 +202,25 @@ MathHelpers::Quat NIMEReceiverProcessor::getCalibratedQuat() const {
                             corrY.load(std::memory_order_acquire),
                             corrZ.load(std::memory_order_acquire)};
 
-  // First fix axis alignment, then zero the pose
-  return MathHelpers::multiply(corr, q_raw);
+  MathHelpers::Quat qAlign = {1.f, 0.f, 0.f, 0.f};
+  if (calibState.load(std::memory_order_relaxed) == (int)CalibState::Done) {
+    qAlign = computeAlignQuat(poseAw.load(std::memory_order_relaxed),
+                              poseAx.load(std::memory_order_relaxed),
+                              poseAy.load(std::memory_order_relaxed),
+                              poseAz.load(std::memory_order_relaxed),
+                              poseBw.load(std::memory_order_relaxed),
+                              poseBx.load(std::memory_order_relaxed),
+                              poseBy.load(std::memory_order_relaxed),
+                              poseBz.load(std::memory_order_relaxed),
+                              poseCw.load(std::memory_order_relaxed),
+                              poseCx.load(std::memory_order_relaxed),
+                              poseCy.load(std::memory_order_relaxed),
+                              poseCz.load(std::memory_order_relaxed));
+  }
+
+  // First align local physical axis to X, then apply raw orientation, then
+  // apply global correction
+  return MathHelpers::multiply(corr, MathHelpers::multiply(q_raw, qAlign));
 }
 
 void NIMEReceiverProcessor::prepareToPlay(double sampleRate,
