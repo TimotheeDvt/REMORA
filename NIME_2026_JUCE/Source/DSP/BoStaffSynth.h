@@ -11,6 +11,7 @@
 #include "Mappings/SimpleMapping.h"
 #include "Mappings/LeadDroneMapping.h"
 #include "Mappings/SpinFilterMapping.h"
+#include "Mappings/BozendoMapping.h"
 #include <memory>
 
 struct StaffSoundParams {
@@ -119,6 +120,7 @@ private:
   BowedChordMapping mappingBowedChord;
   LeadDroneMapping  mappingLeadDrone;
   SpinFilterMapping mappingSpinFilter;
+  BozendoMapping    mappingBozendo;
 
   std::atomic<int> activeMappingIndex{1};
 
