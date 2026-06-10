@@ -6,7 +6,8 @@
 #include <JuceHeader.h>
 
 class NIMEReceiverEditor : public juce::AudioProcessorEditor,
-                           private juce::Timer {
+                           private juce::Timer,
+                           private juce::ChangeListener {
 public:
   explicit NIMEReceiverEditor(NIMEReceiverProcessor &);
   ~NIMEReceiverEditor() override;
@@ -16,6 +17,7 @@ public:
 
 private:
   void timerCallback() override; // 60 Hz UI refresh
+  void changeListenerCallback(juce::ChangeBroadcaster* source) override;
   void refreshMainStats();
   void toggleConnection();
   void updateConnectionUI();
@@ -27,6 +29,7 @@ private:
   juce::TextButton connectButton;
   juce::TextButton soundButton;
   juce::TextButton showDataButton;
+  juce::ToggleButton debugToggleButton;
   juce::Label statusDot;
   juce::ComboBox mappingCombo;
 

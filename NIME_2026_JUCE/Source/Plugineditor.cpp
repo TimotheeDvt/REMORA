@@ -2,6 +2,7 @@
 #include "DSP/MathHelpers.h"
 #include "UI/Palette.h"
 #include "UI/StyleHelpers.h"
+#include "UI/DebugLog.h"
 #include <BinaryData.h>
 
 NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
@@ -59,6 +60,20 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
     }
   };
   addAndMakeVisible(showDataButton);
+
+  // Debug toggle button
+  debugToggleButton.setButtonText("DEBUG");
+  debugToggleButton.setClickingTogglesState(true);
+  debugToggleButton.setToggleState(debug.isWindowOpen(), juce::dontSendNotification);
+  debugToggleButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
+  debugToggleButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
+  debugToggleButton.onClick = [this] {
+      if (debugToggleButton.getToggleState())
+          debug.show();
+      else
+          debug.hide();
+  };
+  addAndMakeVisible(debugToggleButton);
 
   calibrateButton.setButtonText("CALIBRATE");
   calibrateButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
@@ -135,9 +150,12 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   // Sync UI state with the processor's initial connection
   connected = processor.isOSCConnected();
   updateConnectionUI();
+
+  debug.addChangeListener(this);
 }
 
 NIMEReceiverEditor::~NIMEReceiverEditor() {
+  debug.removeChangeListener(this);
   stopTimer();
   rawDataWindow.reset();
 }
@@ -180,16 +198,24 @@ void NIMEReceiverEditor::resized() {
   connectButton.setBounds(14, 64, 100, 24);
   soundButton.setBounds(122, 64, 100, 24);
   showDataButton.setBounds(14, 100, 80, 24);
-  calibrateButton.setBounds(104, 100, 115, 24);
+  debugToggleButton.setBounds(104, 100, 80, 24);
+  calibrateButton.setBounds(194, 100, 115, 24);
   calibHintLabel.setBounds(14, 128, w - 28, 14);
 
-  mappingCombo.setBounds(228, 100, 160, 24);
+  mappingCombo.setBounds(319, 100, 160, 24);
 
   // Latency display
   latencyValueLabel.setBounds(w - 200, 44, 130, 60);
   latencyLabel.setBounds(w - 68, 82, 80, 18);
 
   boStaffVisualizer.setBounds(0, 144, w, getHeight() - 144);
+}
+
+void NIMEReceiverEditor::changeListenerCallback(juce::ChangeBroadcaster* source) {
+    if (source == &debug) {
+        debugToggleButton.setToggleState(debug.isWindowOpen(),
+                                         juce::dontSendNotification);
+    }
 }
 
 void NIMEReceiverEditor::timerCallback() {

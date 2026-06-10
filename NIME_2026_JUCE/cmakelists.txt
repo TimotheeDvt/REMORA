@@ -59,6 +59,10 @@ target_sources(NIMEReceiver
         Source/UI/StyleHelpers.h
         Source/UI/BoStaffVisualizer.h
         Source/UI/BoStaffVisualizer.cpp
+        Source/UI/DebugConsole.h
+        Source/UI/DebugConsole.cpp
+        Source/UI/DebugLog.h
+        Source/UI/DebugLog.cpp
 )
 
 target_compile_definitions(NIMEReceiver
