@@ -102,9 +102,9 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   mappingCombo.setColour(juce::ComboBox::outlineColourId, Palette::border);
   mappingCombo.setColour(juce::ComboBox::arrowColourId, Palette::textMid);
 
-  // Populate from the synth's static name list
-  for (int i = 0; i < BoStaffSynth::getMappingCount(); ++i) {
-      const char* name = BoStaffSynth::getMappingName(i);
+  // Populate from the synth's mapping list
+  for (int i = 0; i < processor.getSynth().getMappingCount(); ++i) {
+      const char* name = processor.getSynth().getMappingName(i);
       if (name != nullptr)
           mappingCombo.addItem(name, i + 1);   // ComboBox IDs are 1-based
   }

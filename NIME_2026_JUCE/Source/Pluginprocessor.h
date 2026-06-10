@@ -35,6 +35,8 @@ public:
     return oscManager.getLastMessageReceivedTicks();
   }
 
+  BoStaffSynth& getSynth() { return synth; }
+
   // Last known IP of connected device
   int getIPVersion() const { return oscManager.getIPVersion(); }
   juce::String getLastConnectedIP() const {

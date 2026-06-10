@@ -7,12 +7,8 @@
 #include <cstdint>
 
 #include "IMappingStrategy.h"
-#include "Mappings/BowedChordMapping.h"
-#include "Mappings/SimpleMapping.h"
-#include "Mappings/LeadDroneMapping.h"
-#include "Mappings/SpinFilterMapping.h"
-#include "Mappings/BozendoMapping.h"
 #include <memory>
+#include <vector>
 
 struct StaffSoundParams {
     float pitch = 0.f;
@@ -105,8 +101,8 @@ public:
   void setMappingStrategy(int index);
   int  getMappingStrategy() const noexcept;
 
-  static const char* getMappingName(int index);
-  static int         getMappingCount();
+  const char* getMappingName(int index) const;
+  int         getMappingCount() const noexcept;
 
 private:
   static constexpr int kNumVoices  = 4;
@@ -116,11 +112,7 @@ private:
 
   SynthVoice voices[kNumVoices];
 
-  SimpleMapping     mappingSimple;
-  BowedChordMapping mappingBowedChord;
-  LeadDroneMapping  mappingLeadDrone;
-  SpinFilterMapping mappingSpinFilter;
-  BozendoMapping    mappingBozendo;
+  std::vector<std::unique_ptr<IMappingStrategy>> mappings;
 
   std::atomic<int> activeMappingIndex{1};
 
