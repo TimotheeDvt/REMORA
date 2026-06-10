@@ -7,6 +7,7 @@
 
 NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
     : AudioProcessorEditor(&p), processor(p) {
+  debug.print.blue("Plugin Editor created.");
   setResizable(true, true);
   setResizeLimits(520, 300, 4096, 4096);
   setSize(520, 300);
@@ -84,22 +85,26 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
     if (state == NIMEReceiverProcessor::CalibState::Idle ||
         state == NIMEReceiverProcessor::CalibState::Done) {
       processor.startCalibration();
+      debug.print.yellow("Calibration started: Waiting for Pose A");
       calibrateButton.setButtonText("POSE A ->");
       calibHintLabel.setText("Hold staff HORIZONTAL pointing FORWARD, then click",
                              juce::dontSendNotification);
       calibHintLabel.setColour(juce::Label::textColourId, Palette::yellow);
     } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseA) {
       processor.recordPoseA();
+      debug.print.yellow("Recorded Pose A. Waiting for Pose B");
       calibrateButton.setButtonText("POSE B ->");
       calibHintLabel.setText("Hold staff VERTICAL pointing UP, then click",
                              juce::dontSendNotification);
     } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseB) {
       processor.recordPoseB();
+      debug.print.yellow("Recorded Pose B. Waiting for Pose C");
       calibrateButton.setButtonText("POSE C ->");
       calibHintLabel.setText("Hold staff HORIZONTAL pointing RIGHT, then click",
                              juce::dontSendNotification);
     } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseC) {
       processor.recordPoseC();
+      debug.print.green("Recorded Pose C. Calibration complete.");
       calibrateButton.setButtonText("CALIBRATE");
       calibHintLabel.setText("Calibration complete.",
                              juce::dontSendNotification);
@@ -126,7 +131,9 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   mappingCombo.setSelectedId(processor.getMappingStrategy() + 1,
                              juce::dontSendNotification);
   mappingCombo.onChange = [this] {
-      processor.setMappingStrategy(mappingCombo.getSelectedId() - 1);
+      int newStrategyIndex = mappingCombo.getSelectedId() - 1;
+      processor.setMappingStrategy(newStrategyIndex);
+      debug.print.cyan("Mapping strategy changed to:", processor.getSynth().getMappingName(newStrategyIndex));
   };
   addAndMakeVisible(mappingCombo);
 
@@ -155,6 +162,7 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
 }
 
 NIMEReceiverEditor::~NIMEReceiverEditor() {
+  debug.print.blue("Plugin Editor destroyed.");
   debug.removeChangeListener(this);
   stopTimer();
   rawDataWindow.reset();
@@ -289,11 +297,13 @@ void NIMEReceiverEditor::toggleConnection() {
     const int port = udpPort;
 
     if (processor.startOSCReceiver(port)) {
+      debug.print.green("OSC Receiver connected on port", port);
       connected = true;
       updateConnectionUI();
     }
   } else {
     processor.stopOSCReceiver();
+    debug.print.red("OSC Receiver disconnected.");
     connected = false;
     updateConnectionUI();
   }

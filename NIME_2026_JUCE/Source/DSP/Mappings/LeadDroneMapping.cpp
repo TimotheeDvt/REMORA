@@ -1,5 +1,11 @@
 #include "LeadDroneMapping.h"
 #include "../BoStaffSynth.h"
+#include "../../UI/DebugLog.h"
+
+void LeadDroneMapping::prepare(double sampleRate)
+{
+    debug.print.green("LeadDroneMapping prepared at sample rate:", sampleRate);
+}
 
 void LeadDroneMapping::process(const StaffSoundParams &params, MappingOutput &out) {
     // Map Pitch to a major scale

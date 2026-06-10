@@ -1,11 +1,13 @@
 #include "BowedChordMapping.h"
 #include "../BoStaffSynth.h"   // for StaffSoundParams
+#include "../../UI/DebugLog.h"
 #include <cmath>
 #include <algorithm>
 
 constexpr float BowedChordMapping::kChordTable[kNumChords][3];
 
 void BowedChordMapping::prepare(double sampleRate) {
+    debug.print.green("BowedChordMapping prepared at sample rate:", sampleRate);
     sampleRate_  = sampleRate;
     prevAccelMag = 0.0f;
     noiseEnvelope = 0.0f;

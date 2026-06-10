@@ -7,7 +7,7 @@
 
 class LeadDroneMapping : public IMappingStrategy {
 public:
-  void prepare(double /*sampleRate*/) override {}
+  void prepare(double sampleRate) override;
 
   const char *getName() const override { return "Lead + Drone"; }
 

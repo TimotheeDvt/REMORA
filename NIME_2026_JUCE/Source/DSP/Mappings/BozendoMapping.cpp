@@ -1,5 +1,6 @@
 #include "BozendoMapping.h"
 #include "../BoStaffSynth.h"
+#include "../../UI/DebugLog.h"
 #include <cmath>
 #include <algorithm>
 
@@ -7,6 +8,7 @@ constexpr float BozendoMapping::kPentatonicMinor[BozendoMapping::kNumScaleSteps]
 constexpr float BozendoMapping::kChordVoicing[3];
 
 void BozendoMapping::prepare(double sampleRate) {
+    debug.print.green("BozendoMapping prepared at sample rate:", sampleRate);
     sampleRate_ = sampleRate;
     dt_         = 1.0f / 100.0f;
 
@@ -193,6 +195,7 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     const float gyroWorldXY = std::sqrt(std::max(0.0f, gyroMag * gyroMag - gyroWorldZ * gyroWorldZ));
 
     const bool isHorizontal = std::abs(gyroWorldZ) > gyroWorldXY;
+    debug.print.red("isHorizontal", isHorizontal);
 
     float spinDir = 1.0f;
     if (isHorizontal) {
@@ -202,6 +205,7 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
         float dominantLocal = std::abs(in.gx) > std::abs(in.gy) ? in.gx : in.gy;
         spinDir = (dominantLocal >= 0.0f) ? 1.0f : -1.0f;
     }
+    debug.print.green("spinDir", spinDir);
 
     const bool isMoving = smoothedGyroMag_ > kGyroFloor;
     if (isMoving) {

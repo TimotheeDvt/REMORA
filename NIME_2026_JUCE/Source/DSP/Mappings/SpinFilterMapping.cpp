@@ -1,5 +1,11 @@
 #include "SpinFilterMapping.h"
 #include "../BoStaffSynth.h"
+#include "../../UI/DebugLog.h"
+
+void SpinFilterMapping::prepare(double sampleRate)
+{
+    debug.print.green("SpinFilterMapping prepared at sample rate:", sampleRate);
+}
 
 void SpinFilterMapping::process(const StaffSoundParams &params, MappingOutput &out) {
     // Pitch mapping from gyroscope magnitude

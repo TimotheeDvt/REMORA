@@ -1,6 +1,12 @@
 #include "SimpleMapping.h"
 #include "../BoStaffSynth.h"
+#include "../../UI/DebugLog.h"
 #include <cmath>
+
+void SimpleMapping::prepare(double sampleRate)
+{
+    debug.print.green("SimpleMapping prepared at sample rate:", sampleRate);
+}
 
 void SimpleMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     constexpr float pi = 3.14159265f;
