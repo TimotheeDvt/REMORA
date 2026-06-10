@@ -27,6 +27,8 @@ void BozendoMapping::prepare(double sampleRate) {
     flowBound_       = 0.f;
 
     currentScaleStep_  = 0;
+    currentSpinDir_    = 1.0f;
+    isHorizontalPlane_ = false;
     smoothedGyroMag_   = 0.f;
     noiseEnvelope_     = 0.f;
     outGainSmoothed_   = 0.f;
@@ -184,12 +186,39 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     const float flowBound = juce::jlimit(0.0f, 1.0f, flowBound_); // 1=bound, 0=free
     const float flowFree  = 1.0f - flowBound;
 
+    // Plane and Direction Detection
+    // Angular velocity around the world Z axis (gravity)
+    const float gyroWorldZ = in.gx * gravX_ + in.gy * gravY_ + in.gz * gravZ_;
+    // Angular velocity in the horizontal plane (World X/Y)
+    const float gyroWorldXY = std::sqrt(std::max(0.0f, gyroMag * gyroMag - gyroWorldZ * gyroWorldZ));
+
+    const bool isHorizontal = std::abs(gyroWorldZ) > gyroWorldXY;
+
+    float spinDir = 1.0f;
+    if (isHorizontal) {
+        spinDir = (gyroWorldZ >= 0.0f) ? 1.0f : -1.0f;
+    } else {
+        // Vertical spin direction based on dominant local axis (excluding twist on Z)
+        float dominantLocal = std::abs(in.gx) > std::abs(in.gy) ? in.gx : in.gy;
+        spinDir = (dominantLocal >= 0.0f) ? 1.0f : -1.0f;
+    }
+
     const bool isMoving = smoothedGyroMag_ > kGyroFloor;
     if (isMoving) {
         currentScaleStep_ = gyroMagToScaleStep(smoothedGyroMag_);
+        isHorizontalPlane_ = isHorizontal;
+        currentSpinDir_ = spinDir;
     }
 
-    out.rootHz = semiToHz(kPentatonicMinor[currentScaleStep_]);
+    // Convert scale step (0-9) to intensity (0-4)
+    int intensityStep = currentScaleStep_ / 2;
+    float semitones = kPentatonicMinor[intensityStep] * (currentSpinDir_ > 0.0f ? 1.0f : -1.0f);
+
+    if (isHorizontalPlane_) {
+        semitones += 12.0f; // Shift up an octave for horizontal spins
+    }
+
+    out.rootHz = semiToHz(semitones);
 
     out.chordSemitones[0] = kChordVoicing[0]; // 5th above
     out.chordSemitones[1] = kChordVoicing[1]; // octave above

@@ -45,6 +45,8 @@ private:
     int   currentScaleStep_   = 0;
     float smoothedGyroMag_    = 0.f;
     static constexpr float kGyroSmoothCoef = 0.12f;
+    float currentSpinDir_     = 1.0f;
+    bool  isHorizontalPlane_  = false;
 
     static constexpr float kScaleHysteresis = 8.0f;
 
