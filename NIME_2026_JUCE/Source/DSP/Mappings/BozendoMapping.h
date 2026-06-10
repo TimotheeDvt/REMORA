@@ -48,16 +48,22 @@ private:
     float currentSpinDir_     = 1.0f;
     bool  isHorizontalPlane_  = false;
 
+    float refSpinX_ = 1.0f;
+    float refSpinY_ = 0.0f;
+
+    bool    previousPlane_ = false;
+    float   previousSpinDir_ = 1.0f;
+
     static constexpr float kScaleHysteresis = 8.0f;
 
-    static constexpr float kGyroFloor   = 20.0f;
-    static constexpr float kGyroCeiling = 400.0f;
+    static constexpr float kGyroFloor   = 30.0f;
+    static constexpr float kGyroCeiling = 750.0f;
 
     // The scale itself: a D minor pentatonic scale spread over a few octaves.
     static constexpr int kNumScaleSteps = 10;
     static constexpr float kPentatonicMinor[kNumScaleSteps] = {
-        0.f, 3.f, 7.f, 10.f, 12.f,  // D3 pentatonic
-        15.f, 19.f, 22.f, 24.f, 27.f   // D4 pentatonic
+        -12.f, -9.f, -5.f, -2.f, 0.f,   // D2 pentatonic
+        3.f, 7.f, 10.f, 12.f, 15.f    // D3 pentatonic
     };
     // The root of our scale is D3.
     static constexpr float kRootHz = 146.83f;

@@ -31,6 +31,8 @@ void BozendoMapping::prepare(double sampleRate) {
     currentScaleStep_  = 0;
     currentSpinDir_    = 1.0f;
     isHorizontalPlane_ = false;
+    refSpinX_          = 1.0f;
+    refSpinY_          = 0.0f;
     smoothedGyroMag_   = 0.f;
     noiseEnvelope_     = 0.f;
     outGainSmoothed_   = 0.f;
@@ -194,18 +196,37 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     // Angular velocity in the horizontal plane (World X/Y)
     const float gyroWorldXY = std::sqrt(std::max(0.0f, gyroMag * gyroMag - gyroWorldZ * gyroWorldZ));
 
-    const bool isHorizontal = std::abs(gyroWorldZ) > gyroWorldXY;
-    debug.print.red("isHorizontal", isHorizontal);
+    // If the rotation axis is > 55 degrees from horizontal, consider it a horizontal spin.
+    // tan(55 degrees) ≈ 1.4281
+    const bool isHorizontal = std::abs(gyroWorldZ) > 1.4281f * gyroWorldXY;
 
-    float spinDir = 1.0f;
+    float spinDir = currentSpinDir_;
     if (isHorizontal) {
-        spinDir = (gyroWorldZ >= 0.0f) ? 1.0f : -1.0f;
+        // Hysteresis for horizontal spin direction
+        if (gyroWorldZ > 10.0f) {
+            spinDir = 1.0f;
+        } else if (gyroWorldZ < -10.0f) {
+            spinDir = -1.0f;
+        }
     } else {
-        // Vertical spin direction based on dominant local axis (excluding twist on Z)
-        float dominantLocal = std::abs(in.gx) > std::abs(in.gy) ? in.gx : in.gy;
-        spinDir = (dominantLocal >= 0.0f) ? 1.0f : -1.0f;
+        // Vertical spin direction based on adaptive local axis reference
+        float dot = in.gx * refSpinX_ + in.gy * refSpinY_;
+
+        if (dot > 10.0f) {
+            spinDir = 1.0f;
+        } else if (dot < -10.0f) {
+            spinDir = -1.0f;
+        }
+
+        // Adapt the reference axis to track the slow twisting/rolling of the staff
+        if (std::abs(dot) > 5.0f) {
+            float sign = (spinDir > 0.0f) ? 1.0f : -1.0f;
+            refSpinX_ = onePole(refSpinX_, in.gx * sign, 0.02f);
+            refSpinY_ = onePole(refSpinY_, in.gy * sign, 0.02f);
+            float dummyZ = 0.0f;
+            safeNormalize3(refSpinX_, refSpinY_, dummyZ);
+        }
     }
-    debug.print.green("spinDir", spinDir);
 
     const bool isMoving = smoothedGyroMag_ > kGyroFloor;
     if (isMoving) {
@@ -224,9 +245,42 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
 
     out.rootHz = semiToHz(semitones);
 
-    out.chordSemitones[0] = kChordVoicing[0]; // 5th above
-    out.chordSemitones[1] = kChordVoicing[1]; // octave above
-    out.chordSemitones[2] = kChordVoicing[2]; // octave+5th above
+    // Map spin plane and direction to different chord qualities
+    char chord;
+    if (isHorizontalPlane_) {
+        if (currentSpinDir_ > 0.0f) {
+            // Major (Root, M3, P5, P8)
+            out.chordSemitones[0] = 4.0f;
+            out.chordSemitones[1] = 7.0f;
+            out.chordSemitones[2] = 12.0f;
+            chord = 'M';
+        } else {
+            // Minor (Root, m3, P5, P8)
+            out.chordSemitones[0] = 3.0f;
+            out.chordSemitones[1] = 7.0f;
+            out.chordSemitones[2] = 12.0f;
+            chord = 'm';
+        }
+    } else {
+        if (currentSpinDir_ > 0.0f) {
+            // Dominant 7th (Root, M3, P5, m7)
+            out.chordSemitones[0] = 4.0f;
+            out.chordSemitones[1] = 7.0f;
+            out.chordSemitones[2] = 10.0f;
+            chord = '7';
+        } else {
+            // Diminished 7th (Root, m3, d5, d7)
+            out.chordSemitones[0] = 3.0f;
+            out.chordSemitones[1] = 6.0f;
+            out.chordSemitones[2] = 9.0f;
+            chord = 'd';
+        }
+    }
+    if (isHorizontalPlane_ != previousPlane_ || currentSpinDir_ != previousSpinDir_) {
+        previousPlane_ = isHorizontalPlane_;
+        previousSpinDir_ = currentSpinDir_;
+        debug.print("Plane: ", isHorizontalPlane_, " Direction: ", currentSpinDir_ == 1.0f ? " 1" : "-1", " Chord: ", chord);
+    }
 
     if (weight < 0.25f) {
         out.numVoices = 1;
