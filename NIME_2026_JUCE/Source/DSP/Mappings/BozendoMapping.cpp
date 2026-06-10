@@ -191,14 +191,42 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     const float flowFree  = 1.0f - flowBound;
 
     // Plane and Direction Detection
-    // Angular velocity around the world Z axis (gravity)
+    // Use dot product with smoothed gravity vector for highly stable Z-axis spin (horizontal plane spin)
     const float gyroWorldZ = in.gx * gravX_ + in.gy * gravY_ + in.gz * gravZ_;
-    // Angular velocity in the horizontal plane (World X/Y)
     const float gyroWorldXY = std::sqrt(std::max(0.0f, gyroMag * gyroMag - gyroWorldZ * gyroWorldZ));
 
-    // If the rotation axis is > 55 degrees from horizontal, consider it a horizontal spin.
-    // tan(55 degrees) ≈ 1.4281
-    const bool isHorizontal = std::abs(gyroWorldZ) > 1.4281f * gyroWorldXY;
+    // Transform local gyro to world gyro to get the macroscopic X/Y spin axis (azimuth).
+    // This makes vertical spins completely immune to staff twisting.
+    float cr = std::cos(in.roll), sr = std::sin(in.roll);
+    float cp = std::cos(in.pitch), sp = std::sin(in.pitch);
+    float cy = std::cos(in.yaw), sy = std::sin(in.yaw);
+
+    // Roll around local X
+    float x1 = in.gx;
+    float y1 = in.gy * cr - in.gz * sr;
+    float z1 = in.gy * sr + in.gz * cr;
+
+    // Pitch around local Y
+    float x2 = x1 * cp + z1 * sp;
+    float y2 = y1;
+    float z2 = -x1 * sp + z1 * cp;
+
+    // Yaw around local Z
+    float x3 = x2 * cy - y2 * sy;
+    float y3 = x2 * sy + y2 * cy;
+
+    const float gyroWorldX = x3;
+    const float gyroWorldY = y3;
+
+    // Hysteresis for Plane Detection
+    bool isHorizontal = isHorizontalPlane_;
+    if (isHorizontal) {
+        // Drop out of horizontal if Z drops below XY (~45 degrees)
+        if (std::abs(gyroWorldZ) < 1.0f * gyroWorldXY) isHorizontal = false;
+    } else {
+        // Enter horizontal if Z exceeds XY significantly (~60 degrees)
+        if (std::abs(gyroWorldZ) > 1.732f * gyroWorldXY) isHorizontal = true;
+    }
 
     float spinDir = currentSpinDir_;
     if (isHorizontal) {
@@ -209,8 +237,8 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
             spinDir = -1.0f;
         }
     } else {
-        // Vertical spin direction based on adaptive local axis reference
-        float dot = in.gx * refSpinX_ + in.gy * refSpinY_;
+        // Vertical spin direction based on world XY plane azimuth tracking.
+        float dot = gyroWorldX * refSpinX_ + gyroWorldY * refSpinY_;
 
         if (dot > 10.0f) {
             spinDir = 1.0f;
@@ -218,11 +246,11 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
             spinDir = -1.0f;
         }
 
-        // Adapt the reference axis to track the slow twisting/rolling of the staff
+        // Adapt the reference axis to track the performer turning their body around
         if (std::abs(dot) > 5.0f) {
             float sign = (spinDir > 0.0f) ? 1.0f : -1.0f;
-            refSpinX_ = onePole(refSpinX_, in.gx * sign, 0.02f);
-            refSpinY_ = onePole(refSpinY_, in.gy * sign, 0.02f);
+            refSpinX_ = onePole(refSpinX_, gyroWorldX * sign, 0.01f);
+            refSpinY_ = onePole(refSpinY_, gyroWorldY * sign, 0.01f);
             float dummyZ = 0.0f;
             safeNormalize3(refSpinX_, refSpinY_, dummyZ);
         }
