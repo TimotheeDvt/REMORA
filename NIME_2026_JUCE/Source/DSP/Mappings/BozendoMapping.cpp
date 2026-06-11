@@ -46,6 +46,12 @@ void BozendoMapping::prepare(double sampleRate) {
 
     prevCommittedIsVertical_ = false;
     prevCommittedSpinDir_    = 1.f;
+
+    for (int i = 0; i < 3; ++i) {
+        tipX_[i] = 1.f;
+        tipY_[i] = 0.f;
+        tipZ_[i] = 0.f;
+    }
 }
 
 int BozendoMapping::gyroMagToScaleStep(float gyroMag) noexcept {
@@ -70,16 +76,12 @@ int BozendoMapping::gyroMagToScaleStep(float gyroMag) noexcept {
     return targetStep;
 }
 
-void BozendoMapping::updateSpinClassification(const StaffSoundParams& in,
-                                               float gwx, float gwy, float gwz,
-                                               float gyroMag)
+void BozendoMapping::updateSpinClassification(float axX, float axY, float axZ)
 {
-    (void)in;
+    const float perpMag = std::sqrt(axX*axX + axY*axY);
+    const float paraMag = std::abs(axZ);
 
-    const float perpMag = std::sqrt(gwx*gwx + gwy*gwy);
-    const float paraMag = std::abs(gwz);
-
-    // ── Plane ratio [0=horizontal, 1=vertical] ───────────────────────────────
+    // |axis.xy| / (|axis.xy| + |axis.z|)
     const float rawPlaneRatio = perpMag / (perpMag + paraMag + 1e-6f);
     const float planeAlpha    = (rawPlaneRatio > smoothedPlaneRatio_)
                                 ? kPlaneAttackCoef : kPlaneReleaseCoef;
@@ -93,29 +95,23 @@ void BozendoMapping::updateSpinClassification(const StaffSoundParams& in,
             committedIsVertical_ = false;
     }
 
-    // Horizontal direction: sign of gwz ────────────────────────────────────
-    // Soft-clip: x / (|x| + saturation)  maps to ±1 asymptotically
-    constexpr float kDirSaturation = 40.f; // deg/s half-saturation point
-    const float normHoriz = gwz / (paraMag + kDirSaturation);
+    const float axisMag = std::sqrt(axX*axX + axY*axY + axZ*axZ);
+    const float normHoriz = axZ / (axisMag + 1e-6f);
 
     const float horizAlpha = (std::abs(normHoriz) > std::abs(smoothedHorizDir_))
                               ? kDirAttackCoef : kDirReleaseCoef;
     smoothedHorizDir_ = onePole(smoothedHorizDir_, normHoriz, horizAlpha);
 
-    // Vertical direction: projection of rotation axis onto reference azimuth
     float normVert = 0.f;
-    if (perpMag > kGyroFloor * 0.5f) {
-        float pnx = gwx / perpMag;
-        float pny = gwy / perpMag;
+    if (perpMag > 1e-3f) {
+        float pnx = axX / perpMag;
+        float pny = axY / perpMag;
 
         if (!refAzimuthSet_) {
-            // Initialise reference to the first strong vertical spin axis
             refAzimuthX_   = pnx;
             refAzimuthY_   = pny;
             refAzimuthSet_ = true;
         } else {
-            // Very slow adaptation - only when current observation agrees
-            // with the committed direction to avoid self-corruption
             float currentDot = pnx * refAzimuthX_ + pny * refAzimuthY_;
             if ((committedSpinDir_ > 0.f) == (currentDot > 0.f)) {
                 float adaptX = (committedSpinDir_ > 0.f) ? pnx : -pnx;
@@ -126,14 +122,13 @@ void BozendoMapping::updateSpinClassification(const StaffSoundParams& in,
             }
         }
 
-        normVert = pnx * refAzimuthX_ + pny * refAzimuthY_; // dot → [-1, +1]
+        normVert = pnx * refAzimuthX_ + pny * refAzimuthY_;
     }
 
     const float vertAlpha = (std::abs(normVert) > std::abs(smoothedVertDir_))
                              ? kDirAttackCoef : kDirReleaseCoef;
     smoothedVertDir_ = onePole(smoothedVertDir_, normVert, vertAlpha);
 
-    // Committed direction with hysteresis
     const float activeDir = committedIsVertical_ ? smoothedVertDir_ : smoothedHorizDir_;
 
     if (committedSpinDir_ > 0.f) {
@@ -144,7 +139,6 @@ void BozendoMapping::updateSpinClassification(const StaffSoundParams& in,
             committedSpinDir_ =  1.f;
     }
 
-    // Debug: log only on state change
     if (committedIsVertical_ != prevCommittedIsVertical_ ||
         committedSpinDir_    != prevCommittedSpinDir_) {
         prevCommittedIsVertical_ = committedIsVertical_;
@@ -161,7 +155,6 @@ void BozendoMapping::updateSpinClassification(const StaffSoundParams& in,
 
 void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
 
-    // 0. dt
     {
         const juce::uint32 now = juce::Time::getMillisecondCounter();
         if (lastTimestampMs_ != 0) {
@@ -172,23 +165,30 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
         lastTimestampMs_ = now;
     }
 
-    // Rotate gyro into world frame via calibrated quaternion
-    //
-    // StaffSoundParams now carries qw/qx/qy/qz (the calibrated quaternion).
-    // g_world = q ⊗ g_sensor ⊗ q*
-    // This is exact, singularity-free, and requires no Euler reconstruction.
-    //
-    float gwx, gwy, gwz;
+    // p_tip = rotate({1,0,0}, q)
+    float tx, ty, tz;
     rotateByQuat(in.qw, in.qx, in.qy, in.qz,
-                 in.gx, in.gy, in.gz,
-                 gwx, gwy, gwz);
+                 1.f, 0.f, 0.f,
+                 tx, ty, tz);
 
-    // Gravity in sensor frame (for dynamic accel subtraction)
-    // World +Z = up. Rotate world (0,0,1) by q* to get gravity direction
-    // in sensor frame. Low-pass filtered for stability.
+    tipX_[2] = tipX_[1]; tipX_[1] = tipX_[0]; tipX_[0] = tx;
+    tipY_[2] = tipY_[1]; tipY_[1] = tipY_[0]; tipY_[0] = ty;
+    tipZ_[2] = tipZ_[1]; tipZ_[1] = tipZ_[0]; tipZ_[0] = tz;
+
+    // v01 = p1 - p0, v12 = p2 - p1
+    // v_mean = (v01 + v12) / 2
+    float vmx = (tipX_[0] - tipX_[2]) * 0.5f;
+    float vmy = (tipY_[0] - tipY_[2]) * 0.5f;
+    float vmz = (tipZ_[0] - tipZ_[2]) * 0.5f;
+
+    // axis = cross(p_mid, v_mean)
+    float axX = tipY_[1] * vmz - tipZ_[1] * vmy;
+    float axY = tipZ_[1] * vmx - tipX_[1] * vmz;
+    float axZ = tipX_[1] * vmy - tipY_[1] * vmx;
+
     {
         float gx_target, gy_target, gz_target;
-        rotateByQuat(in.qw, -in.qx, -in.qy, -in.qz,  // conjugate of q
+        rotateByQuat(in.qw, -in.qx, -in.qy, -in.qz,
                      0.f, 0.f, 1.f,
                      gx_target, gy_target, gz_target);
 
@@ -198,7 +198,6 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
         gravZ_ = onePole(gravZ_, gz_target, kGravAlpha);
     }
 
-    // Dynamic acceleration & velocity
     const float dynAX = in.ax - gravX_;
     const float dynAY = in.ay - gravY_;
     const float dynAZ = in.az - gravZ_;
@@ -214,11 +213,9 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     }
     const float velMag = std::sqrt(velX_*velX_ + velY_*velY_ + velZ_*velZ_);
 
-    // Gyro magnitude
     const float gyroMag = std::sqrt(in.gx*in.gx + in.gy*in.gy + in.gz*in.gz);
     smoothedGyroMag_ = onePole(smoothedGyroMag_, gyroMag, kGyroSmoothCoef);
 
-    // Laban: WEIGHT
     {
         float target = juce::jlimit(0.0f, 1.0f, velMag * 0.25f);
         weightEnvelope_ = (target > weightEnvelope_)
@@ -227,7 +224,6 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     }
     const float weight = weightEnvelope_;
 
-    // Laban: TIME
     {
         suddenness_ = (gyroMag - prevGyroMag_) / (dt_ + 1e-6f);
         prevGyroMag_ = gyroMag;
@@ -239,7 +235,6 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     }
     const float suddennessNorm = juce::jlimit(0.0f, 1.0f, suddennessEnv_);
 
-    // Laban: SPACE
     {
         if (gyroMag > 5.0f) {
             float nx = in.gx, ny = in.gy, nz = in.gz;
@@ -254,7 +249,6 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     }
     const float focus = juce::jlimit(0.0f, 1.0f, axisFocus_);
 
-    // Laban: FLOW
     {
         float jerkNorm = juce::jlimit(0.0f, 1.0f,
             std::abs(dynAccelMag - prevDynAccelMag_) / (dt_ + 1e-6f) / 50.0f);
@@ -264,14 +258,12 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     const float flowBound = juce::jlimit(0.0f, 1.0f, flowBound_);
     const float flowFree  = 1.0f - flowBound;
 
-    // Spin classification
     const bool isMoving = smoothedGyroMag_ > kGyroFloor;
     if (isMoving) {
-        updateSpinClassification(in, gwx, gwy, gwz, gyroMag);
+        updateSpinClassification(axX, axY, axZ);
         currentScaleStep_ = gyroMagToScaleStep(smoothedGyroMag_);
     }
 
-    // Pitch
     {
         const float baseSemitones = kPentatonicMinor[currentScaleStep_];
         const float planeOffset   = committedIsVertical_ ? 12.0f : 0.0f;
@@ -279,22 +271,20 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
         out.rootHz = semiToHz(baseSemitones + planeOffset + dirOffset);
     }
 
-    // Chord quality
     if (!committedIsVertical_) {
         if (committedSpinDir_ > 0.f) {
-            out.chordSemitones[0] = 4.f; out.chordSemitones[1] = 7.f;  out.chordSemitones[2] = 12.f; // major
+            out.chordSemitones[0] = 4.f; out.chordSemitones[1] = 7.f;  out.chordSemitones[2] = 12.f;
         } else {
-            out.chordSemitones[0] = 3.f; out.chordSemitones[1] = 7.f;  out.chordSemitones[2] = 12.f; // minor
+            out.chordSemitones[0] = 3.f; out.chordSemitones[1] = 7.f;  out.chordSemitones[2] = 12.f;
         }
     } else {
         if (committedSpinDir_ > 0.f) {
-            out.chordSemitones[0] = 4.f; out.chordSemitones[1] = 7.f;  out.chordSemitones[2] = 10.f; // dom7
+            out.chordSemitones[0] = 4.f; out.chordSemitones[1] = 7.f;  out.chordSemitones[2] = 10.f;
         } else {
-            out.chordSemitones[0] = 3.f; out.chordSemitones[1] = 6.f;  out.chordSemitones[2] = 9.f;  // dim7
+            out.chordSemitones[0] = 3.f; out.chordSemitones[1] = 6.f;  out.chordSemitones[2] = 9.f;
         }
     }
 
-    // Voices
     out.numVoices = (weight < 0.25f) ? 1 : (weight < 0.55f) ? 2 : (weight < 0.80f) ? 3 : 4;
 
     const float melodyGain = isMoving
@@ -305,14 +295,12 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     out.voiceGain[2] = juce::jlimit(0.0f, 1.0f, (weight - 0.55f) * 3.3f) * 0.7f;
     out.voiceGain[3] = juce::jlimit(0.0f, 1.0f, (weight - 0.80f) * 5.0f) * 0.6f;
 
-    // Master gain
     {
         float motionGate = juce::jlimit(0.0f, 1.0f,
             (smoothedGyroMag_ - kGyroFloor * 0.5f) / (kGyroFloor * 1.5f));
         out.masterGain = motionGate * (0.05f + weight * 0.70f);
     }
 
-    // Timbre
     {
         constexpr float kProfileDirect[6]   = { 1.0f, 0.60f, 0.40f, 0.30f, 0.20f, 0.15f };
         constexpr float kProfileIndirect[6] = { 1.0f, 0.10f, 0.50f, 0.05f, 0.30f, 0.03f };
@@ -322,7 +310,6 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
         out.driveAmt = weight * (1.0f - focus * 0.7f) * 2.5f;
     }
 
-    // Noise burst
     {
         if (suddennessNorm > 0.3f)
             noiseEnvelope_ = juce::jlimit(0.0f, 1.0f,
@@ -332,20 +319,16 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     out.noiseAmount = noiseEnvelope_ * 0.4f;
     out.noiseLpCoef = 1.0f - (0.2f + suddennessNorm * 0.6f);
 
-    // Vibrato / tremolo
     out.vibratoDepth  = flowFree  * weight * 0.020f;
     out.vibratoRateHz = 4.5f + smoothedGyroMag_ * 0.005f;
     out.tremoloDepth  = flowBound * weight * 0.30f;
     out.tremoloRateHz = 3.0f + flowBound * 4.0f;
 
-    // Stereo pan
-    // Pan bias from world-XY azimuth of the rotation axis - continuous and
-    // smooth, independent of the committed plane/direction states.
     {
         float panBias = 0.f;
-        const float perpMagWorld = std::sqrt(gwx*gwx + gwy*gwy);
-        if (perpMagWorld > kGyroFloor * 0.3f) {
-            float azimuth = std::atan2(gwy, gwx); // -π to π
+        const float perpMagWorld = std::sqrt(axX*axX + axY*axY);
+        if (perpMagWorld > 1e-3f) {
+            float azimuth = std::atan2(axY, axX);
             panBias = juce::jlimit(-0.2f, 0.2f,
                       azimuth / juce::MathConstants<float>::pi * 0.2f);
         }
