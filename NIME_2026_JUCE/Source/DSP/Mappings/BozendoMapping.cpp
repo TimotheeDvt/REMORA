@@ -30,6 +30,7 @@ void BozendoMapping::prepare(double sampleRate) {
     currentScaleStep_  = 0;
     smoothedGyroMag_   = 0.f;
     noiseEnvelope_     = 0.f;
+    axialThrustEnv_    = 0.f;
     outGainSmoothed_   = 0.f;
     lastTimestampMs_   = 0;
 
@@ -274,9 +275,20 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
             noiseEnvelope_ = juce::jlimit(0.0f, 1.0f,
                              noiseEnvelope_ + (suddennessNorm - 0.3f) * 1.5f);
         noiseEnvelope_ *= kNoiseDecayCoef;
+
+        float thrustAccel = std::abs(dynAX);
+        if (thrustAccel > 1.5f) {
+            if (axialThrustEnv_ < 0.1f)
+                debug.print.magenta("AXIAL THRUST PEAK | accel:", thrustAccel);
+            axialThrustEnv_ = juce::jlimit(0.0f, 1.0f, axialThrustEnv_ + (thrustAccel - 1.5f) * 0.2f);
+        }
+        axialThrustEnv_ *= kThrustDecayCoef;
     }
-    out.noiseAmount = noiseEnvelope_ * 0.4f;
+    out.noiseAmount = juce::jlimit(0.f, 1.f, noiseEnvelope_ * 0.4f + axialThrustEnv_ * 0.6f);
     out.noiseLpCoef = 1.0f - (0.2f + suddennessNorm * 0.6f);
+
+    out.driveAmt += axialThrustEnv_ * 2.0f;
+    out.masterGain = juce::jlimit(0.f, 1.f, out.masterGain + axialThrustEnv_ * 0.6f);
 
     out.vibratoDepth  = flowFree  * weight * 0.020f;
     out.vibratoRateHz = 4.5f + smoothedGyroMag_ * 0.005f;

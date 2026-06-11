@@ -78,6 +78,9 @@ private:
     float noiseEnvelope_ = 0.f;
     static constexpr float kNoiseDecayCoef = 0.9985f;
 
+    float axialThrustEnv_ = 0.f;
+    static constexpr float kThrustDecayCoef = 0.92f;
+
     float outGainSmoothed_ = 0.f;
 
     static inline float onePole(float y, float x, float coef) noexcept {
