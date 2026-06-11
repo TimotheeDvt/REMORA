@@ -59,23 +59,16 @@ private:
     float tipY_[3] = {0.f, 0.f, 0.f};
     float tipZ_[3] = {0.f, 0.f, 0.f};
 
-    float smoothedPlaneRatio_  = 0.5f;
-    bool  committedIsVertical_ = false;
-    static constexpr float kPlaneAttackCoef      = 0.04f;
-    static constexpr float kPlaneReleaseCoef     = 0.12f;
-    static constexpr float kPlaneSwitchHysteresis = 0.15f;
+    float smoothedAxX_ = 0.f;
+    float smoothedAxY_ = 0.f;
+    float smoothedAxZ_ = 0.f;
 
-    float smoothedHorizDir_  = 0.f;
-    float smoothedVertDir_   = 0.f;
+    bool  committedIsVertical_ = false;
     float committedSpinDir_  = 1.f;
-    static constexpr float kDirAttackCoef       = 0.20f;
-    static constexpr float kDirReleaseCoef      = 0.03f;
-    static constexpr float kDirSwitchHysteresis = 0.35f;
 
     float refAzimuthX_       = 1.f;
     float refAzimuthY_       = 0.f;
     bool  refAzimuthSet_     = false;
-    static constexpr float kRefAzimuthAdaptCoef = 0.002f;
 
     bool  prevCommittedIsVertical_ = false;
     float prevCommittedSpinDir_    = 1.f;

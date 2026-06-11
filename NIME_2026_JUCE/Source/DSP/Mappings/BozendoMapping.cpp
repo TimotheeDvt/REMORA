@@ -33,11 +33,11 @@ void BozendoMapping::prepare(double sampleRate) {
     outGainSmoothed_   = 0.f;
     lastTimestampMs_   = 0;
 
-    smoothedPlaneRatio_  = 0.5f;
-    committedIsVertical_ = false;
+    smoothedAxX_ = 0.f;
+    smoothedAxY_ = 0.f;
+    smoothedAxZ_ = 0.f;
 
-    smoothedHorizDir_  = 0.f;
-    smoothedVertDir_   = 0.f;
+    committedIsVertical_ = false;
     committedSpinDir_  = 1.f;
 
     refAzimuthX_   = 1.f;
@@ -78,65 +78,27 @@ int BozendoMapping::gyroMagToScaleStep(float gyroMag) noexcept {
 
 void BozendoMapping::updateSpinClassification(float axX, float axY, float axZ)
 {
-    const float perpMag = std::sqrt(axX*axX + axY*axY);
-    const float paraMag = std::abs(axZ);
+    smoothedAxX_ = onePole(smoothedAxX_, axX, 0.1f);
+    smoothedAxY_ = onePole(smoothedAxY_, axY, 0.1f);
+    smoothedAxZ_ = onePole(smoothedAxZ_, axZ, 0.1f);
 
-    // |axis.xy| / (|axis.xy| + |axis.z|)
-    const float rawPlaneRatio = perpMag / (perpMag + paraMag + 1e-6f);
-    const float planeAlpha    = (rawPlaneRatio > smoothedPlaneRatio_)
-                                ? kPlaneAttackCoef : kPlaneReleaseCoef;
-    smoothedPlaneRatio_ = onePole(smoothedPlaneRatio_, rawPlaneRatio, planeAlpha);
+    float perpMag = std::sqrt(smoothedAxX_ * smoothedAxX_ + smoothedAxY_ * smoothedAxY_);
+    float paraMag = std::abs(smoothedAxZ_);
 
-    if (!committedIsVertical_) {
-        if (smoothedPlaneRatio_ > 0.5f + kPlaneSwitchHysteresis)
-            committedIsVertical_ = true;
-    } else {
-        if (smoothedPlaneRatio_ < 0.5f - kPlaneSwitchHysteresis)
-            committedIsVertical_ = false;
-    }
+    committedIsVertical_ = perpMag > paraMag;
 
-    const float axisMag = std::sqrt(axX*axX + axY*axY + axZ*axZ);
-    const float normHoriz = axZ / (axisMag + 1e-6f);
-
-    const float horizAlpha = (std::abs(normHoriz) > std::abs(smoothedHorizDir_))
-                              ? kDirAttackCoef : kDirReleaseCoef;
-    smoothedHorizDir_ = onePole(smoothedHorizDir_, normHoriz, horizAlpha);
-
-    float normVert = 0.f;
-    if (perpMag > 1e-3f) {
-        float pnx = axX / perpMag;
-        float pny = axY / perpMag;
-
-        if (!refAzimuthSet_) {
-            refAzimuthX_   = pnx;
-            refAzimuthY_   = pny;
-            refAzimuthSet_ = true;
-        } else {
-            float currentDot = pnx * refAzimuthX_ + pny * refAzimuthY_;
-            if ((committedSpinDir_ > 0.f) == (currentDot > 0.f)) {
-                float adaptX = (committedSpinDir_ > 0.f) ? pnx : -pnx;
-                float adaptY = (committedSpinDir_ > 0.f) ? pny : -pny;
-                refAzimuthX_ = onePole(refAzimuthX_, adaptX, kRefAzimuthAdaptCoef);
-                refAzimuthY_ = onePole(refAzimuthY_, adaptY, kRefAzimuthAdaptCoef);
-                safeNormalize2(refAzimuthX_, refAzimuthY_);
+    if (committedIsVertical_) {
+        if (perpMag > 1e-3f) {
+            if (!refAzimuthSet_) {
+                refAzimuthX_ = smoothedAxX_ / perpMag;
+                refAzimuthY_ = smoothedAxY_ / perpMag;
+                refAzimuthSet_ = true;
             }
+            float dot = (smoothedAxX_ / perpMag) * refAzimuthX_ + (smoothedAxY_ / perpMag) * refAzimuthY_;
+            committedSpinDir_ = dot >= 0.f ? 1.f : -1.f;
         }
-
-        normVert = pnx * refAzimuthX_ + pny * refAzimuthY_;
-    }
-
-    const float vertAlpha = (std::abs(normVert) > std::abs(smoothedVertDir_))
-                             ? kDirAttackCoef : kDirReleaseCoef;
-    smoothedVertDir_ = onePole(smoothedVertDir_, normVert, vertAlpha);
-
-    const float activeDir = committedIsVertical_ ? smoothedVertDir_ : smoothedHorizDir_;
-
-    if (committedSpinDir_ > 0.f) {
-        if (activeDir < -kDirSwitchHysteresis)
-            committedSpinDir_ = -1.f;
     } else {
-        if (activeDir >  kDirSwitchHysteresis)
-            committedSpinDir_ =  1.f;
+        committedSpinDir_ = smoothedAxZ_ >= 0.f ? 1.f : -1.f;
     }
 
     if (committedIsVertical_ != prevCommittedIsVertical_ ||
@@ -144,11 +106,8 @@ void BozendoMapping::updateSpinClassification(float axX, float axY, float axZ)
         prevCommittedIsVertical_ = committedIsVertical_;
         prevCommittedSpinDir_    = committedSpinDir_;
         debug.print.cyan(
-            committedIsVertical_ ? "  VERTICAL" : "HORIZONTAL",
-            committedSpinDir_ > 0.f ? " CCW/FWD" : "  CW/BWD",
-            "| ratio:", smoothedPlaneRatio_,
-            "hDir:", smoothedHorizDir_,
-            "vDir:", smoothedVertDir_
+            committedIsVertical_ ? "VERTICAL" : "HORIZONTAL",
+            committedSpinDir_ > 0.f ? "CCW/FWD" : "CW/BWD"
         );
     }
 }
