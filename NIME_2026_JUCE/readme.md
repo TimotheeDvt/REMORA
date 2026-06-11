@@ -22,11 +22,11 @@ The plugin uses a 4-voice additive chord synthesiser with a bowed-string physica
 
 Chord changes crossfade over 200ms.
 
-**Roll (twist):** Below 70% twist — controls vibrato depth and spectral brightness (timbre shifts from flute to bowed string). Above 70% twist — unlocks the 7th chord vocabulary in the yaw mapping.
+**Roll (twist):** Below 70% twist - controls vibrato depth and spectral brightness (timbre shifts from flute to bowed string). Above 70% twist - unlocks the 7th chord vocabulary in the yaw mapping.
 
 **Gyroscope magnitude (motion speed):** Acts as bow pressure. The staff must be moving to produce sound. Slow motion = quiet sustain. Fast motion = loud, driven, saturated tone. Holding the staff still causes the sound to fade.
 
-**Yaw angular velocity (gz):** Controls tremolo rate and depth — spinning the staff adds amplitude flutter.
+**Yaw angular velocity (gz):** Controls tremolo rate and depth - spinning the staff adds amplitude flutter.
 
 **Accelerometer spike:** Striking or sharply changing direction triggers a percussive noise burst layered over the chord. Vertical acceleration (az) controls the brightness of the hit.
 

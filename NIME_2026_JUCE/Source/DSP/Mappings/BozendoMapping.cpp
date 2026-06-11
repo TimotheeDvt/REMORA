@@ -114,7 +114,7 @@ void BozendoMapping::updateSpinClassification(const StaffSoundParams& in,
             refAzimuthY_   = pny;
             refAzimuthSet_ = true;
         } else {
-            // Very slow adaptation — only when current observation agrees
+            // Very slow adaptation - only when current observation agrees
             // with the committed direction to avoid self-corruption
             float currentDot = pnx * refAzimuthX_ + pny * refAzimuthY_;
             if ((committedSpinDir_ > 0.f) == (currentDot > 0.f)) {
@@ -339,7 +339,7 @@ void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
     out.tremoloRateHz = 3.0f + flowBound * 4.0f;
 
     // Stereo pan
-    // Pan bias from world-XY azimuth of the rotation axis — continuous and
+    // Pan bias from world-XY azimuth of the rotation axis - continuous and
     // smooth, independent of the committed plane/direction states.
     {
         float panBias = 0.f;
