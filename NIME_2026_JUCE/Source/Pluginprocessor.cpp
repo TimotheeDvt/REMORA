@@ -228,6 +228,13 @@ void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       params.roll  = euler.roll;
       params.yaw   = euler.yaw;
 
+      // Pass the calibrated quaternion directly so mappings can rotate
+      // vectors into world frame without Euler reconstruction errors.
+      params.qw = calibratedQ.w;
+      params.qx = calibratedQ.x;
+      params.qy = calibratedQ.y;
+      params.qz = calibratedQ.z;
+
       IMURawSnapshot snap;
       while (!getIMUData().trySnapshot(snap)) {}
       params.gx = snap.gx;  params.gy = snap.gy;  params.gz = snap.gz;
