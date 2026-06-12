@@ -52,8 +52,8 @@ void BozendoMapping::prepare(double sample_rate_hz) {
 
     axial_thrust_peak_envelope_ = 0.f;
     previous_axial_acceleration_ = 0.f;
-    axial_jerk_ = 0.f;
-    axial_jerk_envelope_ = 0.f;
+    previous_axial_jerk_ = 0.f;
+    thrust_cooldown_seconds_ = 0.f;
 }
 
 void BozendoMapping::calculateDeltaTime() {
@@ -119,35 +119,32 @@ void BozendoMapping::detectAxialThrustPeaks(const StaffSoundParams& input_parame
     MathHelpers::rotateVectorByQuaternion(input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz, dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, dynamic_accel_world_x, dynamic_accel_world_y, dynamic_accel_world_z);
 
     // dot product(dynamic_accel_world, staff_world) - positive value means thrust along tip direction
-    float axial_acceleration = dynamic_accel_world_x * tip_x + dynamic_accel_world_y * tip_y + dynamic_accel_world_z * tip_z;
-    float current_axial_acceleration_absolute = std::abs(axial_acceleration);
+    float current_axial_acceleration = dynamic_accel_world_x * tip_x + dynamic_accel_world_y * tip_y + dynamic_accel_world_z * tip_z;
+    float current_axial_jerk = (current_axial_acceleration - previous_axial_acceleration_) / (delta_time_seconds_ + 1e-6f);
 
-    // derivative of axial acceleration (onset detector)
-    axial_jerk_ = (current_axial_acceleration_absolute - previous_axial_acceleration_) / (delta_time_seconds_ + 1e-6f);
-
-    // Smooth positive jerk only (onset, not offset)
-    float positive_jerk = juce::jlimit(0.f, 1.f, std::max(0.f, axial_jerk_) / 200.f);
-    if (positive_jerk > axial_jerk_envelope_) {
-        axial_jerk_envelope_ = MathHelpers::applyOnePoleFilter(axial_jerk_envelope_, positive_jerk, 0.7f); // fast attack
-    } else {
-        axial_jerk_envelope_ = MathHelpers::applyOnePoleFilter(axial_jerk_envelope_, positive_jerk, kPeakJerkSmoothingCoefficient);
+    if (thrust_cooldown_seconds_ > 0.f) {
+        thrust_cooldown_seconds_ -= delta_time_seconds_;
     }
 
-    // Gate: must have significant axial acceleration AND low rotation
-    bool is_thrust = (current_axial_acceleration_absolute > kPeakAxialAccelerationThreshold) && (gyroscope_magnitude < kPeakMaximumGyroscope);
+    // Detect zero-crossing of signed jerk depending on the direction of acceleration
+    bool is_positive_peak = (current_axial_acceleration > kPeakAxialAccelerationThreshold) && (previous_axial_jerk_ > 0.f && current_axial_jerk <= 0.f);
+    bool is_negative_peak = (current_axial_acceleration < -kPeakAxialAccelerationThreshold) && (previous_axial_jerk_ < 0.f && current_axial_jerk >= 0.f);
 
-    if (is_thrust) {
+    // Gate: must have a peak, low rotation (not a spin), and be off cooldown
+    bool is_thrust = (is_positive_peak || is_negative_peak) && (gyroscope_magnitude < kPeakMaximumGyroscope);
+
+    if (is_thrust && thrust_cooldown_seconds_ <= 0.f) {
+        float current_axial_acceleration_absolute = std::abs(current_axial_acceleration);
         float strength = juce::jlimit(0.f, 1.f, (current_axial_acceleration_absolute - kPeakAxialAccelerationThreshold) / (kPeakAxialAccelerationThreshold * 3.f));
-        // Add jerk-weighted onset punch
-        float onset = strength + axial_jerk_envelope_ * 0.5f;
-        axial_thrust_peak_envelope_ = juce::jlimit(0.f, 1.f, axial_thrust_peak_envelope_ + onset * 0.4f);
 
-        debug.print.yellow(axial_thrust_peak_envelope_, kPeakAxialAccelerationThreshold);
-        if (axial_thrust_peak_envelope_ > 0.7f && previous_axial_acceleration_ <= kPeakAxialAccelerationThreshold) {
-            debug.print.magenta("THRUST peak | axial:", current_axial_acceleration_absolute, "gyroscope:", gyroscope_magnitude);
-        }
+        axial_thrust_peak_envelope_ = juce::jlimit(0.f, 1.f, strength + 0.5f);
+        thrust_cooldown_seconds_ = kThrustCooldownDurationSeconds;
+
+        debug.print.magenta("THRUST peak | axial:", current_axial_acceleration_absolute, "gyroscope:", gyroscope_magnitude);
     }
-    previous_axial_acceleration_ = current_axial_acceleration_absolute;
+
+    previous_axial_acceleration_ = current_axial_acceleration;
+    previous_axial_jerk_ = current_axial_jerk;
     axial_thrust_peak_envelope_ *= kPeakDecayCoefficient;
 }
 

@@ -95,13 +95,12 @@ private:
     // rotation_gate: gyroscope_magnitude must be below kPeakMaximumGyroscope to qualify as a thrust
     float axial_thrust_peak_envelope_ = 0.f;
     float previous_axial_acceleration_ = 0.f;
-    // derivative of axial accel for onset detection
-    float axial_jerk_ = 0.f;
-    float axial_jerk_envelope_ = 0.f;
-    static constexpr float kPeakMaximumGyroscope = 250.f;  // deg/s - above this it's a spin not a thrust
+    float previous_axial_jerk_ = 0.f;
+    float thrust_cooldown_seconds_ = 0.f;
+    static constexpr float kPeakMaximumGyroscope = 90.f;  // deg/s - lowered to distinguish from circle spins
     static constexpr float kPeakAxialAccelerationThreshold = 1.5f;   // g - minimum axial acceleration to qualify
     static constexpr float kPeakDecayCoefficient = 0.94f;  // per packet approx 100Hz -> approx 150ms half-life
-    static constexpr float kPeakJerkSmoothingCoefficient = 0.40f;
+    static constexpr float kThrustCooldownDurationSeconds = 0.2f;
 
     float smoothed_output_gain_ = 0.f;
 
