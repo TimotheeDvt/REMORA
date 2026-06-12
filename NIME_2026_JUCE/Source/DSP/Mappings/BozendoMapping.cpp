@@ -4,375 +4,394 @@
 #include <cmath>
 #include <algorithm>
 
-constexpr float BozendoMapping::kPentatonicMinor[BozendoMapping::kNumScaleSteps];
+constexpr float BozendoMapping::kPentatonicMinorScale[BozendoMapping::kNumberOfScaleSteps];
 constexpr float BozendoMapping::kChordVoicing[3];
 
-inline void BozendoMapping::rotateByQuat(
-    float qw, float qx, float qy, float qz,
-    float vx, float vy, float vz,
-    float& ox, float& oy, float& oz) noexcept
-{
-    // t = 2 * (q.xyz x v)
-    float tx = 2.f * (qy * vz - qz * vy);
-    float ty = 2.f * (qz * vx - qx * vz);
-    float tz = 2.f * (qx * vy - qy * vx);
-    // v' = v + qw*t + q.xyz × t
-    ox = vx + qw * tx + (qy * tz - qz * ty);
-    oy = vy + qw * ty + (qz * tx - qx * tz);
-    oz = vz + qw * tz + (qx * ty - qy * tx);
-}
+void BozendoMapping::prepare(double sample_rate_hz) {
+    debug.print.green("BozendoMapping prepared at sample rate:", sample_rate_hz);
+    sample_rate_hz_ = sample_rate_hz;
+    delta_time_seconds_ = 1.0f / 100.0f;
 
-void BozendoMapping::prepare(double sampleRate) {
-    debug.print.green("BozendoMapping prepared at sample rate:", sampleRate);
-    sampleRate_ = sampleRate;
-    dt_         = 1.0f / 100.0f;
+    gravity_x_ = 0.f; gravity_y_ = 0.f; gravity_z_ = 1.f;
+    velocity_x_  = 0.f; velocity_y_  = 0.f; velocity_z_  = 0.f;
 
-    gravX_ = 0.f; gravY_ = 0.f; gravZ_ = 1.f;
-    velX_  = 0.f; velY_  = 0.f; velZ_  = 0.f;
+    weight_envelope_ = 0.f;
+    previous_gyroscope_magnitude_ = 0.f;
+    suddenness_ = 0.f;
+    suddenness_envelope_ = 0.f;
 
-    weightEnvelope_  = 0.f;
-    prevGyroMag_     = 0.f;
-    suddenness_      = 0.f;
-    suddennessEnv_   = 0.f;
+    previous_gyroscope_direction_x_ = 0.f; previous_gyroscope_direction_y_ = 0.f; previous_gyroscope_direction_z_ = 1.f;
+    axis_focus_ = 1.f;
 
-    prevGyroDirX_ = 0.f; prevGyroDirY_ = 0.f; prevGyroDirZ_ = 1.f;
-    axisFocus_    = 1.f;
+    previous_dynamic_acceleration_magnitude_ = 0.f;
+    flow_bound_envelope_ = 0.f;
 
-    prevDynAccelMag_ = 0.f;
-    flowBound_       = 0.f;
+    current_scale_step_ = 0;
+    smoothed_gyroscope_magnitude_ = 0.f;
+    noise_envelope_ = 0.f;
+    smoothed_output_gain_ = 0.f;
+    last_timestamp_ticks_ = 0;
 
-    currentScaleStep_  = 0;
-    smoothedGyroMag_   = 0.f;
-    noiseEnvelope_     = 0.f;
-    outGainSmoothed_   = 0.f;
-    lastTimestampTicks_ = 0;
-
-    for (int i = 0; i < 3; ++i) { tipX_[i] = 1.f; tipY_[i] = 0.f; tipZ_[i] = 0.f; }
-
-    smoothedAxX_ = 0.f;
-    smoothedAxY_ = 0.f;
-    smoothedAxZ_ = 1.f;
-
-    committedIsVertical_ = false;
-    committedSpinDir_  = 1.f;
-    refAzimuthX_   = 1.f;
-    refAzimuthY_   = 0.f;
-    refAzimuthSet_ = false;
-    prevCommittedIsVertical_ = false;
-    prevCommittedSpinDir_    = 1.f;
-
-    peakEnvelope_   = 0.f;
-    prevAxialAccel_ = 0.f;
-    axialJerk_      = 0.f;
-    axialJerkEnv_   = 0.f;
-}
-
-int BozendoMapping::gyroMagToScaleStep(float gyroMag) noexcept {
-    float clamped = juce::jlimit(kGyroFloor, kGyroCeiling, gyroMag);
-    float norm = (clamped - kGyroFloor) / (kGyroCeiling - kGyroFloor);
-    float floatStep = norm * static_cast<float>(kNumScaleSteps - 1);
-
-    float hysteresisNorm = kScaleHysteresis / (kGyroCeiling - kGyroFloor);
-    float hysteresisSteps = hysteresisNorm * static_cast<float>(kNumScaleSteps - 1);
-
-    int targetStep = juce::jlimit(0, kNumScaleSteps - 1,
-                                  static_cast<int>(floatStep + 0.5f));
-    if (targetStep > currentScaleStep_) {
-        if (floatStep < static_cast<float>(currentScaleStep_) + 0.5f + hysteresisSteps)
-            targetStep = currentScaleStep_;
-    } else if (targetStep < currentScaleStep_) {
-        if (floatStep > static_cast<float>(currentScaleStep_) - 0.5f - hysteresisSteps)
-            targetStep = currentScaleStep_;
+    for (int i = 0; i < 3; ++i) {
+        tip_position_x_history_[i] = 1.f;
+        tip_position_y_history_[i] = 0.f;
+        tip_position_z_history_[i] = 0.f;
     }
-    return targetStep;
+
+    smoothed_rotation_axis_x_ = 0.f;
+    smoothed_rotation_axis_y_ = 0.f;
+    smoothed_rotation_axis_z_ = 1.f;
+
+    is_rotation_axis_vertical_ = false;
+    rotation_spin_direction_  = 1.f;
+    reference_azimuth_x_   = 1.f;
+    reference_azimuth_y_   = 0.f;
+    is_reference_azimuth_set_ = false;
+    was_rotation_axis_vertical_ = false;
+    previous_rotation_spin_direction_ = 1.f;
+
+    axial_thrust_peak_envelope_ = 0.f;
+    previous_axial_acceleration_ = 0.f;
+    axial_jerk_ = 0.f;
+    axial_jerk_envelope_ = 0.f;
 }
 
-void BozendoMapping::updateSpinClassification(float axX, float axY, float axZ)
-{
-    smoothedAxX_ = onePole(smoothedAxX_, axX, kAxisSmoothCoef);
-    smoothedAxY_ = onePole(smoothedAxY_, axY, kAxisSmoothCoef);
-    smoothedAxZ_ = onePole(smoothedAxZ_, axZ, kAxisSmoothCoef);
+void BozendoMapping::calculateDeltaTime() {
+    const juce::int64 current_time_ticks = juce::Time::getHighResolutionTicks();
+    if (last_timestamp_ticks_ != 0) {
+        double elapsed_seconds = juce::Time::highResolutionTicksToSeconds(current_time_ticks - last_timestamp_ticks_);
+        if (elapsed_seconds > 0.0001 && elapsed_seconds < 0.2) {
+            delta_time_seconds_ = static_cast<float>(elapsed_seconds);
+        }
+    }
+    last_timestamp_ticks_ = current_time_ticks;
+}
 
-    float perpMag = std::sqrt(smoothedAxX_ * smoothedAxX_ + smoothedAxY_ * smoothedAxY_);
-    float paraMag = std::abs(smoothedAxZ_);
+void BozendoMapping::updateTipPositionHistory(const StaffSoundParams& input_parameters, float& current_tip_x, float& current_tip_y, float& current_tip_z) {
+    MathHelpers::rotateVectorByQuaternion(input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz, 1.f, 0.f, 0.f, current_tip_x, current_tip_y, current_tip_z);
 
-    committedIsVertical_ = perpMag > paraMag;
+    // shift ring buffer: [2]=oldest, [1]=mid, [0]=newest
+    tip_position_x_history_[2] = tip_position_x_history_[1]; tip_position_x_history_[1] = tip_position_x_history_[0]; tip_position_x_history_[0] = current_tip_x;
+    tip_position_y_history_[2] = tip_position_y_history_[1]; tip_position_y_history_[1] = tip_position_y_history_[0]; tip_position_y_history_[0] = current_tip_y;
+    tip_position_z_history_[2] = tip_position_z_history_[1]; tip_position_z_history_[1] = tip_position_z_history_[0]; tip_position_z_history_[0] = current_tip_z;
+}
 
-    if (committedIsVertical_) {
-        if (perpMag > 1e-3f) {
-            if (!refAzimuthSet_) {
-                refAzimuthX_ = smoothedAxX_ / perpMag;
-                refAzimuthY_ = smoothedAxY_ / perpMag;
-                refAzimuthSet_ = true;
+void BozendoMapping::calculateRotationAxisAtMidpoint(float& axis_x, float& axis_y, float& axis_z) {
+    // velocity_mean = (position[0] - position[2]) / 2 (central difference, 1-frame latency)
+    float velocity_mean_x = (tip_position_x_history_[0] - tip_position_x_history_[2]) * 0.5f;
+    float velocity_mean_y = (tip_position_y_history_[0] - tip_position_y_history_[2]) * 0.5f;
+    float velocity_mean_z = (tip_position_z_history_[0] - tip_position_z_history_[2]) * 0.5f;
+
+    // axis = position[1] cross_product velocity_mean (rotation axis at midpoint)
+    axis_x = tip_position_y_history_[1] * velocity_mean_z - tip_position_z_history_[1] * velocity_mean_y;
+    axis_y = tip_position_z_history_[1] * velocity_mean_x - tip_position_x_history_[1] * velocity_mean_z;
+    axis_z = tip_position_x_history_[1] * velocity_mean_y - tip_position_y_history_[1] * velocity_mean_x;
+}
+
+void BozendoMapping::updateGravityVector(const StaffSoundParams& input_parameters) {
+    float gravity_x_temp, gravity_y_temp, gravity_z_temp;
+    MathHelpers::rotateVectorByQuaternion(input_parameters.qw, -input_parameters.qx, -input_parameters.qy, -input_parameters.qz, 0.f, 0.f, 1.f, gravity_x_temp, gravity_y_temp, gravity_z_temp);
+    constexpr float kGravitySmoothingAlpha = 0.10f; // Time Constant approx 90ms
+    gravity_x_ = MathHelpers::applyOnePoleFilter(gravity_x_, gravity_x_temp, kGravitySmoothingAlpha);
+    gravity_y_ = MathHelpers::applyOnePoleFilter(gravity_y_, gravity_y_temp, kGravitySmoothingAlpha);
+    gravity_z_ = MathHelpers::applyOnePoleFilter(gravity_z_, gravity_z_temp, kGravitySmoothingAlpha);
+}
+
+void BozendoMapping::calculateDynamicAcceleration(const StaffSoundParams& input_parameters, float& dynamic_accel_x, float& dynamic_accel_y, float& dynamic_accel_z, float& dynamic_accel_magnitude) {
+    dynamic_accel_x = input_parameters.ax - gravity_x_;
+    dynamic_accel_y = input_parameters.ay - gravity_y_;
+    dynamic_accel_z = input_parameters.az - gravity_z_;
+    dynamic_accel_magnitude = std::sqrt(dynamic_accel_x * dynamic_accel_x + dynamic_accel_y * dynamic_accel_y + dynamic_accel_z * dynamic_accel_z);
+}
+
+float BozendoMapping::integrateVelocityForLabanWeight(float dynamic_accel_x, float dynamic_accel_y, float dynamic_accel_z) {
+    constexpr float kGravityConstant = 9.81f;
+    const float decay_coefficient = std::exp(-(delta_time_seconds_ * 1000.0f / kVelocityDecayHalfLifeMilliseconds) * 0.693147f);
+    velocity_x_ = (velocity_x_ + dynamic_accel_x * kGravityConstant * delta_time_seconds_) * decay_coefficient;
+    velocity_y_ = (velocity_y_ + dynamic_accel_y * kGravityConstant * delta_time_seconds_) * decay_coefficient;
+    velocity_z_ = (velocity_z_ + dynamic_accel_z * kGravityConstant * delta_time_seconds_) * decay_coefficient;
+
+    return std::sqrt(velocity_x_ * velocity_x_ + velocity_y_ * velocity_y_ + velocity_z_ * velocity_z_);
+}
+
+void BozendoMapping::detectAxialThrustPeaks(const StaffSoundParams& input_parameters, float dynamic_accel_x, float dynamic_accel_y, float dynamic_accel_z, float tip_x, float tip_y, float tip_z, float gyroscope_magnitude) {
+    float dynamic_accel_world_x, dynamic_accel_world_y, dynamic_accel_world_z;
+    MathHelpers::rotateVectorByQuaternion(input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz, dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, dynamic_accel_world_x, dynamic_accel_world_y, dynamic_accel_world_z);
+
+    // dot product(dynamic_accel_world, staff_world) - positive value means thrust along tip direction
+    float axial_acceleration = dynamic_accel_world_x * tip_x + dynamic_accel_world_y * tip_y + dynamic_accel_world_z * tip_z;
+    float current_axial_acceleration_absolute = std::abs(axial_acceleration);
+
+    // derivative of axial acceleration (onset detector)
+    axial_jerk_ = (current_axial_acceleration_absolute - previous_axial_acceleration_) / (delta_time_seconds_ + 1e-6f);
+
+    // Smooth positive jerk only (onset, not offset)
+    float positive_jerk = juce::jlimit(0.f, 1.f, std::max(0.f, axial_jerk_) / 200.f);
+    if (positive_jerk > axial_jerk_envelope_) {
+        axial_jerk_envelope_ = MathHelpers::applyOnePoleFilter(axial_jerk_envelope_, positive_jerk, 0.7f); // fast attack
+    } else {
+        axial_jerk_envelope_ = MathHelpers::applyOnePoleFilter(axial_jerk_envelope_, positive_jerk, kPeakJerkSmoothingCoefficient);
+    }
+
+    // Gate: must have significant axial acceleration AND low rotation
+    bool is_thrust = (current_axial_acceleration_absolute > kPeakAxialAccelerationThreshold) && (gyroscope_magnitude < kPeakMaximumGyroscope);
+
+    if (is_thrust) {
+        float strength = juce::jlimit(0.f, 1.f, (current_axial_acceleration_absolute - kPeakAxialAccelerationThreshold) / (kPeakAxialAccelerationThreshold * 3.f));
+        // Add jerk-weighted onset punch
+        float onset = strength + axial_jerk_envelope_ * 0.5f;
+        axial_thrust_peak_envelope_ = juce::jlimit(0.f, 1.f, axial_thrust_peak_envelope_ + onset * 0.4f);
+
+        debug.print.yellow(axial_thrust_peak_envelope_, kPeakAxialAccelerationThreshold);
+        if (axial_thrust_peak_envelope_ > 0.7f && previous_axial_acceleration_ <= kPeakAxialAccelerationThreshold) {
+            debug.print.magenta("THRUST peak | axial:", current_axial_acceleration_absolute, "gyroscope:", gyroscope_magnitude);
+        }
+    }
+    previous_axial_acceleration_ = current_axial_acceleration_absolute;
+    axial_thrust_peak_envelope_ *= kPeakDecayCoefficient;
+}
+
+float BozendoMapping::updateLabanWeight(float velocity_magnitude) {
+    float target_weight = juce::jlimit(0.0f, 1.0f, velocity_magnitude * 0.25f);
+    if (target_weight > weight_envelope_) {
+        weight_envelope_ = MathHelpers::applyOnePoleFilter(weight_envelope_, target_weight, kWeightAttackCoefficient);
+    } else {
+        weight_envelope_ = MathHelpers::applyOnePoleFilter(weight_envelope_, target_weight, kWeightReleaseCoefficient);
+    }
+    return weight_envelope_;
+}
+
+float BozendoMapping::updateLabanTime(float gyroscope_magnitude) {
+    suddenness_ = (gyroscope_magnitude - previous_gyroscope_magnitude_) / (delta_time_seconds_ + 1e-6f);
+    previous_gyroscope_magnitude_ = gyroscope_magnitude;
+    float positive_suddenness = juce::jlimit(0.0f, 1.0f, std::max(0.0f, suddenness_) / 800.0f);
+    if (positive_suddenness > suddenness_envelope_) {
+        suddenness_envelope_ = MathHelpers::applyOnePoleFilter(suddenness_envelope_, positive_suddenness, 0.6f);
+    } else {
+        suddenness_envelope_ = MathHelpers::applyOnePoleFilter(suddenness_envelope_, positive_suddenness, kSuddennessSmoothingCoefficient);
+    }
+    return juce::jlimit(0.0f, 1.0f, suddenness_envelope_);
+}
+
+float BozendoMapping::updateLabanSpace(const StaffSoundParams& input_parameters, float gyroscope_magnitude) {
+    if (gyroscope_magnitude > 5.0f) {
+        float normal_x = input_parameters.gx;
+        float normal_y = input_parameters.gy;
+        float normal_z = input_parameters.gz;
+        MathHelpers::normalize3DVector(normal_x, normal_y, normal_z);
+        float dot_product = std::abs(normal_x * previous_gyroscope_direction_x_ + normal_y * previous_gyroscope_direction_y_ + normal_z * previous_gyroscope_direction_z_);
+        axis_focus_ = MathHelpers::applyOnePoleFilter(axis_focus_, dot_product, kAxisFocusSmoothingCoefficient);
+        previous_gyroscope_direction_x_ = normal_x;
+        previous_gyroscope_direction_y_ = normal_y;
+        previous_gyroscope_direction_z_ = normal_z;
+    } else {
+        axis_focus_ = MathHelpers::applyOnePoleFilter(axis_focus_, 0.5f, 0.02f);
+    }
+    return juce::jlimit(0.0f, 1.0f, axis_focus_);
+}
+
+void BozendoMapping::updateLabanFlow(float dynamic_acceleration_magnitude, float& flow_bound, float& flow_free) {
+    float jerk_normalized = juce::jlimit(0.0f, 1.0f, std::abs(dynamic_acceleration_magnitude - previous_dynamic_acceleration_magnitude_) / (delta_time_seconds_ + 1e-6f) / 50.0f);
+    previous_dynamic_acceleration_magnitude_ = dynamic_acceleration_magnitude;
+    flow_bound_envelope_ = MathHelpers::applyOnePoleFilter(flow_bound_envelope_, jerk_normalized, kFlowSmoothingCoefficient);
+
+    flow_bound = juce::jlimit(0.0f, 1.0f, flow_bound_envelope_);
+    flow_free  = 1.0f - flow_bound;
+}
+
+void BozendoMapping::updateSpinClassification(float axis_x, float axis_y, float axis_z) {
+    smoothed_rotation_axis_x_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_x_, axis_x, kRotationAxisSmoothingCoefficient);
+    smoothed_rotation_axis_y_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_y_, axis_y, kRotationAxisSmoothingCoefficient);
+    smoothed_rotation_axis_z_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_z_, axis_z, kRotationAxisSmoothingCoefficient);
+
+    float perpendicular_magnitude = std::sqrt(smoothed_rotation_axis_x_ * smoothed_rotation_axis_x_ + smoothed_rotation_axis_y_ * smoothed_rotation_axis_y_);
+    float parallel_magnitude = std::abs(smoothed_rotation_axis_z_);
+
+    is_rotation_axis_vertical_ = perpendicular_magnitude > parallel_magnitude;
+
+    if (is_rotation_axis_vertical_) {
+        if (perpendicular_magnitude > 1e-3f) {
+            if (!is_reference_azimuth_set_) {
+                reference_azimuth_x_ = smoothed_rotation_axis_x_ / perpendicular_magnitude;
+                reference_azimuth_y_ = smoothed_rotation_axis_y_ / perpendicular_magnitude;
+                is_reference_azimuth_set_ = true;
             }
-            float dot = (smoothedAxX_ / perpMag) * refAzimuthX_
-                      + (smoothedAxY_ / perpMag) * refAzimuthY_;
-            committedSpinDir_ = (dot >= 0.f) ? 1.f : -1.f;
+            float dot_product = (smoothed_rotation_axis_x_ / perpendicular_magnitude) * reference_azimuth_x_ + (smoothed_rotation_axis_y_ / perpendicular_magnitude) * reference_azimuth_y_;
+            rotation_spin_direction_ = (dot_product >= 0.f) ? 1.f : -1.f;
         }
     } else {
-        committedSpinDir_ = (smoothedAxZ_ >= 0.f) ? 1.f : -1.f;
+        rotation_spin_direction_ = (smoothed_rotation_axis_z_ >= 0.f) ? 1.f : -1.f;
     }
 
-    if (committedIsVertical_ != prevCommittedIsVertical_ ||
-        committedSpinDir_    != prevCommittedSpinDir_) {
-        prevCommittedIsVertical_ = committedIsVertical_;
-        prevCommittedSpinDir_    = committedSpinDir_;
+    if (is_rotation_axis_vertical_ != was_rotation_axis_vertical_ || rotation_spin_direction_ != previous_rotation_spin_direction_) {
+        was_rotation_axis_vertical_ = is_rotation_axis_vertical_;
+        previous_rotation_spin_direction_ = rotation_spin_direction_;
         debug.print.cyan(
-            committedIsVertical_ ? "VERTICAL" : "HORIZONTAL",
-            committedSpinDir_ > 0.f ? "CCW/FWD" : "CW/BWD"
+            is_rotation_axis_vertical_ ? "VERTICAL" : "HORIZONTAL",
+            rotation_spin_direction_ > 0.f ? "COUNTER_CLOCKWISE_OR_FORWARD" : "CLOCKWISE_OR_BACKWARD"
         );
     }
 }
 
-void BozendoMapping::process(const StaffSoundParams& in, MappingOutput& out) {
+int BozendoMapping::convertGyroscopeMagnitudeToScaleStep(float gyroscope_magnitude) noexcept {
+    float clamped_gyroscope = juce::jlimit(kGyroscopeFloor, kGyroscopeCeiling, gyroscope_magnitude);
+    float normalized_gyroscope = (clamped_gyroscope - kGyroscopeFloor) / (kGyroscopeCeiling - kGyroscopeFloor);
+    float float_step = normalized_gyroscope * static_cast<float>(kNumberOfScaleSteps - 1);
 
-    // dt
-    // high-res ticks -> sub-ms accuracy, no platform 1ms quantisation
-    {
-        const juce::int64 nowTicks = juce::Time::getHighResolutionTicks();
-        if (lastTimestampTicks_ != 0) {
-            double elapsedSec = juce::Time::highResolutionTicksToSeconds(nowTicks - lastTimestampTicks_);
-            if (elapsedSec > 0.0001 && elapsedSec < 0.2)
-                dt_ = static_cast<float>(elapsedSec);
+    float hysteresis_normalized = kScaleHysteresis / (kGyroscopeCeiling - kGyroscopeFloor);
+    float hysteresis_steps = hysteresis_normalized * static_cast<float>(kNumberOfScaleSteps - 1);
+
+    int target_step = juce::jlimit(0, kNumberOfScaleSteps - 1, static_cast<int>(float_step + 0.5f));
+
+    if (target_step > current_scale_step_) {
+        if (float_step < static_cast<float>(current_scale_step_) + 0.5f + hysteresis_steps) {
+            target_step = current_scale_step_;
         }
-        lastTimestampTicks_ = nowTicks;
-    }
-
-    // tip = rotate({1,0,0}, q) in world frame
-    float tx, ty, tz;
-    rotateByQuat(in.qw, in.qx, in.qy, in.qz, 1.f, 0.f, 0.f, tx, ty, tz);
-
-    // shift ring buffer: [2]=oldest, [1]=mid, [0]=newest
-    tipX_[2] = tipX_[1]; tipX_[1] = tipX_[0]; tipX_[0] = tx;
-    tipY_[2] = tipY_[1]; tipY_[1] = tipY_[0]; tipY_[0] = ty;
-    tipZ_[2] = tipZ_[1]; tipZ_[1] = tipZ_[0]; tipZ_[0] = tz;
-
-    // v_mean = (p[0] - p[2]) / 2   (central difference, 1-frame latency)
-    // axis   = p[1] x v_mean       (rotation axis at midpoint)
-    float vmx = (tipX_[0] - tipX_[2]) * 0.5f;
-    float vmy = (tipY_[0] - tipY_[2]) * 0.5f;
-    float vmz = (tipZ_[0] - tipZ_[2]) * 0.5f;
-
-    float axX = tipY_[1] * vmz - tipZ_[1] * vmy;
-    float axY = tipZ_[1] * vmx - tipX_[1] * vmz;
-    float axZ = tipX_[1] * vmy - tipY_[1] * vmx;
-
-    // gravity in sensor frame via q* x (0,0,1) x q
-    {
-        float gx_t, gy_t, gz_t;
-        rotateByQuat(in.qw, -in.qx, -in.qy, -in.qz, 0.f, 0.f, 1.f, gx_t, gy_t, gz_t);
-        constexpr float kGravAlpha = 0.10f;  // faster than before: TC ≈ 90ms
-        gravX_ = onePole(gravX_, gx_t, kGravAlpha);
-        gravY_ = onePole(gravY_, gy_t, kGravAlpha);
-        gravZ_ = onePole(gravZ_, gz_t, kGravAlpha);
-    }
-
-    // dynamic accel
-    const float dynAX = in.ax - gravX_;
-    const float dynAY = in.ay - gravY_;
-    const float dynAZ = in.az - gravZ_;
-    const float dynAccelMag = std::sqrt(dynAX*dynAX + dynAY*dynAY + dynAZ*dynAZ);
-
-    // velocity integration (Laban Weight)
-    {
-        constexpr float kG = 9.81f;
-        const float decayCoef = std::exp(-(dt_ * 1000.0f / kVelDecayHalfLifeMs) * 0.693147f);
-        velX_ = (velX_ + dynAX * kG * dt_) * decayCoef;
-        velY_ = (velY_ + dynAY * kG * dt_) * decayCoef;
-        velZ_ = (velZ_ + dynAZ * kG * dt_) * decayCoef;
-    }
-    const float velMag = std::sqrt(velX_*velX_ + velY_*velY_ + velZ_*velZ_);
-
-    // gyro magnitude
-    const float gyroMag = std::sqrt(in.gx*in.gx + in.gy*in.gy + in.gz*in.gz);
-    smoothedGyroMag_ = onePole(smoothedGyroMag_, gyroMag, kGyroSmoothCoef);
-
-    // peak detection
-    // A thrust/peak = strong linear acceleration along the staff long axis
-    // while rotation is low.
-    // staff_world = tip = (tx, ty, tz) already computed above.
-    // dyn_world = rotate(dynAccel_sensor, q)
-    // axial = dot(dyn_world, staff_world)
-    {
-        float dwx, dwy, dwz;
-        rotateByQuat(in.qw, in.qx, in.qy, in.qz, dynAX, dynAY, dynAZ, dwx, dwy, dwz);
-
-        // dot(dyn_world, staff_world) - positive = thrust along tip direction
-        float axialAccel = dwx * tx + dwy * ty + dwz * tz;
-        float currentAxialAccelAbs = std::abs(axialAccel);
-
-        // d/dt of axial acceleration (onset detector)
-        axialJerk_ = (currentAxialAccelAbs - prevAxialAccel_) / (dt_ + 1e-6f);
-
-        // Smooth positive jerk only (onset, not offset)
-        float posJerk = juce::jlimit(0.f, 1.f, std::max(0.f, axialJerk_) / 200.f);
-        axialJerkEnv_ = (posJerk > axialJerkEnv_)
-            ? onePole(axialJerkEnv_, posJerk, 0.7f)       // fast attack
-            : onePole(axialJerkEnv_, posJerk, kPeakJerkSmoothCoef);
-
-        // Gate: must have significant axial accel AND low rotation
-        bool isThrust = (currentAxialAccelAbs > kPeakAxialThresh) && (gyroMag < kPeakMaxGyro);
-
-        if (isThrust) {
-            float strength = juce::jlimit(0.f, 1.f,
-                (currentAxialAccelAbs - kPeakAxialThresh) / (kPeakAxialThresh * 3.f));
-            // Add jerk-weighted onset punch
-            float onset = strength + axialJerkEnv_ * 0.5f;
-            peakEnvelope_ = juce::jlimit(0.f, 1.f, peakEnvelope_ + onset * 0.4f);
-
-            debug.print.yellow(peakEnvelope_, kPeakAxialThresh);
-            if (peakEnvelope_ > 0.7f && prevAxialAccel_ <= kPeakAxialThresh)
-                debug.print.magenta("THRUST peak | axial:", currentAxialAccelAbs, "gyro:", gyroMag);
+    } else if (target_step < current_scale_step_) {
+        if (float_step > static_cast<float>(current_scale_step_) - 0.5f - hysteresis_steps) {
+            target_step = current_scale_step_;
         }
-        prevAxialAccel_ = currentAxialAccelAbs;
-        peakEnvelope_ *= kPeakDecayCoef;
     }
+    return target_step;
+}
 
-    // Laban: WEIGHT
-    {
-        float target = juce::jlimit(0.0f, 1.0f, velMag * 0.25f);
-        weightEnvelope_ = (target > weightEnvelope_)
-            ? onePole(weightEnvelope_, target, kWeightAttackCoef)
-            : onePole(weightEnvelope_, target, kWeightReleaseCoef);
-    }
-    const float weight = weightEnvelope_;
+void BozendoMapping::applyPitchAndChordToOutput(MappingOutput& mapping_output) {
+    const float base_semitones = kPentatonicMinorScale[current_scale_step_];
+    const float plane_offset   = is_rotation_axis_vertical_ ? 12.0f : 0.0f;
+    const float direction_offset = (rotation_spin_direction_ > 0.f) ? 0.0f : -7.0f;
+    mapping_output.rootHz = MathHelpers::convertSemitonesToHertz(base_semitones + plane_offset + direction_offset, kRootFrequencyHz);
 
-    // Laban: TIME
-    {
-        suddenness_ = (gyroMag - prevGyroMag_) / (dt_ + 1e-6f);
-        prevGyroMag_ = gyroMag;
-        float posSudden = juce::jlimit(0.0f, 1.0f,
-                          std::max(0.0f, suddenness_) / 800.0f);
-        suddennessEnv_ = (posSudden > suddennessEnv_)
-            ? onePole(suddennessEnv_, posSudden, 0.6f)
-            : onePole(suddennessEnv_, posSudden, kSuddennessSmoothCoef);
-    }
-    const float suddennessNorm = juce::jlimit(0.0f, 1.0f, suddennessEnv_);
-
-    // Laban: SPACE
-    {
-        if (gyroMag > 5.0f) {
-            float nx = in.gx, ny = in.gy, nz = in.gz;
-            safeNormalize3(nx, ny, nz);
-            float dot = std::abs(nx * prevGyroDirX_ + ny * prevGyroDirY_ + nz * prevGyroDirZ_);
-            axisFocus_ = onePole(axisFocus_, dot, kAxisFocusSmoothCoef);
-            prevGyroDirX_ = nx; prevGyroDirY_ = ny; prevGyroDirZ_ = nz;
+    if (!is_rotation_axis_vertical_) {
+        if (rotation_spin_direction_ > 0.f) {
+            // Chord quality : Major
+            mapping_output.chordSemitones[0] = 4.f; mapping_output.chordSemitones[1] = 7.f;  mapping_output.chordSemitones[2] = 12.f;
         } else {
-            axisFocus_ = onePole(axisFocus_, 0.5f, 0.02f);
-        }
-    }
-    const float focus = juce::jlimit(0.0f, 1.0f, axisFocus_);
-
-    // Laban: FLOW
-    {
-        float jerkNorm = juce::jlimit(0.0f, 1.0f,
-            std::abs(dynAccelMag - prevDynAccelMag_) / (dt_ + 1e-6f) / 50.0f);
-        prevDynAccelMag_ = dynAccelMag;
-        flowBound_ = onePole(flowBound_, jerkNorm, kFlowSmoothCoef);
-    }
-    const float flowBound = juce::jlimit(0.0f, 1.0f, flowBound_);
-    const float flowFree  = 1.0f - flowBound;
-
-    // spin classification
-    const bool isMoving = smoothedGyroMag_ > kGyroFloor;
-    if (isMoving) {
-        updateSpinClassification(axX, axY, axZ);
-        currentScaleStep_ = gyroMagToScaleStep(smoothedGyroMag_);
-    }
-
-    // pitch
-    {
-        const float baseSemitones = kPentatonicMinor[currentScaleStep_];
-        const float planeOffset   = committedIsVertical_ ? 12.0f : 0.0f;
-        const float dirOffset     = (committedSpinDir_ > 0.f) ? 0.0f : -7.0f;
-        out.rootHz = semiToHz(baseSemitones + planeOffset + dirOffset);
-    }
-
-    // chord quality
-    if (!committedIsVertical_) {
-        if (committedSpinDir_ > 0.f) {
-            out.chordSemitones[0] = 4.f; out.chordSemitones[1] = 7.f;  out.chordSemitones[2] = 12.f;
-        } else {
-            out.chordSemitones[0] = 3.f; out.chordSemitones[1] = 7.f;  out.chordSemitones[2] = 12.f;
+            // Chord quality : Minor
+            mapping_output.chordSemitones[0] = 3.f; mapping_output.chordSemitones[1] = 7.f;  mapping_output.chordSemitones[2] = 12.f;
         }
     } else {
-        if (committedSpinDir_ > 0.f) {
-            out.chordSemitones[0] = 4.f; out.chordSemitones[1] = 7.f;  out.chordSemitones[2] = 10.f;
+        if (rotation_spin_direction_ > 0.f) {
+            // Chord quality : 7th
+            mapping_output.chordSemitones[0] = 4.f; mapping_output.chordSemitones[1] = 7.f;  mapping_output.chordSemitones[2] = 10.f;
         } else {
-            out.chordSemitones[0] = 3.f; out.chordSemitones[1] = 6.f;  out.chordSemitones[2] = 9.f;
+            // Chord quality : Diminished7
+            mapping_output.chordSemitones[0] = 3.f; mapping_output.chordSemitones[1] = 6.f;  mapping_output.chordSemitones[2] = 9.f;
         }
     }
+}
 
-    // voices from Weight
-    out.numVoices = (weight < 0.25f) ? 1 : (weight < 0.55f) ? 2 : (weight < 0.80f) ? 3 : 4;
+void BozendoMapping::applyVoicesToOutput(MappingOutput& mapping_output, float laban_weight, float melody_gain) {
+    mapping_output.numVoices = (laban_weight < 0.25f) ? 1 : (laban_weight < 0.55f) ? 2 : (laban_weight < 0.80f) ? 3 : 4;
 
-    const float melodyGain = isMoving
-        ? juce::jlimit(0.2f, 1.0f, 0.2f + smoothedGyroMag_ / kGyroCeiling * 0.8f)
-        : 0.0f;
-    out.voiceGain[0] = melodyGain;
-    out.voiceGain[1] = juce::jlimit(0.0f, 1.0f, (weight - 0.25f) * 4.0f) * 0.8f;
-    out.voiceGain[2] = juce::jlimit(0.0f, 1.0f, (weight - 0.55f) * 3.3f) * 0.7f;
-    out.voiceGain[3] = juce::jlimit(0.f, 1.f, (weight - 0.80f) * 5.0f) * 0.6f;
+    mapping_output.voiceGain[0] = melody_gain;
+    mapping_output.voiceGain[1] = juce::jlimit(0.0f, 1.0f, (laban_weight - 0.25f) * 4.0f) * 0.8f;
+    mapping_output.voiceGain[2] = juce::jlimit(0.0f, 1.0f, (laban_weight - 0.55f) * 3.3f) * 0.7f;
+    mapping_output.voiceGain[3] = juce::jlimit(0.f, 1.f, (laban_weight - 0.80f) * 5.0f) * 0.6f;
+}
 
-    // master gain
-    {
-        float motionGate = juce::jlimit(0.0f, 1.0f,
-            (smoothedGyroMag_ - kGyroFloor * 0.5f) / (kGyroFloor * 1.5f));
-        out.masterGain = motionGate * (0.05f + weight * 0.70f);
-        // peak punches through the gain gate
-        out.masterGain = juce::jlimit(0.f, 1.f, out.masterGain + peakEnvelope_ * 0.6f);
+void BozendoMapping::applyMasterGainToOutput(MappingOutput& mapping_output, float laban_weight, float motion_gate) {
+    mapping_output.masterGain = motion_gate * (0.05f + laban_weight * 0.70f);
+    // peak punches through the gain gate
+    mapping_output.masterGain = juce::jlimit(0.f, 1.f, mapping_output.masterGain + axial_thrust_peak_envelope_ * 0.6f);
+}
+
+void BozendoMapping::applyTimbreToOutput(MappingOutput& mapping_output, float laban_space_focus, float laban_weight) {
+    constexpr float kDirectGain[6]   = { 1.0f, 0.60f, 0.40f, 0.30f, 0.20f, 0.15f };
+    constexpr float kIndirectGain[6] = { 1.0f, 0.10f, 0.50f, 0.05f, 0.30f, 0.03f };
+    for (int i = 0; i < 6; ++i) {
+        mapping_output.partialAmps[i] = kDirectGain[i] * laban_space_focus + kIndirectGain[i] * (1.f - laban_space_focus);
+    }
+    mapping_output.driveAmt = laban_weight * (1.f - laban_space_focus * 0.7f) * 2.5f;
+
+    // peak adds bright transient: boost upper partials
+    float peak_brightness = axial_thrust_peak_envelope_ * 0.8f;
+    mapping_output.partialAmps[3] = juce::jlimit(0.f, 1.f, mapping_output.partialAmps[3] + peak_brightness * 0.5f);
+    mapping_output.partialAmps[4] = juce::jlimit(0.f, 1.f, mapping_output.partialAmps[4] + peak_brightness * 0.7f);
+    mapping_output.partialAmps[5] = juce::jlimit(0.f, 1.f, mapping_output.partialAmps[5] + peak_brightness * 0.9f);
+    mapping_output.driveAmt = juce::jlimit(0.f, 4.f, mapping_output.driveAmt + axial_thrust_peak_envelope_ * 2.0f);
+}
+
+void BozendoMapping::applyNoiseToOutput(MappingOutput& mapping_output, float suddenness_normalized) {
+    if (suddenness_normalized > 0.3f) {
+        noise_envelope_ = juce::jlimit(0.0f, 1.0f, noise_envelope_ + (suddenness_normalized - 0.3f) * 1.5f);
+    }
+    // peak injects its own sharp noise burst
+    noise_envelope_ = juce::jlimit(0.f, 1.f, noise_envelope_ + axial_thrust_peak_envelope_ * 0.5f);
+    noise_envelope_ *= kNoiseDecayCoefficient;
+
+    mapping_output.noiseAmount = noise_envelope_ * 0.4f;
+    mapping_output.noiseLpCoef = 1.f - (0.2f + suddenness_normalized * 0.4f + axial_thrust_peak_envelope_ * 0.4f);
+}
+
+void BozendoMapping::applyModulationToOutput(MappingOutput& mapping_output, float laban_weight, float flow_bound, float flow_free) {
+    mapping_output.vibratoDepth  = flow_free * laban_weight * 0.020f;
+    mapping_output.vibratoRateHz = 4.5f + smoothed_gyroscope_magnitude_ * 0.005f;
+    mapping_output.tremoloDepth  = flow_bound * laban_weight * 0.30f;
+    mapping_output.tremoloRateHz = 3.0f + flow_bound * 4.0f;
+}
+
+void BozendoMapping::applyStereoPanToOutput(MappingOutput& mapping_output, float flow_free, float axis_x, float axis_y) {
+    float pan_bias = 0.f;
+    float perpendicular_magnitude = std::sqrt(axis_x * axis_x + axis_y * axis_y);
+    if (perpendicular_magnitude > 1e-3f) {
+        float azimuth = std::atan2(axis_y, axis_x);
+        pan_bias = juce::jlimit(-0.2f, 0.2f, azimuth / juce::MathConstants<float>::pi * 0.2f);
+    }
+    const float spread = 0.3f + flow_free * 0.5f;
+    mapping_output.panL[0] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.10f + pan_bias);
+    mapping_output.panR[0] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.10f - pan_bias);
+    mapping_output.panL[1] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.10f + pan_bias);
+    mapping_output.panR[1] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.10f - pan_bias);
+    mapping_output.panL[2] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.40f + pan_bias);
+    mapping_output.panR[2] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.40f - pan_bias);
+    mapping_output.panL[3] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.40f + pan_bias);
+    mapping_output.panR[3] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.40f - pan_bias);
+}
+
+void BozendoMapping::process(const StaffSoundParams& input_parameters, MappingOutput& mapping_output) {
+    calculateDeltaTime();
+
+    float tip_x, tip_y, tip_z;
+    updateTipPositionHistory(input_parameters, tip_x, tip_y, tip_z);
+
+    float rotation_axis_x, rotation_axis_y, rotation_axis_z;
+    calculateRotationAxisAtMidpoint(rotation_axis_x, rotation_axis_y, rotation_axis_z);
+
+    updateGravityVector(input_parameters);
+
+    float dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, dynamic_accel_magnitude;
+    calculateDynamicAcceleration(input_parameters, dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, dynamic_accel_magnitude);
+
+    float velocity_magnitude = integrateVelocityForLabanWeight(dynamic_accel_x, dynamic_accel_y, dynamic_accel_z);
+
+    const float gyroscope_magnitude = std::sqrt(input_parameters.gx * input_parameters.gx + input_parameters.gy * input_parameters.gy + input_parameters.gz * input_parameters.gz);
+    smoothed_gyroscope_magnitude_ = MathHelpers::applyOnePoleFilter(smoothed_gyroscope_magnitude_, gyroscope_magnitude, kGyroscopeSmoothingCoefficient);
+
+    detectAxialThrustPeaks(input_parameters, dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, tip_x, tip_y, tip_z, gyroscope_magnitude);
+
+    float laban_weight = updateLabanWeight(velocity_magnitude);
+    float laban_time_suddenness_normalized = updateLabanTime(gyroscope_magnitude);
+    float laban_space_focus = updateLabanSpace(input_parameters, gyroscope_magnitude);
+
+    float laban_flow_bound, laban_flow_free;
+    updateLabanFlow(dynamic_accel_magnitude, laban_flow_bound, laban_flow_free);
+
+    const bool is_moving = smoothed_gyroscope_magnitude_ > kGyroscopeFloor;
+    if (is_moving) {
+        updateSpinClassification(rotation_axis_x, rotation_axis_y, rotation_axis_z);
+        current_scale_step_ = convertGyroscopeMagnitudeToScaleStep(smoothed_gyroscope_magnitude_);
     }
 
-    // timbre from Space
-    {
-        constexpr float kDirect[6]   = { 1.0f, 0.60f, 0.40f, 0.30f, 0.20f, 0.15f };
-        constexpr float kIndirect[6] = { 1.0f, 0.10f, 0.50f, 0.05f, 0.30f, 0.03f };
-        for (int p = 0; p < 6; ++p)
-            out.partialAmps[p] = kDirect[p] * focus + kIndirect[p] * (1.f - focus);
-        out.driveAmt = weight * (1.f - focus * 0.7f) * 2.5f;
-        // peak adds bright transient: boost upper partials
-        float peakBright = peakEnvelope_ * 0.8f;
-        out.partialAmps[3] = juce::jlimit(0.f, 1.f, out.partialAmps[3] + peakBright * 0.5f);
-        out.partialAmps[4] = juce::jlimit(0.f, 1.f, out.partialAmps[4] + peakBright * 0.7f);
-        out.partialAmps[5] = juce::jlimit(0.f, 1.f, out.partialAmps[5] + peakBright * 0.9f);
-        out.driveAmt = juce::jlimit(0.f, 4.f, out.driveAmt + peakEnvelope_ * 2.0f);
-    }
+    applyPitchAndChordToOutput(mapping_output);
 
-    // noise burst from Time + peak
-    {
-        if (suddennessNorm > 0.3f)
-            noiseEnvelope_ = juce::jlimit(0.0f, 1.0f,
-                             noiseEnvelope_ + (suddennessNorm - 0.3f) * 1.5f);
-        // peak injects its own sharp noise burst
-        noiseEnvelope_ = juce::jlimit(0.f, 1.f, noiseEnvelope_ + peakEnvelope_ * 0.5f);
-        noiseEnvelope_ *= kNoiseDecayCoef;
-    }
-    out.noiseAmount = noiseEnvelope_ * 0.4f;
-    out.noiseLpCoef = 1.f - (0.2f + suddennessNorm * 0.4f + peakEnvelope_ * 0.4f);
+    float melody_gain = is_moving ? juce::jlimit(0.2f, 1.0f, 0.2f + smoothed_gyroscope_magnitude_ / kGyroscopeCeiling * 0.8f) : 0.0f;
+    applyVoicesToOutput(mapping_output, laban_weight, melody_gain);
 
-    // vibrato / tremolo from Flow
-    out.vibratoDepth  = flowFree  * weight * 0.020f;
-    out.vibratoRateHz = 4.5f + smoothedGyroMag_ * 0.005f;
-    out.tremoloDepth  = flowBound * weight * 0.30f;
-    out.tremoloRateHz = 3.0f + flowBound * 4.0f;
+    float motion_gate = juce::jlimit(0.0f, 1.0f, (smoothed_gyroscope_magnitude_ - kGyroscopeFloor * 0.5f) / (kGyroscopeFloor * 1.5f));
+    applyMasterGainToOutput(mapping_output, laban_weight, motion_gate);
 
-    // stereo pan
-    {
-        float panBias = 0.f;
-        float perpMag = std::sqrt(axX*axX + axY*axY);
-        if (perpMag > 1e-3f) {
-            float azimuth = std::atan2(axY, axX);
-            panBias = juce::jlimit(-0.2f, 0.2f,
-                      azimuth / juce::MathConstants<float>::pi * 0.2f);
-        }
-        const float spread = 0.3f + flowFree * 0.5f;
-        out.panL[0] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.10f + panBias);
-        out.panR[0] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.10f - panBias);
-        out.panL[1] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.10f + panBias);
-        out.panR[1] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.10f - panBias);
-        out.panL[2] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.40f + panBias);
-        out.panR[2] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.40f - panBias);
-        out.panL[3] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.40f + panBias);
-        out.panR[3] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.40f - panBias);
-    }
+    applyTimbreToOutput(mapping_output, laban_space_focus, laban_weight);
+    applyNoiseToOutput(mapping_output, laban_time_suddenness_normalized);
+    applyModulationToOutput(mapping_output, laban_weight, laban_flow_bound, laban_flow_free);
+    applyStereoPanToOutput(mapping_output, laban_flow_free, rotation_axis_x, rotation_axis_y);
 }

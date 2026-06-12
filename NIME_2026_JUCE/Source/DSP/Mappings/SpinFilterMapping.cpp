@@ -1,6 +1,7 @@
 #include "SpinFilterMapping.h"
 #include "../BoStaffSynth.h"
 #include "../../UI/DebugLog.h"
+#include "../MathHelpers.h"
 
 void SpinFilterMapping::prepare(double sampleRate)
 {
@@ -13,14 +14,14 @@ void SpinFilterMapping::process(const StaffSoundParams &params, MappingOutput &o
     float accelMag = std::sqrt(params.ax * params.ax + params.ay * params.ay + params.az * params.az);
 
     // Map gyro to scale step, clamped to 10 steps (2 octaves)
-    int scaleStep = juce::jlimit(0, 10, static_cast<int>(gyroMag / 50.0f)); 
+    int scaleStep = juce::jlimit(0, 10, static_cast<int>(gyroMag / 50.0f));
     int pentatonic[5] = {0, 3, 5, 7, 10};
     int octave = scaleStep / 5;
     int degree = scaleStep % 5;
     float semitones = static_cast<float>(octave * 12 + pentatonic[degree]);
 
     // C3 = 130.81 Hz
-    out.rootHz = 130.81f * std::pow(2.0f, semitones / 12.0f);
+    out.rootHz = MathHelpers::convertSemitonesToHertz(semitones, 130.81f);
 
     // Voices: Root and 5th
     out.numVoices = 2;

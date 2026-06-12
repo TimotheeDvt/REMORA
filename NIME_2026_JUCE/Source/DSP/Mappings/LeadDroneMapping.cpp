@@ -1,6 +1,7 @@
 #include "LeadDroneMapping.h"
 #include "../BoStaffSynth.h"
 #include "../../UI/DebugLog.h"
+#include "../MathHelpers.h"
 
 void LeadDroneMapping::prepare(double sampleRate)
 {
@@ -23,7 +24,7 @@ void LeadDroneMapping::process(const StaffSoundParams &params, MappingOutput &ou
 
     // A3 = 220Hz
     float semitones = static_cast<float>(octave * 12 + majorScale[degree]);
-    out.rootHz = 220.0f * std::pow(2.0f, semitones / 12.0f);
+    out.rootHz = MathHelpers::convertSemitonesToHertz(semitones, 220.0f);
 
     // Lead Voice + 3 Drone Voices
     out.numVoices = 4;

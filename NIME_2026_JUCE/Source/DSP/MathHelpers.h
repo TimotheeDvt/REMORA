@@ -95,4 +95,34 @@ struct Euler {
   e.yaw = std::atan2(siny_cosp, cosy_cosp);
   return e;
 }
+
+[[nodiscard]] constexpr inline float applyOnePoleFilter(float current_value, float target_value, float coefficient) noexcept {
+  return current_value + coefficient * (target_value - current_value);
+}
+
+inline void normalize3DVector(float& x, float& y, float& z) noexcept {
+  float length = std::sqrt(x * x + y * y + z * z);
+  if (length > 1e-6f) { x /= length; y /= length; z /= length; }
+  else                { x = 1.f;     y = 0.f;     z = 0.f; }
+}
+
+[[nodiscard]] inline float semitoneRatio(float semitones) noexcept {
+  return std::pow(2.0f, semitones / 12.0f);
+}
+
+[[nodiscard]] inline float convertSemitonesToHertz(float semitones, float root_frequency_hz) noexcept {
+  return root_frequency_hz * semitoneRatio(semitones);
+}
+
+inline void rotateVectorByQuaternion(
+    float quat_w, float quat_x, float quat_y, float quat_z,
+    float vector_x, float vector_y, float vector_z,
+    float& output_x, float& output_y, float& output_z) noexcept {
+  float temp_x = 2.f * (quat_y * vector_z - quat_z * vector_y);
+  float temp_y = 2.f * (quat_z * vector_x - quat_x * vector_z);
+  float temp_z = 2.f * (quat_x * vector_y - quat_y * vector_x);
+  output_x = vector_x + quat_w * temp_x + (quat_y * temp_z - quat_z * temp_y);
+  output_y = vector_y + quat_w * temp_y + (quat_z * temp_x - quat_x * temp_z);
+  output_z = vector_z + quat_w * temp_z + (quat_x * temp_y - quat_y * temp_x);
+}
 } // namespace MathHelpers

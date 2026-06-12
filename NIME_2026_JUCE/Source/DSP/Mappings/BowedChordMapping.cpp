@@ -1,6 +1,7 @@
 #include "BowedChordMapping.h"
 #include "../BoStaffSynth.h"   // for StaffSoundParams
 #include "../../UI/DebugLog.h"
+#include "../MathHelpers.h"
 #include <cmath>
 #include <algorithm>
 
@@ -18,7 +19,7 @@ float BowedChordMapping::pitchToRootHz(float pitchRad) {
     float norm     = juce::jlimit(0.0f, 1.0f, (pitchRad + pi * 0.5f) / pi);
     float midiFloat = 36.0f + norm * 24.0f;
     int midiNote   = static_cast<int>(std::round(midiFloat));
-    return 440.0f * std::pow(2.0f, (midiNote - 69) / 12.0f);
+    return MathHelpers::convertSemitonesToHertz(static_cast<float>(midiNote - 69), 440.0f);
 }
 
 int BowedChordMapping::yawToChordIdx(float yawRad, float rollAbs) {

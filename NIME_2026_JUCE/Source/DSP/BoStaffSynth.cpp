@@ -1,6 +1,7 @@
 #include "BoStaffSynth.h"
 #include <cmath>
 #include <algorithm>
+#include "MathHelpers.h"
 
 #include "Mappings/SimpleMapping.h"
 #include "Mappings/BowedChordMapping.h"
@@ -9,7 +10,7 @@
 #include "Mappings/BozendoMapping.h"
 
 float BoStaffSynth::semitoneRatio(float semitones) {
-    return std::pow(2.0f, semitones / 12.0f);
+    return MathHelpers::semitoneRatio(semitones);
 }
 
 BoStaffSynth::BoStaffSynth() {
