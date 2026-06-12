@@ -308,7 +308,7 @@ void NIMEReceiverEditor::refreshMainStats() {
           (processor.getLatencySamples() / cachedSampleRate) * 1000.0;
     }
 
-    const double totalLatencyMs = dataAgeMs + audioBufferMs;
+    const double totalLatencyMs = audioBufferMs;
 
     // Only show valid latency if we're actively receiving (e.g. less than 1
     // second ago)
