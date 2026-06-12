@@ -49,6 +49,8 @@ target_sources(NIMEReceiver
         Source/DSP/Mappings/SpinFilterMapping.cpp
         Source/DSP/Mappings/BozendoMapping.h
         Source/DSP/Mappings/BozendoMapping.cpp
+        Source/DSP/Mappings/BozendoMapping2.h
+        Source/DSP/Mappings/BozendoMapping2.cpp
         Source/DSP/BoStaffSynth.h
         Source/DSP/BoStaffSynth.cpp
         Source/OSC/OscReceiverManager.cpp
