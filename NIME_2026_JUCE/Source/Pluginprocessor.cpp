@@ -9,6 +9,14 @@ NIMEReceiverProcessor::NIMEReceiverProcessor()
 
   // Automatically attempt to connect to port 8000 on startup
   startOSCReceiver(8000);
+
+  // Make Bozendo the default mapping on launch
+  for (int i = 0; i < synth.getMappingCount(); ++i) {
+    if (juce::String(synth.getMappingName(i)).containsIgnoreCase("Bozendo")) {
+      setMappingStrategy(i);
+      break;
+    }
+  }
 }
 
 NIMEReceiverProcessor::~NIMEReceiverProcessor() { stopTimer(); }
@@ -105,8 +113,7 @@ void NIMEReceiverProcessor::computeCorrection() {
   MathHelpers::Quat qC{poseCw.load(), poseCx.load(), poseCy.load(),
                        poseCz.load()};
 
-  MathHelpers::Quat qAlign = computeAlignQuat(
-      qA, qB, qC);
+  MathHelpers::Quat qAlign = computeAlignQuat(qA, qB, qC);
 
   alignQuat.store(qAlign);
 
@@ -186,7 +193,8 @@ void NIMEReceiverProcessor::computeCorrection() {
 MathHelpers::Quat NIMEReceiverProcessor::getCalibratedQuat() const {
   const auto &d = getIMUData();
   IMURawSnapshot snap;
-  while (!d.trySnapshot(snap)) {}
+  while (!d.trySnapshot(snap)) {
+  }
   MathHelpers::Quat q_raw = {snap.qw, snap.qx, snap.qy, snap.qz};
 
   MathHelpers::Quat corr = corrQuat.load();
@@ -223,22 +231,27 @@ void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   params.isReceivingValidData = isReceivingValidData;
 
   if (isReceivingValidData) {
-      auto euler   = MathHelpers::toEuler(calibratedQ);
-      params.pitch = euler.pitch;
-      params.roll  = euler.roll;
-      params.yaw   = euler.yaw;
+    auto euler = MathHelpers::toEuler(calibratedQ);
+    params.pitch = euler.pitch;
+    params.roll = euler.roll;
+    params.yaw = euler.yaw;
 
-      // Pass the calibrated quaternion directly so mappings can rotate
-      // vectors into world frame without Euler reconstruction errors.
-      params.qw = calibratedQ.w;
-      params.qx = calibratedQ.x;
-      params.qy = calibratedQ.y;
-      params.qz = calibratedQ.z;
+    // Pass the calibrated quaternion directly so mappings can rotate
+    // vectors into world frame without Euler reconstruction errors.
+    params.qw = calibratedQ.w;
+    params.qx = calibratedQ.x;
+    params.qy = calibratedQ.y;
+    params.qz = calibratedQ.z;
 
-      IMURawSnapshot snap;
-      while (!getIMUData().trySnapshot(snap)) {}
-      params.gx = snap.gx;  params.gy = snap.gy;  params.gz = snap.gz;
-      params.ax = snap.ax;  params.ay = snap.ay;  params.az = snap.az;
+    IMURawSnapshot snap;
+    while (!getIMUData().trySnapshot(snap)) {
+    }
+    params.gx = snap.gx;
+    params.gy = snap.gy;
+    params.gz = snap.gz;
+    params.ax = snap.ax;
+    params.ay = snap.ay;
+    params.az = snap.az;
   }
 
   synth.processBlock(buffer, params);
@@ -260,7 +273,8 @@ NIMEReceiverProcessor::getRecentOrientations(float maxAgeMs) const {
       break; // Older entries will be even further back
     }
   }
-  std::reverse(recentOrientationsScratch.begin(), recentOrientationsScratch.end());
+  std::reverse(recentOrientationsScratch.begin(),
+               recentOrientationsScratch.end());
   return recentOrientationsScratch;
 }
 

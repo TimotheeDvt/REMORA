@@ -1,16 +1,17 @@
 #include "PluginEditor.h"
 #include "DSP/MathHelpers.h"
+#include "UI/DebugLog.h"
 #include "UI/Palette.h"
 #include "UI/StyleHelpers.h"
-#include "UI/DebugLog.h"
 #include <BinaryData.h>
+#include <initializer_list>
 
 NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
     : AudioProcessorEditor(&p), processor(p) {
   debug.print.blue("Plugin Editor created.");
   setResizable(true, true);
-  setResizeLimits(520, 300, 4096, 4096);
-  setSize(520, 300);
+  setResizeLimits(780, 450, 4096, 4096);
+  setSize(780, 450);
 
   // Title
   styleLabel(titleLabel, "NIME  OSC  RECEIVER", 13.f, Palette::textMid,
@@ -62,19 +63,17 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   };
   addAndMakeVisible(showDataButton);
 
-  // Debug toggle button
-  debugToggleButton.setButtonText("DEBUG");
-  debugToggleButton.setClickingTogglesState(true);
-  debugToggleButton.setToggleState(debug.isWindowOpen(), juce::dontSendNotification);
-  debugToggleButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
-  debugToggleButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
-  debugToggleButton.onClick = [this] {
-      if (debugToggleButton.getToggleState())
-          debug.show();
-      else
-          debug.hide();
+  // Debug button
+  debugButton.setButtonText("DEBUG");
+  debugButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
+  debugButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
+  debugButton.onClick = [this] {
+    if (debug.isWindowOpen())
+      debug.hide();
+    else
+      debug.show();
   };
-  addAndMakeVisible(debugToggleButton);
+  addAndMakeVisible(debugButton);
 
   calibrateButton.setButtonText("CALIBRATE");
   calibrateButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
@@ -87,8 +86,9 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
       processor.startCalibration();
       debug.print.yellow("Calibration started: Waiting for Pose A");
       calibrateButton.setButtonText("POSE A ->");
-      calibHintLabel.setText("Hold staff HORIZONTAL pointing FORWARD, then click",
-                             juce::dontSendNotification);
+      calibHintLabel.setText(
+          "Hold staff HORIZONTAL pointing FORWARD, then click",
+          juce::dontSendNotification);
       calibHintLabel.setColour(juce::Label::textColourId, Palette::yellow);
     } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseA) {
       processor.recordPoseA();
@@ -113,7 +113,8 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   };
   addAndMakeVisible(calibrateButton);
 
-  styleLabel(calibHintLabel, "", 10.f, Palette::textLo, juce::Justification::centredLeft);
+  styleLabel(calibHintLabel, "", 10.f, Palette::textLo,
+             juce::Justification::centredLeft);
   addAndMakeVisible(calibHintLabel);
 
   // Mapping selector
@@ -124,16 +125,17 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
 
   // Populate from the synth's mapping list
   for (int i = 0; i < processor.getSynth().getMappingCount(); ++i) {
-      const char* name = processor.getSynth().getMappingName(i);
-      if (name != nullptr)
-          mappingCombo.addItem(name, i + 1);   // ComboBox IDs are 1-based
+    const char *name = processor.getSynth().getMappingName(i);
+    if (name != nullptr)
+      mappingCombo.addItem(name, i + 1); // ComboBox IDs are 1-based
   }
   mappingCombo.setSelectedId(processor.getMappingStrategy() + 1,
                              juce::dontSendNotification);
   mappingCombo.onChange = [this] {
-      int newStrategyIndex = mappingCombo.getSelectedId() - 1;
-      processor.setMappingStrategy(newStrategyIndex);
-      debug.print.cyan("Mapping strategy changed to:", processor.getSynth().getMappingName(newStrategyIndex));
+    int newStrategyIndex = mappingCombo.getSelectedId() - 1;
+    processor.setMappingStrategy(newStrategyIndex);
+    debug.print.cyan("Mapping strategy changed to:",
+                     processor.getSynth().getMappingName(newStrategyIndex));
   };
   addAndMakeVisible(mappingCombo);
 
@@ -141,10 +143,10 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   statusDot.setOpaque(false);
   addAndMakeVisible(statusDot);
 
-  styleLabel(latencyValueLabel, "-", 52.f, Palette::textHi,
+  styleLabel(latencyValueLabel, "-", 24.f, Palette::textHi,
              juce::Justification::centredRight);
   styleLabel(latencyLabel, "ms latency", 11.f, Palette::textMid,
-             juce::Justification::centredLeft);
+             juce::Justification::centredRight);
   addAndMakeVisible(latencyLabel);
   addAndMakeVisible(latencyValueLabel);
 
@@ -173,57 +175,88 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   g.fillAll(Palette::bg);
 
   const auto w = getWidth();
+  const auto h = getHeight();
+
+  const int numRows = 8;
+  const int itemH = (h - padding * (numRows + 1)) / numRows;
 
   // Draw the logo at the top right (next to the status dot)
   juce::Image logo = juce::ImageCache::getFromMemory(BinaryData::logo_png,
                                                      BinaryData::logo_pngSize);
   if (logo.isValid()) {
-    g.drawImageWithin(logo, w - 80, 6, 40, 24,
+    g.drawImageWithin(logo, w - padding - 40, padding, 40, itemH,
                       juce::RectanglePlacement::centred);
   }
 
   // Top divider
   g.setColour(Palette::border);
-  g.drawHorizontalLine(36, 12.f, static_cast<float>(w - 12));
+  float div1Y = padding * 1.5f + itemH;
+  g.drawHorizontalLine(static_cast<int>(div1Y), static_cast<float>(padding),
+                       static_cast<float>(w - padding));
 
   // Status dot
   const bool isReceivingData = processor.getMessagesPerSecond() > 0.f;
   g.setColour(isReceivingData ? Palette::green : Palette::red);
-  g.fillEllipse(static_cast<float>(getWidth() - 28), 14.f, 8.f, 8.f);
+  g.fillEllipse(static_cast<float>(w - padding - 40 - padding - 8),
+                padding + itemH / 2.0f - 4.0f, 8.f, 8.f);
 
   // Draw 3D Staff separation
   g.setColour(Palette::border);
-  g.drawHorizontalLine(142, 24.f, static_cast<float>(w - 24));
+  float div2Y = padding * 4.5f + itemH * 4;
+  g.drawHorizontalLine(static_cast<int>(div2Y), static_cast<float>(padding),
+                       static_cast<float>(w - padding));
 }
 
 void NIMEReceiverEditor::resized() {
   const int w = getWidth();
+  const int h = getHeight();
 
-  // Title
-  titleLabel.setBounds(14, 10, 220, 20);
+  const int numRows = 8;
+  const int itemH = (h - padding * (numRows + 1)) / numRows;
 
-  // Controls
-  connectButton.setBounds(14, 64, 100, 24);
-  soundButton.setBounds(122, 64, 100, 24);
-  showDataButton.setBounds(14, 100, 80, 24);
-  debugToggleButton.setBounds(104, 100, 80, 24);
-  calibrateButton.setBounds(194, 100, 115, 24);
-  calibHintLabel.setBounds(14, 128, w - 28, 14);
+  int currentY = padding;
 
-  mappingCombo.setBounds(319, 100, 160, 24);
+  auto layoutRow = [&](int y, std::initializer_list<juce::Component *> comps) {
+    int n = static_cast<int>(comps.size());
+    if (n == 0)
+      return;
+    int itemW = (w - padding * (n + 1)) / n;
+    int currentX = padding;
+    for (auto *c : comps) {
+      if (c != nullptr)
+        c->setBounds(currentX, y, itemW, itemH);
+      currentX += itemW + padding;
+    }
+  };
 
-  // Latency display
-  latencyValueLabel.setBounds(w - 200, 44, 130, 60);
-  latencyLabel.setBounds(w - 68, 82, 80, 18);
+  // Row 0: Title
+  layoutRow(currentY, {&titleLabel});
+  currentY += itemH + padding;
 
-  boStaffVisualizer.setBounds(0, 144, w, getHeight() - 144);
+  // Row 1: Connect, Sound, Latency Value
+  layoutRow(currentY, {&connectButton, &soundButton, &latencyValueLabel});
+  currentY += itemH + padding;
+
+  // Row 2: Raw Data, Debug, Latency Label
+  layoutRow(currentY, {&showDataButton, &debugButton, &latencyLabel});
+  currentY += itemH + padding;
+
+  // Row 3: Calibrate, Mapping
+  layoutRow(currentY, {&calibrateButton, &mappingCombo});
+  currentY += itemH + padding;
+
+  // Row 4: Calib Hint
+  layoutRow(currentY, {&calibHintLabel});
+  currentY += itemH + padding;
+
+  // Visualizer gets the remaining space
+  boStaffVisualizer.setBounds(padding, currentY, w - 2 * padding,
+                              h - currentY - padding);
 }
 
-void NIMEReceiverEditor::changeListenerCallback(juce::ChangeBroadcaster* source) {
-    if (source == &debug) {
-        debugToggleButton.setToggleState(debug.isWindowOpen(),
-                                         juce::dontSendNotification);
-    }
+void NIMEReceiverEditor::changeListenerCallback(
+    juce::ChangeBroadcaster *source) {
+  juce::ignoreUnused(source);
 }
 
 void NIMEReceiverEditor::timerCallback() {
@@ -232,7 +265,8 @@ void NIMEReceiverEditor::timerCallback() {
   if (!mappingCombo.isPopupActive()) {
     const int currentMapping = processor.getMappingStrategy();
     if (mappingCombo.getSelectedId() != currentMapping + 1)
-        mappingCombo.setSelectedId(currentMapping + 1, juce::dontSendNotification);
+      mappingCombo.setSelectedId(currentMapping + 1,
+                                 juce::dontSendNotification);
   }
 
   boStaffVisualizer.updateStaff(
@@ -264,7 +298,8 @@ void NIMEReceiverEditor::refreshMainStats() {
     double audioBufferMs = 0.0;
     if (cachedSampleRate > 0.0) {
       audioBufferMs += (cachedBlockSize / cachedSampleRate) * 1000.0;
-      audioBufferMs += (processor.getLatencySamples() / cachedSampleRate) * 1000.0;
+      audioBufferMs +=
+          (processor.getLatencySamples() / cachedSampleRate) * 1000.0;
     }
 
     const double totalLatencyMs = dataAgeMs + audioBufferMs;

@@ -17,7 +17,7 @@ public:
 
 private:
   void timerCallback() override; // 60 Hz UI refresh
-  void changeListenerCallback(juce::ChangeBroadcaster* source) override;
+  void changeListenerCallback(juce::ChangeBroadcaster *source) override;
   void refreshMainStats();
   void toggleConnection();
   void updateConnectionUI();
@@ -29,7 +29,7 @@ private:
   juce::TextButton connectButton;
   juce::TextButton soundButton;
   juce::TextButton showDataButton;
-  juce::ToggleButton debugToggleButton;
+  juce::TextButton debugButton;
   juce::Label statusDot;
   juce::ComboBox mappingCombo;
 
@@ -40,6 +40,8 @@ private:
   bool connected = false;
   int udpPort = 8000;
   juce::uint32 lastLatencyUpdateMs = 0;
+
+  static constexpr int padding = 14;
 
   std::unique_ptr<RawDataWindow> rawDataWindow;
 
