@@ -46,16 +46,13 @@ private:
     float flow_bound_envelope_ = 0.f;
     static constexpr float kFlowSmoothingCoefficient = 0.12f;
 
-    int current_scale_step_ = 0;
     float smoothed_gyroscope_magnitude_ = 0.f;
     // Time Constant approx 25ms at 100Hz
     static constexpr float kGyroscopeSmoothingCoefficient = 0.35f;
-    static constexpr float kScaleHysteresis = 8.0f;
     static constexpr float kGyroscopeFloor = 30.0f;
     static constexpr float kGyroscopeCeiling = 750.0f;
 
-    static constexpr int kNumberOfScaleSteps = 4;
-    static constexpr float kRootFrequencyHz = 146.83f;
+    static constexpr float kRootFrequencyHz = 130.81f; // C3
 
     // Tip position history - 3 frames, ring buffer
     // tip_position_i = rotate({1,0,0}, quaternion_i) in world frame
@@ -113,8 +110,7 @@ private:
     float updateLabanSpace(const StaffSoundParams& input_parameters, float gyroscope_magnitude);
     void updateLabanFlow(float dynamic_acceleration_magnitude, float& flow_bound, float& flow_free);
 
-    void updateSpinClassification(float axis_x, float axis_y, float axis_z);
-    int convertGyroscopeMagnitudeToScaleStep(float gyroscope_magnitude) noexcept;
+    bool updateSpinClassification(float axis_x, float axis_y, float axis_z);
 
     void applyPitchAndChordToOutput(MappingOutput& mapping_output, const StaffSoundParams& input_parameters);
     void applyVoicesToOutput(MappingOutput& mapping_output, float smoothed_gyroscope, float melody_gain);

@@ -25,7 +25,6 @@ void BozendoMapping2::prepare(double sample_rate_hz) {
     previous_dynamic_acceleration_magnitude_ = 0.f;
     flow_bound_envelope_ = 0.f;
 
-    current_scale_step_ = 0;
     smoothed_gyroscope_magnitude_ = 0.f;
     noise_envelope_ = 0.f;
     smoothed_output_gain_ = 0.f;
@@ -195,7 +194,7 @@ void BozendoMapping2::updateLabanFlow(float dynamic_acceleration_magnitude, floa
     flow_free  = 1.0f - flow_bound;
 }
 
-void BozendoMapping2::updateSpinClassification(float axis_x, float axis_y, float axis_z) {
+bool BozendoMapping2::updateSpinClassification(float axis_x, float axis_y, float axis_z) {
     smoothed_rotation_axis_x_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_x_, axis_x, kRotationAxisSmoothingCoefficient);
     smoothed_rotation_axis_y_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_y_, axis_y, kRotationAxisSmoothingCoefficient);
     smoothed_rotation_axis_z_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_z_, axis_z, kRotationAxisSmoothingCoefficient);
@@ -219,36 +218,13 @@ void BozendoMapping2::updateSpinClassification(float axis_x, float axis_y, float
         rotation_spin_direction_ = (smoothed_rotation_axis_z_ >= 0.f) ? 1.f : -1.f;
     }
 
+    bool spin_changed = false;
     if (is_rotation_axis_vertical_ != was_rotation_axis_vertical_ || rotation_spin_direction_ != previous_rotation_spin_direction_) {
         was_rotation_axis_vertical_ = is_rotation_axis_vertical_;
         previous_rotation_spin_direction_ = rotation_spin_direction_;
-        debug.print.cyan(
-            is_rotation_axis_vertical_ ? "VERTICAL" : "HORIZONTAL",
-            rotation_spin_direction_ > 0.f ? "COUNTER_CLOCKWISE_OR_FORWARD" : "CLOCKWISE_OR_BACKWARD"
-        );
+        spin_changed = true;
     }
-}
-
-int BozendoMapping2::convertGyroscopeMagnitudeToScaleStep(float gyroscope_magnitude) noexcept {
-    float clamped_gyroscope = juce::jlimit(kGyroscopeFloor, kGyroscopeCeiling, gyroscope_magnitude);
-    float normalized_gyroscope = (clamped_gyroscope - kGyroscopeFloor) / (kGyroscopeCeiling - kGyroscopeFloor);
-    float float_step = normalized_gyroscope * static_cast<float>(kNumberOfScaleSteps - 1);
-
-    float hysteresis_normalized = kScaleHysteresis / (kGyroscopeCeiling - kGyroscopeFloor);
-    float hysteresis_steps = hysteresis_normalized * static_cast<float>(kNumberOfScaleSteps - 1);
-
-    int target_step = juce::jlimit(0, kNumberOfScaleSteps - 1, static_cast<int>(float_step + 0.5f));
-
-    if (target_step > current_scale_step_) {
-        if (float_step < static_cast<float>(current_scale_step_) + 0.5f + hysteresis_steps) {
-            target_step = current_scale_step_;
-        }
-    } else if (target_step < current_scale_step_) {
-        if (float_step > static_cast<float>(current_scale_step_) - 0.5f - hysteresis_steps) {
-            target_step = current_scale_step_;
-        }
-    }
-    return target_step;
+    return spin_changed;
 }
 
 void BozendoMapping2::applyPitchAndChordToOutput(MappingOutput& mapping_output, const StaffSoundParams& input_parameters) {
@@ -263,30 +239,27 @@ void BozendoMapping2::applyPitchAndChordToOutput(MappingOutput& mapping_output, 
     float base_semitones = 0.f;
 
     if (is_rotation_axis_vertical_) {
-        if (rotation_spin_direction_ > 0.f) {
-            // Vertical Forward: Major 7th arpeggio
-            const float scale[kNumberOfScaleSteps] = {0.f, 4.f, 7.f, 11.f};
-            base_semitones = scale[current_scale_step_];
-            mapping_output.chordSemitones[0] = 4.f; mapping_output.chordSemitones[1] = 7.f;  mapping_output.chordSemitones[2] = 11.f;
+        if (rotation_spin_direction_ < 0.f) {
+            // CW Vertical: 1st Note (C)
+            base_semitones = 0.f;
         } else {
-            // Vertical Backward: Minor 7th arpeggio
-            const float scale[kNumberOfScaleSteps] = {0.f, 3.f, 7.f, 10.f};
-            base_semitones = scale[current_scale_step_];
-            mapping_output.chordSemitones[0] = 3.f; mapping_output.chordSemitones[1] = 7.f;  mapping_output.chordSemitones[2] = 10.f;
+            // CCW Vertical: 2nd Note (E)
+            base_semitones = 4.f;
         }
     } else {
-        if (rotation_spin_direction_ > 0.f) {
-            // Horizontal Forward: Sus4 arpeggio
-            const float scale[kNumberOfScaleSteps] = {0.f, 5.f, 7.f, 12.f};
-            base_semitones = scale[current_scale_step_];
-            mapping_output.chordSemitones[0] = 5.f; mapping_output.chordSemitones[1] = 7.f;  mapping_output.chordSemitones[2] = 12.f;
+        if (rotation_spin_direction_ < 0.f) {
+            // CW Horizontal: 3rd Note (G)
+            base_semitones = 7.f;
         } else {
-            // Horizontal Backward: Diminished arpeggio
-            const float scale[kNumberOfScaleSteps] = {0.f, 3.f, 6.f, 9.f};
-            base_semitones = scale[current_scale_step_];
-            mapping_output.chordSemitones[0] = 3.f; mapping_output.chordSemitones[1] = 6.f;  mapping_output.chordSemitones[2] = 9.f;
+            // CCW Horizontal: 4th Note (A)
+            base_semitones = 9.f;
         }
     }
+
+    // Instead of a chord, we only play octaves of the root note to maintain the same pitch class.
+    mapping_output.chordSemitones[0] = 12.f;  // +1 Octave
+    mapping_output.chordSemitones[1] = 24.f;  // +2 Octaves
+    mapping_output.chordSemitones[2] = -12.f; // -1 Octave
 
     mapping_output.rootHz = MathHelpers::convertSemitonesToHertz(base_semitones + octave_offset, kRootFrequencyHz);
 }
@@ -295,7 +268,7 @@ void BozendoMapping2::applyVoicesToOutput(MappingOutput& mapping_output, float s
     mapping_output.numVoices = 4;
     mapping_output.voiceGain[0] = melody_gain;
 
-    // Use gyroscope magnitude (bow speed) to fade in the chord voices
+    // Use gyroscope magnitude (bow speed) to fade in the octave voices
     float bow_speed_normalized = juce::jlimit(0.0f, 1.0f, smoothed_gyroscope / 500.0f);
 
     mapping_output.voiceGain[1] = juce::jlimit(0.0f, 1.0f, (bow_speed_normalized - 0.1f) * 3.0f) * 0.8f;
@@ -391,12 +364,26 @@ void BozendoMapping2::process(const StaffSoundParams& input_parameters, MappingO
     updateLabanFlow(dynamic_accel_magnitude, laban_flow_bound, laban_flow_free);
 
     const bool is_moving = smoothed_gyroscope_magnitude_ > kGyroscopeFloor;
+    bool spin_changed = false;
     if (is_moving) {
-        updateSpinClassification(rotation_axis_x, rotation_axis_y, rotation_axis_z);
-        current_scale_step_ = convertGyroscopeMagnitudeToScaleStep(smoothed_gyroscope_magnitude_);
+        spin_changed = updateSpinClassification(rotation_axis_x, rotation_axis_y, rotation_axis_z);
     }
 
     applyPitchAndChordToOutput(mapping_output, input_parameters);
+
+    if (spin_changed) {
+        const char* note_name = "";
+        if (is_rotation_axis_vertical_) {
+            note_name = (rotation_spin_direction_ < 0.f) ? "C" : "E";
+        } else {
+            note_name = (rotation_spin_direction_ < 0.f) ? "G" : "A";
+        }
+        debug.print.cyan(
+            is_rotation_axis_vertical_ ? "VERTICAL" : "HORIZONTAL",
+            rotation_spin_direction_ > 0.f ? "COUNTER_CLOCKWISE_OR_FORWARD" : "CLOCKWISE_OR_BACKWARD",
+            "| Playing:", note_name, "| Freq:", mapping_output.rootHz, "Hz"
+        );
+    }
 
     float melody_gain = is_moving ? juce::jlimit(0.2f, 1.0f, 0.2f + smoothed_gyroscope_magnitude_ / kGyroscopeCeiling * 0.8f) : 0.0f;
     applyVoicesToOutput(mapping_output, smoothed_gyroscope_magnitude_, melody_gain);
