@@ -37,7 +37,7 @@ void BoStaffSynth::prepareToPlay(double sampleRate, int) {
     bowPressure.reset(sampleRate, 0.040);
     bowPressure.setCurrentAndTargetValue(0.0f);
 
-    rootFreq.reset(sampleRate, 0.150);
+    rootFreq.reset(sampleRate, 0.060);
     rootFreq.setCurrentAndTargetValue(110.0f);
 
     chordBlendSmoother.reset(sampleRate, 0.200);

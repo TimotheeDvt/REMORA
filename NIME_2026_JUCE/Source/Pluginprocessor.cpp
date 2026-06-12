@@ -213,8 +213,15 @@ void NIMEReceiverProcessor::prepareToPlay(double sampleRate,
 void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                          juce::MidiBuffer &) {
   // Determine if we have valid live connection data
-  bool isReceivingValidData =
-      isOSCConnected() && (getMessagesPerSecond() > 0.f);
+  // Use tick age instead of messagesPerSecond (which has 1s update latency).
+  // Sound is valid as long as a packet arrived within the last 500ms.
+  constexpr double kMaxDataAgeMs = 500.0;
+  const int64_t lastTicks = oscManager.getLastMessageReceivedTicks();
+  const double dataAgeMs = (lastTicks > 0)
+      ? juce::Time::highResolutionTicksToSeconds(
+            juce::Time::getHighResolutionTicks() - lastTicks) * 1000.0
+      : 1e9;
+  bool isReceivingValidData = isOSCConnected() && (dataAgeMs < kMaxDataAgeMs);
 
   const auto calibratedQ = getCalibratedQuat();
 
