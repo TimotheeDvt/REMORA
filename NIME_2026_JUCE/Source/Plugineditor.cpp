@@ -11,7 +11,7 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   debug.print.blue("Plugin Editor created.");
   setResizable(true, true);
   setResizeLimits(780, 450, 4096, 4096);
-  setSize(780, 450);
+  setSize(780, 780);
 
   // Title
   styleLabel(titleLabel, "NIME  OSC  RECEIVER", 13.f, Palette::textMid,
@@ -177,8 +177,11 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
   const auto w = getWidth();
   const auto h = getHeight();
 
-  const int numRows = 8;
-  const int itemH = (h - padding * (numRows + 1)) / numRows;
+  const int visualizerH = (h * 2) / 3;
+  const int topSpace = h - visualizerH;
+
+  const int numRows = 5;
+  const int itemH = (topSpace - padding * (numRows + 1)) / numRows;
 
   // Draw the logo at the top right (next to the status dot)
   juce::Image logo = juce::ImageCache::getFromMemory(BinaryData::logo_png,
@@ -202,7 +205,7 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
 
   // Draw 3D Staff separation
   g.setColour(Palette::border);
-  float div2Y = padding * 4.5f + itemH * 4;
+  float div2Y = topSpace - padding / 2.0f;
   g.drawHorizontalLine(static_cast<int>(div2Y), static_cast<float>(padding),
                        static_cast<float>(w - padding));
 }
@@ -211,8 +214,11 @@ void NIMEReceiverEditor::resized() {
   const int w = getWidth();
   const int h = getHeight();
 
-  const int numRows = 8;
-  const int itemH = (h - padding * (numRows + 1)) / numRows;
+  const int visualizerH = (h * 2) / 3;
+  const int topSpace = h - visualizerH;
+
+  const int numRows = 5;
+  const int itemH = (topSpace - padding * (numRows + 1)) / numRows;
 
   int currentY = padding;
 
@@ -249,9 +255,9 @@ void NIMEReceiverEditor::resized() {
   layoutRow(currentY, {&calibHintLabel});
   currentY += itemH + padding;
 
-  // Visualizer gets the remaining space
-  boStaffVisualizer.setBounds(padding, currentY, w - 2 * padding,
-                              h - currentY - padding);
+  // Visualizer gets the 2/3 space
+  boStaffVisualizer.setBounds(padding, topSpace, w - 2 * padding,
+                              visualizerH - padding);
 }
 
 void NIMEReceiverEditor::changeListenerCallback(
