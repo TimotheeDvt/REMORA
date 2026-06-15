@@ -10,7 +10,6 @@ public:
         addAndMakeVisible (listBox);
         listBox.setModel (this);
         listBox.setColour (juce::ListBox::backgroundColourId, getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId).darker(0.8f));
-        listBox.setRowHeight (14);
 
         addAndMakeVisible (clearButton);
         clearButton.setButtonText ("Clear");
@@ -22,6 +21,9 @@ public:
         auto bounds = getLocalBounds();
         clearButton.setBounds (bounds.removeFromBottom (24).reduced (4));
         listBox.setBounds (bounds);
+
+        currentFontSize = juce::jmap ((float) getHeight(), 150.0f, 800.0f, 10.0f, 18.0f);
+        listBox.setRowHeight (static_cast<int> (currentFontSize + 2.0f));
     }
 
     void addMessage (const juce::String& message, juce::Colour colour)
@@ -53,7 +55,7 @@ public:
         {
             const auto& line = lines[rowNumber];
             g.setColour (line.colour);
-            g.setFont (juce::Font (juce::FontOptions().withName(juce::Font::getDefaultMonospacedFontName()).withHeight(12.0f)));
+            g.setFont (juce::Font (juce::FontOptions().withName(juce::Font::getDefaultMonospacedFontName()).withHeight(currentFontSize)));
             g.drawText (juce::String (line.lineNumber) + ": " + line.message, juce::Rectangle<int> (width, height).withX (4), juce::Justification::centredLeft, true);
         }
     }
@@ -70,6 +72,7 @@ private:
     juce::TextButton clearButton;
     juce::Array<LogLine> lines;
     int nextLineNumber = 0;
+    float currentFontSize = 12.0f;
 
     static constexpr int maxLines = 200;
 };
@@ -82,7 +85,7 @@ DebugConsole::DebugConsole(const juce::String& name)
     setUsingNativeTitleBar(true);
 
     contentComponent = new Content();
-    setContentOwned (contentComponent, true);
+    setContentOwned (contentComponent, false);
 
     setResizable(true, true);
     setResizeLimits(300, 200, 1000, 800);
