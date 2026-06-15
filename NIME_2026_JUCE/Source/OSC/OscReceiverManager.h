@@ -1,7 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "../Data/IMUData.h"
+#include "../DATA/IMUData.h"
 
 class OscReceiverManager : private juce::OSCReceiver::Listener<juce::OSCReceiver::RealtimeCallback> {
 public:

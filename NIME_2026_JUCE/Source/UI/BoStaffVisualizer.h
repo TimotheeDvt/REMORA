@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../DSP/MathHelpers.h"
-#include "../Data/OrientationPoint.h"
+#include "../DATA/OrientationPoint.h"
 #include <JuceHeader.h>
 
 class BoStaffVisualizer : public juce::Component {

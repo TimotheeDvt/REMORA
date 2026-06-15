@@ -32,11 +32,11 @@ juce_add_binary_data(NIMEReceiverData
 
 target_sources(NIMEReceiver
     PRIVATE
-        Source/Pluginprocessor.cpp
-        Source/Pluginprocessor.h
-        Source/Plugineditor.cpp
-        Source/Plugineditor.h
-        Source/Data/IMUData.h
+        Source/PluginProcessor.cpp
+        Source/PluginProcessor.h
+        Source/PluginEditor.cpp
+        Source/PluginEditor.h
+        Source/DATA/IMUData.h
         Source/DSP/MathHelpers.h
         Source/DSP/IMappingStrategy.h
         Source/DSP/Mappings/BowedChordMapping.h

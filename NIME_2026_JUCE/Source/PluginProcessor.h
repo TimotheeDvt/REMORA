@@ -2,8 +2,8 @@
 
 #include "DSP/BoStaffSynth.h"
 #include "DSP/MathHelpers.h"
-#include "Data/IMUData.h"
-#include "Data/OrientationPoint.h"
+#include "DATA/IMUData.h"
+#include "DATA/OrientationPoint.h"
 #include "OSC/OscReceiverManager.h"
 #include <JuceHeader.h>
 #include <array>
