@@ -1,389 +1,220 @@
-# Complete Setup Guide — ESP32-S2 Thing Plus + ICM-20600/AK09918
+# Bô - A Motion-Controlled Musical Instrument
+
+**Bô** is a digital musical instrument built around a martial arts staff (bô) augmented with an IMU sensor. Physical gestures such as spinning, tilting, striking, sweeping are translated in real time into expressive audio synthesis. The name *NIME* in the codebase stands for **New Instrument for Musical Expression**, and reflects the instrument design philosophy.
 
 ---
 
-## Hardware Overview
+## Project Overview
 
-### ESP32-S2 Thing Plus
-- Single-core 240MHz Xtensa LX7
-- Built-in WiFi (no Bluetooth)
-- Native USB (appears directly as serial port)
-- Qwiic connector — **2 pins exposed** (this is normal, it carries all 4 signals: VCC, GND, SDA, SCL on the same connector internally)
+The instrument consists of two parts:
 
-### IMU Board — Seeed Grove 9DOF v1.1
-- **ICM-20600** — Accelerometer ±2/±4/±8/±16g + Gyroscope ±250/±500/±1000/±2000°/s
-- **AK09918C** — Magnetometer ±4900µT
-- I2C addresses: ICM-20600 @ `0x69`, AK09918C @ `0x0C`
-- Qwiic/STEMMA QT output connector
+**Firmware** - An ESP32-S2 microcontroller mounted on the staff reads a 9-DOF IMU (MPU-9250) at 100 Hz and streams orientation data (quaternion, accelerometer, gyroscope, magnetometer) over Wi-Fi as OSC packets.
 
----
+**Software** - A JUCE-based VST3/Standalone audio plugin receives the OSC stream, applies a user-defined calibration, extracts musical parameters from the motion, and drives an internal additive synthesiser with multiple mapping strategies selectable at runtime.
 
-## Wiring
+The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 
-### Manual jumper wires
 ```
-IMU Board        ESP32-S2 Thing Plus
-─────────────────────────────────────
-VCC (3.3V)  →   3.3V
-GND         →   GND
-SCL         →   GPIO 40
-SDA         →   GPIO 39
+[ Bô Staff ]
+  └─ MPU-9250 IMU
+  └─ SparkFun ESP32-S2 Thing+
+       │  Wi-Fi / UDP / OSC  (port 8000)
+       ▼
+[ Host Computer ]
+  └─ JUCE Plugin (VST3 / Standalone)
+       ├─ OscReceiverManager   - receives and parses packets
+       ├─ PluginProcessor      - calibration, quaternion maths
+       ├─ BoStaffSynth         - 4-voice additive synthesiser
+       └─ IMappingStrategy     - swappable gesture-to-sound mappings
 ```
 
 ---
 
-## Software Installation
+## Repository Structure
 
-### 1. Install VS Code
-Download from [code.visualstudio.com](https://code.visualstudio.com)
-
-### 2. Install PlatformIO
-VS Code → Extensions (Ctrl+Shift+X) → search **PlatformIO IDE** → Install
-Restart VS Code after installation.
-
-### 3. Create a new project
 ```
-PlatformIO Home → New Project
-Name:      rod-nime
-Board:     SparkFun ESP32-S2 Thing Plus
-Framework: Arduino
+.
+├── firmware/
+│   └── NIME_2026/                  # PlatformIO project for the ESP32-S2
+│       ├── platformio.ini          # Board, platform, and library config
+│       └── src/
+│           └── main.cpp            # IMU read loop + OSC transmission
+│
+├── software/
+│   └── NIME_2026_JUCE/             # JUCE CMake project (VST3 + Standalone)
+│       ├── CMakeLists.txt
+│       ├── Makefile                # Convenience wrapper around CMake
+│       ├── JUCE/                   # JUCE submodule (not tracked here)
+│       ├── Assets/
+│       │   └── logo.png
+│       └── Source/
+│           ├── PluginProcessor.{h,cpp}   # Audio processor, calibration, OSC bridge
+│           ├── PluginEditor.{h,cpp}      # Main UI
+│           ├── DATA/
+│           │   ├── IMUData.h             # Lock-free IMU data store (seqlock)
+│           │   └── OrientationPoint.h    # Timestamped quaternion for trail rendering
+│           ├── DSP/
+│           │   ├── MathHelpers.h         # Quaternion / vector maths
+│           │   ├── IMappingStrategy.h    # Abstract mapping interface
+│           │   ├── BoStaffSynth.{h,cpp}  # 4-voice additive synth engine
+│           │   └── Mappings/
+│           │       ├── SimpleMapping          # Minimal pitch+roll sine wave
+│           │       ├── BowedChordMapping      # Gyro-bowed chords (main mapping)
+│           │       ├── LeadDroneMapping       # Lead melody over drone bass
+│           │       ├── SpinFilterMapping      # Rotation-speed pentatonic filter synth
+│           │       ├── BozendoMapping         # Laban Effort-based expressive mapping
+│           │       └── BozendoMapping2        # Bozendo variant - 4-note arpeggio
+│           ├── OSC/
+│           │   └── OscReceiverManager.{h,cpp} # JUCE OSCReceiver wrapper
+│           └── UI/
+│               ├── Palette.h              # Colour constants
+│               ├── StyleHelpers.h         # Label styling utility
+│               ├── BoStaffVisualizer.{h,cpp} # 3D staff + motion trail renderer
+│               ├── RawDataWindow.{h,cpp}  # Live IMU data inspector
+│               ├── DebugLog.{h,cpp}       # Global coloured debug logger
+│               └── DebugConsole.{h,cpp}   # Floating debug window
+│
+└── other_tests/                    # Prototypes and exploratory tools
+    ├── testOSCReceiver.py          # Minimal Python OSC listener (port 8000)
+    ├── exploration_tests/
+    │   └── simulation_pitch_yaw_relative_pos.py  # Qt + Matplotlib 3D dial simulator
+    └── PlugData/
+        └── testsMockData/
+            ├── mockData.py         # 50 Hz mock OSC sender for PlugData patches
+            ├── bo_live_simulation.py  # Live Qt visualiser with complementary filter
+            ├── bo_test.pd          # PlugData patch - sine + ADSR proof of concept
+            └── receiveFromTipsAB.pd   # OSC receive abstraction for PlugData
 ```
-
-### 4. Replace `platformio.ini` with:
-```ini
-[env:sparkfun_esp32s2_thing_plus]
-platform = espressif32
-board = sparkfun_esp32s2_thing_plus
-framework = arduino
-
-monitor_speed = 115200
-
-lib_deps =
-    seeed-studio/Grove - IMU 9DOF ICM20600+AK09918 @ ^1.0.0
-    CNMAT/OSC @ ^1.3.5
-```
-
-### 5. Flash workflow
-- Connect ESP32 to computer via USB
-- On first connection: may need to **hold BOOT button while pressing RESET** to enter flash mode
-- PlatformIO toolbar → **Upload** (→ arrow)
-- PlatformIO toolbar → **Serial Monitor** (plug icon)
 
 ---
 
-## Finding Your Computer's IP Address
+## Building the Firmware
 
-The ESP32 sends OSC packets to your computer — you need its local IP:
+### Prerequisites
+
+- [PlatformIO](https://platformio.org/) (CLI or VS Code extension)
+- A **SparkFun ESP32-S2 Thing+** connected over USB
+
+### Steps
+
+1. Edit `firmware/NIME_2026/src/main.cpp` and update the Wi-Fi credentials and target IP to match your network:
+
+   ```cpp
+   const char *WIFI_SSID     = "YOUR_SSID";
+   const char *WIFI_PASSWORD = "YOUR_PASSWORD";
+   const IPAddress outIp(10, 42, 0, 255); // broadcast or host IP
+   ```
+
+2. Flash the firmware:
+
+   ```bash
+   cd firmware/NIME_2026
+   pio run --target upload
+   ```
+
+3. Monitor serial output to confirm connection:
+
+   ```bash
+   pio device monitor --baud 115200
+   ```
+
+   You should see the board print its local IP and begin streaming at 100 Hz.
+
+### What the Firmware Does
+
+- Initialises the MPU-9250 over I²C (SDA = GPIO 1, SCL = GPIO 2)
+- Connects to Wi-Fi and sends a `/esp32/connected <ip>` handshake packet
+- Loops at 100 Hz, sending `/esp32/imu ax ay az gx gy gz mx my mz qw qx qy qz <ip>` to the configured broadcast/host address on port 8000
+
+---
+
+## Building the Software
+
+### Prerequisites
+
+- **CMake 3.22+**
+- **Ninja** build system
+- A C++17-capable compiler (MSVC 2022 on Windows, Clang/GCC on macOS/Linux)
+- JUCE cloned as a subdirectory at `software/NIME_2026_JUCE/JUCE/`
+
+  ```bash
+  cd software/NIME_2026_JUCE
+  git clone https://github.com/juce-framework/JUCE.git
+  ```
+
+### Steps
 
 ```bash
-# macOS / Linux
-ifconfig | grep "inet "
+cd software/NIME_2026_JUCE
 
-# Windows
-ipconfig
+# Configure
+cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+
+# Build
+cmake --build build --config Release
 ```
 
-Look for something like `192.168.1.42` on your local network.
+Or use the provided `Makefile`:
+
+```bash
+make          # configure + build
+make build    # build only
+make clean    # remove build directory
+```
+
+Build artefacts are written to `build/NIMEReceiver_artefacts/`:
+
+- `VST3/NIMEReceiver.vst3` - load in any VST3 host (DAW, Carla, etc.)
+- `Standalone/NIMEReceiver` - run directly without a DAW
+
+### Running
+
+1. Ensure the ESP32 is streaming to your machine (or use `other_tests/testOSCReceiver.py` to verify packets are arriving on port 8000).
+2. Launch the standalone or load the VST3 in your DAW.
+3. Click **CONNECT** - the plugin auto-connects to port 8000 on startup.
+4. Optionally click **CALIBRATE** and follow the three-pose procedure to align the sensor's local frame with musical space.
+5. Select a mapping from the dropdown and move the staff.
 
 ---
 
-## Complete Firmware
+## Mapping Strategies
 
-Replace `src/main.cpp` entirely with this:
+All mappings implement the `IMappingStrategy` interface and can be switched at runtime with no audio interruption.
 
-```cpp
-#include <Arduino.h>
-#include <Wire.h>
-#include <WiFi.h>
-#include <WiFiUdp.h>
-#include <OSCMessage.h>
-#include "ICM20600.h"
-#include "AK09918.h"
-
-// ─── WiFi / OSC Configuration ─────────────────────────────────────────────────
-const char*   WIFI_SSID     = "YOUR_SSID";
-const char*   WIFI_PASSWORD = "YOUR_PASSWORD";
-const char*   OSC_HOST      = "192.168.1.XXX";  // ← your computer's IP
-const int     OSC_PORT      = 9000;
-
-// ─── Sampling ─────────────────────────────────────────────────────────────────
-#define SAMPLE_RATE_HZ    100
-#define SAMPLE_INTERVAL   (1000000 / SAMPLE_RATE_HZ)  // µs
-
-// ─── Madgwick Filter ──────────────────────────────────────────────────────────
-// Beta: higher = faster convergence but noisier
-//       lower  = smoother but slower to track fast movement
-// 0.1 is a good starting point — tune physically
-#define MADGWICK_BETA     0.1f
-
-// ─── Shake Detection ──────────────────────────────────────────────────────────
-// Threshold in g above which a shake is detected (tune physically)
-#define SHAKE_THRESHOLD   1.5f
-// Decay per sample — controls how long shake "rings" after impact
-#define SHAKE_DECAY       0.92f
-
-// ─── Hardware Objects ─────────────────────────────────────────────────────────
-ICM20600  icm(true);   // true = I2C mode
-AK09918   ak;
-
-// ─── WiFi / UDP ───────────────────────────────────────────────────────────────
-WiFiUDP   udp;
-
-// ─── Madgwick State ───────────────────────────────────────────────────────────
-float q0 = 1.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;
-
-// ─── Runtime State ────────────────────────────────────────────────────────────
-uint64_t  lastSampleTime = 0;
-float     shakeEnvelope  = 0.0f;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Madgwick AHRS Update
-// Inputs: acceleration (g), gyroscope (rad/s), timestep (s)
-// Updates global quaternion q0..q3
-// ─────────────────────────────────────────────────────────────────────────────
-void madgwickUpdate(float ax, float ay, float az,
-                    float gx, float gy, float gz, float dt) {
-    float recipNorm;
-    float s0, s1, s2, s3;
-    float qDot0, qDot1, qDot2, qDot3;
-    float _2q0, _2q1, _2q2, _2q3;
-    float _4q0, _4q1, _4q2;
-    float _8q1, _8q2;
-    float q0q0, q1q1, q2q2, q3q3;
-
-    // Rate of change of quaternion from gyroscope
-    qDot0 = 0.5f * (-q1*gx - q2*gy - q3*gz);
-    qDot1 = 0.5f * ( q0*gx + q2*gz - q3*gy);
-    qDot2 = 0.5f * ( q0*gy - q1*gz + q3*gx);
-    qDot3 = 0.5f * ( q0*gz + q1*gy - q2*gx);
-
-    // Apply feedback only if accelerometer reading is valid
-    if (!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f))) {
-        recipNorm = 1.0f / sqrtf(ax*ax + ay*ay + az*az);
-        ax *= recipNorm; ay *= recipNorm; az *= recipNorm;
-
-        _2q0 = 2.0f*q0; _2q1 = 2.0f*q1;
-        _2q2 = 2.0f*q2; _2q3 = 2.0f*q3;
-        _4q0 = 4.0f*q0; _4q1 = 4.0f*q1; _4q2 = 4.0f*q2;
-        _8q1 = 8.0f*q1; _8q2 = 8.0f*q2;
-        q0q0 = q0*q0; q1q1 = q1*q1; q2q2 = q2*q2; q3q3 = q3*q3;
-
-        s0 = _4q0*q2q2 + _2q2*ax + _4q0*q1q1 - _2q1*ay;
-        s1 = _4q1*q3q3 - _2q3*ax + 4.0f*q0q0*q1
-           - _2q0*ay - _4q1 + _8q1*q1q1 + _8q1*q2q2 + _4q1*az;
-        s2 = 4.0f*q0q0*q2 + _2q0*ax + _4q2*q3q3
-           - _2q3*ay - _4q2 + _8q2*q1q1 + _8q2*q2q2 + _4q2*az;
-        s3 = 4.0f*q1q1*q3 - _2q1*ax + 4.0f*q2q2*q3 - _2q2*ay;
-
-        recipNorm = 1.0f / sqrtf(s0*s0 + s1*s1 + s2*s2 + s3*s3);
-        s0 *= recipNorm; s1 *= recipNorm;
-        s2 *= recipNorm; s3 *= recipNorm;
-
-        qDot0 -= MADGWICK_BETA * s0;
-        qDot1 -= MADGWICK_BETA * s1;
-        qDot2 -= MADGWICK_BETA * s2;
-        qDot3 -= MADGWICK_BETA * s3;
-    }
-
-    // Integrate to get new quaternion
-    q0 += qDot0 * dt; q1 += qDot1 * dt;
-    q2 += qDot2 * dt; q3 += qDot3 * dt;
-
-    // Normalize
-    recipNorm = 1.0f / sqrtf(q0*q0 + q1*q1 + q2*q2 + q3*q3);
-    q0 *= recipNorm; q1 *= recipNorm;
-    q2 *= recipNorm; q3 *= recipNorm;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Quaternion → Euler Angles (degrees)
-// ─────────────────────────────────────────────────────────────────────────────
-void quaternionToEuler(float& pitch, float& roll, float& yaw) {
-    float sinp = 2.0f * (q0*q2 - q3*q1);
-    pitch = (fabsf(sinp) >= 1.0f)
-          ? copysignf(90.0f, sinp)
-          : asinf(sinp) * 57.2957795f;
-
-    roll = atan2f(2.0f*(q0*q1 + q2*q3),
-                  1.0f - 2.0f*(q1*q1 + q2*q2)) * 57.2957795f;
-
-    yaw  = atan2f(2.0f*(q0*q3 + q1*q2),
-                  1.0f - 2.0f*(q2*q2 + q3*q3)) * 57.2957795f;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// OSC Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-inline void sendFloat(const char* address, float value) {
-    OSCMessage msg(address);
-    msg.add(value);
-    udp.beginPacket(OSC_HOST, OSC_PORT);
-    msg.send(udp);
-    udp.endPacket();
-    msg.empty();
-}
-
-void sendAllOSC(float pitch, float roll, float yaw,
-                float ax,    float ay,   float az,
-                float gyroMag, float shake,
-                float mx,    float my,   float mz) {
-    sendFloat("/rod/orientation/pitch", pitch);
-    sendFloat("/rod/orientation/roll",  roll);
-    sendFloat("/rod/orientation/yaw",   yaw);
-    sendFloat("/rod/accel/x",           ax);
-    sendFloat("/rod/accel/y",           ay);
-    sendFloat("/rod/accel/z",           az);
-    sendFloat("/rod/gyro/magnitude",    gyroMag);
-    sendFloat("/rod/gesture/shake",     shake);
-    sendFloat("/rod/mag/x",             mx);
-    sendFloat("/rod/mag/y",             my);
-    sendFloat("/rod/mag/z",             mz);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Setup
-// ─────────────────────────────────────────────────────────────────────────────
-void setup() {
-    Serial.begin(115200);
-    delay(500);
-
-    // I2C — fast mode
-    Wire.begin();
-    Wire.setClock(400000);
-
-    // ── ICM-20600 init ────────────────────────────────────────────────────────
-    icm.initialize();
-    // ±8g — good range for expressive gestures without clipping
-    icm.setAccelScaleRange(ICM20600_ACCEL_RANGE_8G);
-    // ±1000°/s — covers fast rod swings
-    icm.setGyroScaleRange(ICM20600_GYRO_RANGE_1000DPS);
-    Serial.println("ICM-20600 initialized");
-
-    // ── AK09918 init ──────────────────────────────────────────────────────────
-    // AK09918 is connected through ICM-20600's aux I2C in some boards,
-    // or directly on main I2C bus — try direct first
-    err = ak.initialize();
-    ak.setMode(AK09918_POWER_DOWN);
-    ak.setMode(AK09918_CONTINUOUS_100HZ);
-    Serial.println("AK09918 initialized");
-
-    // ── WiFi ──────────────────────────────────────────────────────────────────
-    Serial.printf("Connecting to %s", WIFI_SSID);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500); Serial.print(".");
-    }
-    Serial.printf("\nConnected — ESP32 IP: %s\n",
-                  WiFi.localIP().toString().c_str());
-
-    udp.begin(OSC_PORT);
-    lastSampleTime = micros();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Loop
-// ─────────────────────────────────────────────────────────────────────────────
-void loop() {
-    uint64_t now = micros();
-    if (now - lastSampleTime < SAMPLE_INTERVAL) return;
-
-    float dt = (now - lastSampleTime) / 1000000.0f;
-    lastSampleTime = now;
-
-    // ── Read ICM-20600 ────────────────────────────────────────────────────────
-    float ax = icm.getAccelerationX() / 1000.0f;  // mg → g
-    float ay = icm.getAccelerationY() / 1000.0f;
-    float az = icm.getAccelerationZ() / 1000.0f;
-
-    // Gyro comes in deg/s, convert to rad/s for Madgwick
-    float gx = icm.getGyroscopeX() * 0.01745329f;
-    float gy = icm.getGyroscopeY() * 0.01745329f;
-    float gz = icm.getGyroscopeZ() * 0.01745329f;
-
-    // ── Read AK09918 ──────────────────────────────────────────────────────────
-    int32_t mx_raw, my_raw, mz_raw;
-    ak.getData(&mx_raw, &my_raw, &mz_raw);
-    // Scale to µT (AK09918 resolution: 0.15µT/LSB)
-    float mx = mx_raw * 0.15f;
-    float my = my_raw * 0.15f;
-    float mz = mz_raw * 0.15f;
-
-    // ── Madgwick fusion ───────────────────────────────────────────────────────
-    madgwickUpdate(ax, ay, az, gx, gy, gz, dt);
-
-    // ── Euler angles ──────────────────────────────────────────────────────────
-    float pitch, roll, yaw;
-    quaternionToEuler(pitch, roll, yaw);
-
-    // ── Gyro magnitude (overall rotation speed, deg/s) ───────────────────────
-    float gyroMag = sqrtf(gx*gx + gy*gy + gz*gz) * 57.2957795f;
-
-    // ── Shake envelope ────────────────────────────────────────────────────────
-    float accelMag     = sqrtf(ax*ax + ay*ay + az*az);
-    float accelDynamic = fabsf(accelMag - 1.0f);  // subtract gravity
-    if (accelDynamic > SHAKE_THRESHOLD) shakeEnvelope = 1.0f;
-    shakeEnvelope *= SHAKE_DECAY;
-
-    // ── Send all OSC ──────────────────────────────────────────────────────────
-    sendAllOSC(pitch, roll, yaw, ax, ay, az, gyroMag, shakeEnvelope,
-               mx, my, mz);
-
-    // ── Debug — uncomment to verify in Serial Monitor ─────────────────────────
-    // Serial.printf("P:%.1f R:%.1f Y:%.1f | shake:%.2f | mag:%.1f,%.1f,%.1f\n",
-    //               pitch, roll, yaw, shakeEnvelope, mx, my, mz);
-}
-```
+| Mapping | Core idea |
+|---|---|
+| **Simple (Pitch+Roll)** | Single sine wave. Tilt = frequency, twist = volume. Good for testing. |
+| **Bowed Chord** | Gyroscope speed = bow pressure. Tilt = root note, yaw = chord quality, roll = timbre/vibrato. |
+| **Lead + Drone** | Tilt drives a major-scale melody. Yaw modulates a sustained drone bass underneath. |
+| **Spin Filter** | Rotation speed climbs a pentatonic scale. Roll sweeps a harmonic cutoff filter. |
+| **Bozendo** | Full Laban Effort framework. Weight, Space, Time, and Flow extracted from the motion and mapped to gain, timbre, note selection, and modulation. Classifies spins by axis (horizontal/vertical) and direction. |
+| **Bozendo 2** | Bozendo variant. Plays a single pitch class (C/E/G/A) instead of chords. Tilt selects octave. Bow speed fades in octave doublings. |
 
 ---
 
-## OSC Messages Reference
+## Calibration
 
-Everything the ESP sends, and what it represents musically:
+The plugin uses a three-pose calibration to build a correction quaternion that maps the sensor's arbitrary mounting orientation to a consistent musical frame:
 
-```
-/rod/orientation/pitch   float  [-90,  90]   tilt forward/back
-/rod/orientation/roll    float  [-180, 180]  tilt left/right
-/rod/orientation/yaw     float  [-180, 180]  rotation around vertical axis
-/rod/accel/x             float  [g units]    raw acceleration X
-/rod/accel/y             float  [g units]    raw acceleration Y
-/rod/accel/z             float  [g units]    raw acceleration Z
-/rod/gyro/magnitude      float  [deg/s]      overall rotation speed
-/rod/gesture/shake       float  [0, 1]       impact/shake intensity envelope
-/rod/mag/x               float  [µT]         magnetic field X
-/rod/mag/y               float  [µT]         magnetic field Y
-/rod/mag/z               float  [µT]         magnetic field Z
-```
+1. **Pose A** - staff horizontal, pointing forward
+2. **Pose B** - staff vertical, pointing up
+3. **Pose C** - staff horizontal, pointing right
+
+After recording all three poses the plugin computes an orthonormal rotation matrix via polar decomposition and converts it to a quaternion applied to every subsequent reading. This means the instrument behaves identically regardless of how the sensor is physically oriented or mounted on the staff.
 
 ---
 
-## Verify Data — Python Listener
+## Future Directions
 
-Before touching any music software, run this to confirm packets are arriving:
-
-```python
-# pip install python-osc
-from pythonosc import dispatcher, osc_server
-
-def handler(address, *args):
-    print(f"{address}: {[f'{a:.2f}' if isinstance(a, float) else a for a in args]}")
-
-d = dispatcher.Dispatcher()
-d.map("/rod/*", handler)
-
-server = osc_server.ThreadingOSCUDPServer(("0.0.0.0", 9000), d)
-print("Listening on port 9000 — move the rod...")
-server.serve_forever()
-```
+- **Gesture-triggered mode switching** - detect specific motion signatures (e.g. a sharp axial tap while stationary) to cycle between mappings without touching the UI.
+- **Two-IMU configuration** - mount sensors at both ends of the staff to independently track each tip and derive bow speed, contact point, and crossing angle.
+- **Laban Effort extensions** - the current Bozendo mappings extract Weight, Time, Space, and Flow. Richer parameterisation (e.g. mapping Flow directly to reverb feedback or filter resonance) remains unexplored.
+- **Machine learning gesture recognition** - train a lightweight classifier on recorded gesture sequences to trigger discrete musical events (note attacks, chord changes, FX toggles) alongside the continuous mappings.
 
 ---
 
-## Troubleshooting
+## Credits
 
-| Symptom | Likely cause | Fix |
-|---------|-------------|-----|
-| ESP not detected by computer | S2 needs boot mode | Hold BOOT + press RESET before uploading |
-| "ICM-20600 not found" | I2C wiring or address | Check SDA/SCL pins, confirm AD pin sets `0x69` |
-| No OSC packets arriving | Wrong IP or firewall | Double-check `OSC_HOST`, disable firewall temporarily |
-| Orientation drifts slowly | Madgwick beta too low | Increase `MADGWICK_BETA` to 0.15–0.2 |
-| Orientation jittery | Madgwick beta too high | Decrease `MADGWICK_BETA` to 0.05 |
-| Shake never triggers | Threshold too high | Lower `SHAKE_THRESHOLD` to 0.8–1.0 |
+Instrument design, firmware, and software by **Timothée D.**.
+
+Built with [JUCE](https://juce.com/), [PlatformIO](https://platformio.org/), [hideakitai/MPU9250](https://github.com/hideakitai/MPU9250), and [CNMAT/OSC](https://github.com/CNMAT/OSC).
