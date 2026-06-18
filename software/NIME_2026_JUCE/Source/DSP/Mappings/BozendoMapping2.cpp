@@ -42,6 +42,10 @@ void BozendoMapping2::prepare(double sample_rate_hz) {
     smoothed_rotation_axis_y_ = 0.f;
     smoothed_rotation_axis_z_ = 1.f;
 
+    smoothed_rotation_azimuth_rad_ = 0.f;
+    current_azimuth_sector_        = 0;
+    previous_azimuth_sector_       = -1;
+
     is_rotation_axis_vertical_ = false;
     rotation_spin_direction_  = 1.f;
     reference_azimuth_x_   = 1.f;
@@ -145,7 +149,7 @@ void BozendoMapping2::detectAxialThrustPeaks(const StaffSoundParams& input_param
         axial_thrust_peak_envelope_ = juce::jlimit(0.f, 1.f, strength + 0.5f);
         thrust_cooldown_seconds_ = kThrustCooldownDurationSeconds;
 
-        debug.print.magenta("THRUST peak | axial:", current_axial_acceleration_absolute, "gyroscope:", gyroscope_magnitude);
+        // debug.print.magenta("THRUST peak | axial:", current_axial_acceleration_absolute, "gyroscope:", gyroscope_magnitude);
     }
 
     previous_axial_acceleration_ = current_axial_acceleration;
@@ -201,6 +205,49 @@ void BozendoMapping2::updateLabanFlow(float dynamic_acceleration_magnitude, floa
     flow_free  = 1.0f - flow_bound;
 }
 
+void BozendoMapping2::updateRotationAzimuth(float axis_x, float axis_y) {
+    float perp_mag = std::sqrt(axis_x * axis_x + axis_y * axis_y);
+    if (perp_mag < 1e-3f) return; // axis too vertical to have meaningful azimuth
+
+    // Raw azimuth of the smoothed rotation axis in the world XY plane
+    float raw_azimuth = std::atan2(smoothed_rotation_axis_y_, smoothed_rotation_axis_x_);
+
+    // Unwrap and smooth using a circular mean trick to avoid atan2 discontinuity
+    float delta = raw_azimuth - smoothed_rotation_azimuth_rad_;
+    // Wrap delta into [-pi, pi]
+    constexpr float pi = 3.14159265f;
+    while (delta >  pi) delta -= 2.f * pi;
+    while (delta < -pi) delta += 2.f * pi;
+
+    smoothed_rotation_azimuth_rad_ += kAzimuthSmoothingCoefficient * delta;
+
+    // Wrap result back into [-pi, pi]
+    while (smoothed_rotation_azimuth_rad_ >  pi) smoothed_rotation_azimuth_rad_ -= 2.f * pi;
+    while (smoothed_rotation_azimuth_rad_ < -pi) smoothed_rotation_azimuth_rad_ += 2.f * pi;
+
+    current_azimuth_sector_ = computeAzimuthSector(smoothed_rotation_azimuth_rad_);
+
+    if (current_azimuth_sector_ != previous_azimuth_sector_) {
+        previous_azimuth_sector_ = current_azimuth_sector_;
+        // debug.print.yellow("Azimuth sector changed:", current_azimuth_sector_,
+        //                    "| angle:", smoothed_rotation_azimuth_rad_);
+    }
+}
+
+int BozendoMapping2::computeAzimuthSector(float azimuth_rad) const noexcept {
+    constexpr float pi = 3.14159265f;
+    constexpr float quarterPi = pi / 4.f;
+    int target_sector = static_cast<int>(std::floor((azimuth_rad + pi) / (pi * 0.5f))) % 4;
+    target_sector = juce::jlimit(0, 3, target_sector);
+    if (target_sector == current_azimuth_sector_) return current_azimuth_sector_;
+    float sector_center = -pi + target_sector * (pi * 0.5f) + quarterPi;
+    float dist_to_center = std::abs(azimuth_rad - sector_center);
+    while (dist_to_center > pi) dist_to_center -= pi;
+    float sector_half_width = pi * 0.25f - kAzimuthSectorHysteresisRad;
+    if (dist_to_center < sector_half_width) return target_sector;
+    return current_azimuth_sector_; // stay in current sector
+}
+
 bool BozendoMapping2::updateSpinClassification(float axis_x, float axis_y, float axis_z) {
     smoothed_rotation_axis_x_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_x_, axis_x, kRotationAxisSmoothingCoefficient);
     smoothed_rotation_axis_y_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_y_, axis_y, kRotationAxisSmoothingCoefficient);
@@ -212,6 +259,7 @@ bool BozendoMapping2::updateSpinClassification(float axis_x, float axis_y, float
     is_rotation_axis_vertical_ = perpendicular_magnitude > parallel_magnitude;
 
     if (is_rotation_axis_vertical_) {
+        updateRotationAzimuth(smoothed_rotation_axis_x_, smoothed_rotation_axis_y_);
         if (perpendicular_magnitude > 1e-3f) {
             if (!is_reference_azimuth_set_) {
                 reference_azimuth_x_ = smoothed_rotation_axis_x_ / perpendicular_magnitude;
@@ -230,6 +278,10 @@ bool BozendoMapping2::updateSpinClassification(float axis_x, float axis_y, float
         was_rotation_axis_vertical_ = is_rotation_axis_vertical_;
         previous_rotation_spin_direction_ = rotation_spin_direction_;
         spin_changed = true;
+
+        if (!is_rotation_axis_vertical_) {
+            previous_azimuth_sector_ = -1;
+        }
     }
     return spin_changed;
 }
@@ -238,13 +290,18 @@ void BozendoMapping2::applyPitchAndChordToOutput(MappingOutput& mapping_output, 
     juce::ignoreUnused(input_parameters);
 
     if (is_rotation_axis_vertical_) {
-        if (rotation_spin_direction_ < 0.f) {
-            // CW Vertical: 1st Note (C)
-            target_base_semitones_ = 0.f;
-        } else {
-            // CCW Vertical: 2nd Note (E)
-            target_base_semitones_ = 4.f;
-        }
+        // Azimuth sector (0-3) selects root note from a 4-note set
+        // CW/CCW selects chord quality offset
+        constexpr float kAzimuthNotes[4] = {
+            0.f,   // Sector 0 (~East/West axis): C
+            7.f,   // Sector 1 (~North/South axis): G
+            4.f,   // Sector 2 (~West/East axis): E
+            9.f,   // Sector 3 (~South/North axis): A
+        };
+        float base = kAzimuthNotes[current_azimuth_sector_];
+        // CW: add a minor third offset (darker quality)
+        // CCW: stay on the base note (brighter quality)
+        target_base_semitones_ = base + (rotation_spin_direction_ > 0.f ? 0.f : 3.f);
     } else {
         if (rotation_spin_direction_ < 0.f) {
             // CW Horizontal: 3rd Note (G)
@@ -373,7 +430,7 @@ void BozendoMapping2::process(const StaffSoundParams& input_parameters, MappingO
             while (accumulated_spin_degrees_ >= 360.0f) {
                 accumulated_spin_degrees_ -= 360.0f;
                 continuous_spin_count_++;
-                debug.print.magenta("Full circles in current spin:", continuous_spin_count_);
+                // debug.print.magenta("Full circles in current spin:", continuous_spin_count_);
             }
         }
     }
@@ -381,17 +438,20 @@ void BozendoMapping2::process(const StaffSoundParams& input_parameters, MappingO
     applyPitchAndChordToOutput(mapping_output, input_parameters);
 
     if (spin_changed) {
-        const char* note_name = "";
         if (is_rotation_axis_vertical_) {
-            note_name = (rotation_spin_direction_ < 0.f) ? "C" : "E";
+            constexpr const char* kSectorNames[4] = { "EW", "NT", "WE", "SN" };
+            debug.print.cyan("V",
+                rotation_spin_direction_ > 0.f ? "CCW" : "CW",
+                "| Facing:", kSectorNames[current_azimuth_sector_],
+                "| Azimuth:", smoothed_rotation_azimuth_rad_);
         } else {
-            note_name = (rotation_spin_direction_ < 0.f) ? "G" : "A";
+            const char* note_name = (rotation_spin_direction_ < 0.f) ? "G" : "A";
+            debug.print.cyan(
+                "H",
+                rotation_spin_direction_ > 0.f ? "CCW" : "CW",
+                "| :", note_name
+            );
         }
-        debug.print.cyan(
-            is_rotation_axis_vertical_ ? "VERTICAL" : "HORIZONTAL",
-            rotation_spin_direction_ > 0.f ? "COUNTER_CLOCKWISE_OR_FORWARD" : "CLOCKWISE_OR_BACKWARD",
-            "| Morphing to:", note_name
-        );
     }
 
     float melody_gain = is_moving ? 1.0f : 0.0f;

@@ -67,6 +67,15 @@ private:
     // Time Constant approx 25ms at 100Hz
     static constexpr float kRotationAxisSmoothingCoefficient = 0.35f;
 
+    // Smoothed azimuth angle of the rotation axis in the horizontal plane (radians)
+    // Only meaningful when spin_plane_ == Vertical
+    float smoothed_rotation_azimuth_rad_ = 0.f;
+    // Compass sector index (0-3, quantized from azimuth), for discrete musical mapping
+    int   current_azimuth_sector_ = 0;
+    int   previous_azimuth_sector_ = -1; // -1 = unset
+    static constexpr float kAzimuthSectorHysteresisRad = 0.20f; // ~11 degrees
+    static constexpr float kAzimuthSmoothingCoefficient = 0.25f;
+
     bool  is_rotation_axis_vertical_ = false;
     float rotation_spin_direction_  = 1.f;
 
@@ -117,6 +126,9 @@ private:
     float updateLabanTime(float gyroscope_magnitude);
     float updateLabanSpace(const StaffSoundParams& input_parameters, float gyroscope_magnitude);
     void updateLabanFlow(float dynamic_acceleration_magnitude, float& flow_bound, float& flow_free);
+
+    void updateRotationAzimuth(float axis_x, float axis_y);
+    int  computeAzimuthSector(float azimuth_rad) const noexcept;
 
     bool updateSpinClassification(float axis_x, float axis_y, float axis_z);
 
