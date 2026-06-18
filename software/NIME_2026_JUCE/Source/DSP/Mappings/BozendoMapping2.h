@@ -77,6 +77,9 @@ private:
     bool  was_rotation_axis_vertical_ = false;
     float previous_rotation_spin_direction_ = 1.f;
 
+    float accumulated_spin_degrees_ = 0.f;
+    int   continuous_spin_count_ = 0;
+
     static constexpr float kChordVoicing[3] = { 7.f, 12.f, 19.f };
 
     float noise_envelope_ = 0.f;

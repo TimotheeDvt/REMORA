@@ -50,6 +50,9 @@ void BozendoMapping2::prepare(double sample_rate_hz) {
     was_rotation_axis_vertical_ = false;
     previous_rotation_spin_direction_ = 1.f;
 
+    accumulated_spin_degrees_ = 0.f;
+    continuous_spin_count_ = 0;
+
     axial_thrust_peak_envelope_ = 0.f;
     previous_axial_acceleration_ = 0.f;
     previous_axial_jerk_ = 0.f;
@@ -356,6 +359,18 @@ void BozendoMapping2::process(const StaffSoundParams& input_parameters, MappingO
     bool spin_changed = false;
     if (is_moving) {
         spin_changed = updateSpinClassification(rotation_axis_x, rotation_axis_y, rotation_axis_z);
+
+        if (spin_changed) {
+            accumulated_spin_degrees_ = 0.f;
+            continuous_spin_count_ = 0;
+        } else {
+            accumulated_spin_degrees_ += gyroscope_magnitude * delta_time_seconds_;
+            while (accumulated_spin_degrees_ >= 360.0f) {
+                accumulated_spin_degrees_ -= 360.0f;
+                continuous_spin_count_++;
+                debug.print.magenta("Full circles in current spin:", continuous_spin_count_);
+            }
+        }
     }
 
     applyPitchAndChordToOutput(mapping_output, input_parameters);
