@@ -14,6 +14,17 @@ float BoStaffSynth::semitoneRatio(float semitones) {
     return MathHelpers::semitoneRatio(semitones);
 }
 
+void BoStaffSynth::pushNextSampleIntoFifo(float sample) noexcept {
+    if (fifoIndex == fftSize) {
+        if (!nextFFTBlockReady.load()) {
+            std::copy(fifo.begin(), fifo.end(), fftData.begin());
+            nextFFTBlockReady.store(true);
+        }
+        fifoIndex = 0;
+    }
+    fifo[fifoIndex++] = sample;
+}
+
 BoStaffSynth::BoStaffSynth() {
     // Register mappings
     mappings.push_back(std::make_unique<SimpleMapping>());
@@ -53,8 +64,13 @@ void BoStaffSynth::prepareToPlay(double sampleRate, int samplesPerBlock) {
 
     noiseFilterState = 0.0f;
 
-    masterLowPassFilterL.reset();
-    masterLowPassFilterR.reset();
+    juce::dsp::ProcessSpec spec;
+    spec.sampleRate = sampleRate;
+    spec.maximumBlockSize = static_cast<uint32_t>(samplesPerBlock);
+    spec.numChannels = 2; // Assuming stereo output
+
+    masterLowPassFilter.prepare(spec);
+    masterLowPassFilter.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
 }
 
 void BoStaffSynth::setSoundEnabled(bool b) { soundEnabled.store(b); }
@@ -118,9 +134,7 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
     rootFreq.setTargetValue(mappingOut.rootHz);
     masterGain.setTargetValue(mappingOut.masterGain);
 
-    auto lpfCoeffs = juce::IIRCoefficients::makeLowPass(currentSampleRate, std::clamp(static_cast<double>(mappingOut.lpfCutoffHz), 20.0, 20000.0));
-    masterLowPassFilterL.setCoefficients(lpfCoeffs);
-    masterLowPassFilterR.setCoefficients(lpfCoeffs);
+    masterLowPassFilter.setCutoffFrequency(std::clamp(mappingOut.lpfCutoffHz, 20.0f, 20000.0f));
 
     float vibratoDepth  = mappingOut.vibratoDepth;
     float vibratoRate   = mappingOut.vibratoRateHz;
@@ -203,6 +217,14 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
         if (right) right[i] = mixR * masterNow;
     }
 
-    masterLowPassFilterL.processSamples(left, numSamples);
-    if (right) masterLowPassFilterR.processSamples(right, numSamples);
+    juce::dsp::AudioBlock<float> audioBlock(buffer);
+    juce::dsp::ProcessContextReplacing<float> context(audioBlock);
+    masterLowPassFilter.process(context);
+
+    float vol = uiGlobalVolume.load();
+    for (int i = 0; i < numSamples; ++i) {
+        left[i] *= vol;
+        if (right) right[i] *= vol;
+        pushNextSampleIntoFifo(left[i]);
+    }
 }

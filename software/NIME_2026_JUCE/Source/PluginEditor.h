@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include "UI/BoStaffVisualizer.h"
 #include "UI/RawDataWindow.h"
+#include "UI/DSPWindow.h"
 #include <JuceHeader.h>
 
 class NIMEReceiverEditor : public juce::AudioProcessorEditor,
@@ -30,8 +31,8 @@ private:
   juce::TextButton soundButton;
   juce::TextButton showDataButton;
   juce::TextButton debugButton;
+  juce::TextButton dspButton;
   juce::Label statusDot;
-  juce::ComboBox mappingCombo;
 
   juce::Label latencyLabel;
   juce::Label latencyValueLabel;
@@ -44,6 +45,7 @@ private:
   static constexpr int padding = 14;
 
   std::unique_ptr<RawDataWindow> rawDataWindow;
+  std::unique_ptr<DSPWindow> dspWindow;
 
   juce::TextButton calibrateButton;
   juce::Label calibHintLabel;

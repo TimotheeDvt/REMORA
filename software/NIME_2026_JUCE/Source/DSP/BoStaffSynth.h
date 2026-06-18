@@ -2,6 +2,7 @@
 
 #include "MathHelpers.h"
 #include <JuceHeader.h>
+#include <juce_dsp/juce_dsp.h>
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -141,6 +142,21 @@ private:
 
   static float semitoneRatio(float semitones);
 
-  juce::IIRFilter masterLowPassFilterL;
-  juce::IIRFilter masterLowPassFilterR;
+  juce::dsp::StateVariableTPTFilter<float> masterLowPassFilter;
+
+public:
+  std::atomic<float> uiGlobalVolume { 1.0f };
+
+  static constexpr int fftOrder = 11;
+  static constexpr int fftSize = 1 << fftOrder;
+  std::array<float, fftSize> fifo {};
+  std::array<float, static_cast<size_t>(fftSize * 2)> fftData {};
+  size_t fifoIndex = 0;
+  std::atomic<bool> nextFFTBlockReady { false };
+
+  void pushNextSampleIntoFifo(float sample) noexcept;
+
+  float getCurrentRootFreq() const { return rootFreq.getCurrentValue(); }
+  float getCurrentLpfCutoff() const { return mappingOut.lpfCutoffHz; }
+  float getSampleRate() const { return currentSampleRate; }
 };

@@ -58,6 +58,8 @@ target_sources(NIMEReceiver
         Source/UI/Palette.h
         Source/UI/RawDataWindow.cpp
         Source/UI/RawDataWindow.h
+        Source/UI/DSPWindow.cpp
+        Source/UI/DSPWindow.h
         Source/UI/StyleHelpers.h
         Source/UI/BoStaffVisualizer.h
         Source/UI/BoStaffVisualizer.cpp
@@ -79,6 +81,7 @@ target_link_libraries(NIMEReceiver
         NIMEReceiverData
         juce::juce_audio_utils
         juce::juce_osc
+        juce::juce_dsp
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

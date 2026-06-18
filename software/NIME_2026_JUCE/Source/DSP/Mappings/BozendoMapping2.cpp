@@ -284,6 +284,7 @@ void BozendoMapping2::applyMasterGainToOutput(MappingOutput& mapping_output, flo
 }
 
 void BozendoMapping2::applyTimbreToOutput(MappingOutput& mapping_output, float laban_space_focus, float laban_weight) {
+    juce::ignoreUnused(laban_space_focus);
     constexpr float kConstantGain[6] = { 1.0f, 0.60f, 0.40f, 0.30f, 0.20f, 0.15f };
     for (int i = 0; i < 6; ++i) {
         mapping_output.partialAmps[i] = kConstantGain[i];
@@ -311,6 +312,7 @@ void BozendoMapping2::applyNoiseToOutput(MappingOutput& mapping_output, float su
 }
 
 void BozendoMapping2::applyModulationToOutput(MappingOutput& mapping_output, float laban_weight, float flow_bound, float flow_free) {
+    juce::ignoreUnused(laban_weight, flow_bound, flow_free);
     mapping_output.vibratoDepth  = 0.0f;
     mapping_output.vibratoRateHz = 0.0f;
     mapping_output.tremoloDepth  = 0.0f;
@@ -318,6 +320,7 @@ void BozendoMapping2::applyModulationToOutput(MappingOutput& mapping_output, flo
 }
 
 void BozendoMapping2::applyStereoPanToOutput(MappingOutput& mapping_output, float flow_free, float axis_x, float axis_y) {
+    juce::ignoreUnused(flow_free, axis_x, axis_y);
     const float spread = 0.5f;
     mapping_output.panL[0] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.10f);
     mapping_output.panR[0] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.10f);
@@ -409,7 +412,8 @@ void BozendoMapping2::process(const StaffSoundParams& input_parameters, MappingO
 
     // Map sine wave output (-1.0 to 1.0) to a frequency range (400 Hz to 20000 Hz)
     float target_lpf_cutoff = juce::jmap(sine_val, -1.0f, 1.0f, 400.0f, 20000.0f);
-    smoothed_lpf_cutoff_hz_ = MathHelpers::applyOnePoleFilter(smoothed_lpf_cutoff_hz_, target_lpf_cutoff, 0.1f);
+    // Lowered smoothing coefficient to 0.03f for a more fluid glide
+    smoothed_lpf_cutoff_hz_ = MathHelpers::applyOnePoleFilter(smoothed_lpf_cutoff_hz_, target_lpf_cutoff, 0.03f);
 
     mapping_output.lpfCutoffHz = smoothed_lpf_cutoff_hz_;
 }

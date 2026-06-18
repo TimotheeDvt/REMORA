@@ -75,6 +75,21 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   };
   addAndMakeVisible(debugButton);
 
+  // DSP button
+  dspButton.setButtonText("DSP");
+  dspButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
+  dspButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
+  dspButton.onClick = [this] {
+    if (dspWindow && dspWindow->isVisible()) {
+      dspWindow->setVisible(false);
+    } else {
+      if (!dspWindow) dspWindow = std::make_unique<DSPWindow>(processor);
+      dspWindow->setVisible(true);
+      dspWindow->toFront(true);
+    }
+  };
+  addAndMakeVisible(dspButton);
+
   calibrateButton.setButtonText("CALIBRATE");
   calibrateButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
   calibrateButton.setColour(juce::TextButton::textColourOffId,
@@ -117,28 +132,6 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
              juce::Justification::centredLeft);
   addAndMakeVisible(calibHintLabel);
 
-  // Mapping selector
-  mappingCombo.setColour(juce::ComboBox::backgroundColourId, Palette::panel);
-  mappingCombo.setColour(juce::ComboBox::textColourId, Palette::textHi);
-  mappingCombo.setColour(juce::ComboBox::outlineColourId, Palette::border);
-  mappingCombo.setColour(juce::ComboBox::arrowColourId, Palette::textMid);
-
-  // Populate from the synth's mapping list
-  for (int i = 0; i < processor.getSynth().getMappingCount(); ++i) {
-    const char *name = processor.getSynth().getMappingName(i);
-    if (name != nullptr)
-      mappingCombo.addItem(name, i + 1); // ComboBox IDs are 1-based
-  }
-  mappingCombo.setSelectedId(processor.getMappingStrategy() + 1,
-                             juce::dontSendNotification);
-  mappingCombo.onChange = [this] {
-    int newStrategyIndex = mappingCombo.getSelectedId() - 1;
-    processor.setMappingStrategy(newStrategyIndex);
-    debug.print.cyan("Mapping strategy changed to:",
-                     processor.getSynth().getMappingName(newStrategyIndex));
-  };
-  addAndMakeVisible(mappingCombo);
-
   // Status dot (repurposed Label as a coloured dot)
   statusDot.setOpaque(false);
   addAndMakeVisible(statusDot);
@@ -161,6 +154,11 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   updateConnectionUI();
 
   debug.addChangeListener(this);
+
+  // Auto-open all auxiliary windows on launch
+  if (!rawDataWindow) showDataButton.onClick();
+  if (!dspWindow)     dspButton.onClick();
+  if (!debug.isWindowOpen()) debug.show();
 }
 
 NIMEReceiverEditor::~NIMEReceiverEditor() {
@@ -168,6 +166,7 @@ NIMEReceiverEditor::~NIMEReceiverEditor() {
   debug.removeChangeListener(this);
   stopTimer();
   rawDataWindow.reset();
+  dspWindow.reset();
 }
 
 void NIMEReceiverEditor::paint(juce::Graphics &g) {
@@ -243,12 +242,12 @@ void NIMEReceiverEditor::resized() {
   layoutRow(currentY, {&connectButton, &soundButton, &latencyValueLabel});
   currentY += itemH + padding;
 
-  // Row 2: Raw Data, Debug, Latency Label
-  layoutRow(currentY, {&showDataButton, &debugButton, &latencyLabel});
+  // Row 2: Raw Data, DSP, Debug, Latency Label
+  layoutRow(currentY, {&showDataButton, &dspButton, &debugButton, &latencyLabel});
   currentY += itemH + padding;
 
-  // Row 3: Calibrate, Mapping
-  layoutRow(currentY, {&calibrateButton, &mappingCombo});
+  // Row 3: Calibrate
+  layoutRow(currentY, {&calibrateButton});
   currentY += itemH + padding;
 
   // Row 4: Calib Hint
@@ -267,13 +266,6 @@ void NIMEReceiverEditor::changeListenerCallback(
 
 void NIMEReceiverEditor::timerCallback() {
   refreshMainStats();
-
-  if (!mappingCombo.isPopupActive()) {
-    const int currentMapping = processor.getMappingStrategy();
-    if (mappingCombo.getSelectedId() != currentMapping + 1)
-      mappingCombo.setSelectedId(currentMapping + 1,
-                                 juce::dontSendNotification);
-  }
 
   boStaffVisualizer.updateStaff(
       processor.getCalibratedQuat(),
