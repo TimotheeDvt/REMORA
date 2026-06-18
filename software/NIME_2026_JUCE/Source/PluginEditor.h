@@ -16,6 +16,8 @@ public:
   void paint(juce::Graphics &) override;
   void resized() override;
 
+  void saveWindowBoundsToProcessor();
+
 private:
   void timerCallback() override; // 60 Hz UI refresh
   void changeListenerCallback(juce::ChangeBroadcaster *source) override;

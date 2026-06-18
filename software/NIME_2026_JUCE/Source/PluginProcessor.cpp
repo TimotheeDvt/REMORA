@@ -292,3 +292,29 @@ juce::AudioProcessorEditor *NIMEReceiverProcessor::createEditor() {
 juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter() {
   return new NIMEReceiverProcessor();
 }
+
+void NIMEReceiverProcessor::getStateInformation(juce::MemoryBlock &destData) {
+  if (auto* ed = dynamic_cast<NIMEReceiverEditor*>(getActiveEditor()))
+    ed->saveWindowBoundsToProcessor();
+
+  juce::XmlElement xml("NIMEReceiverState");
+  xml.setAttribute("rawDataBounds", rawDataBounds.toString());
+  xml.setAttribute("dspBounds", dspBounds.toString());
+  xml.setAttribute("debugBounds", debugBounds.toString());
+  xml.setAttribute("globalVolume", (double)synth.uiGlobalVolume.load());
+  xml.setAttribute("mappingStrategy", synth.getMappingStrategy());
+
+  copyXmlToBinary(xml, destData);
+}
+
+void NIMEReceiverProcessor::setStateInformation(const void *data, int sizeInBytes) {
+  std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
+  if (xmlState != nullptr && xmlState->hasTagName("NIMEReceiverState")) {
+    rawDataBounds = juce::Rectangle<int>::fromString(xmlState->getStringAttribute("rawDataBounds"));
+    dspBounds = juce::Rectangle<int>::fromString(xmlState->getStringAttribute("dspBounds"));
+    debugBounds = juce::Rectangle<int>::fromString(xmlState->getStringAttribute("debugBounds"));
+
+    synth.uiGlobalVolume.store((float)xmlState->getDoubleAttribute("globalVolume", 1.0));
+    setMappingStrategy(xmlState->getIntAttribute("mappingStrategy", getMappingStrategy()));
+  }
+}

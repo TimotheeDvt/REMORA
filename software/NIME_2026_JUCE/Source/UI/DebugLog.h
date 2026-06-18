@@ -14,6 +14,8 @@ public:
     void show();
     void hide();
     bool isWindowOpen() const;
+    juce::Rectangle<int> getBounds() const;
+    void setBounds(juce::Rectangle<int> newBounds);
 
 private:
     DebugLog() = default;

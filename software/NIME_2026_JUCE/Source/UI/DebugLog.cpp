@@ -40,6 +40,16 @@ bool DebugLog::isWindowOpen() const
     return window && window->isVisible();
 }
 
+juce::Rectangle<int> DebugLog::getBounds() const {
+    if (window) return window->getBounds();
+    return {};
+}
+
+void DebugLog::setBounds(juce::Rectangle<int> newBounds) {
+    if (window && !newBounds.isEmpty())
+        window->setBounds(newBounds);
+}
+
 void DebugLog::logMessage(const juce::String& message, juce::Colour colour)
 {
     if (!isWindowOpen())

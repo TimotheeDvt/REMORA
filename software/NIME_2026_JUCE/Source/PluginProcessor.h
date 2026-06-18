@@ -65,6 +65,10 @@ public:
   void setMappingStrategy(int index) { synth.setMappingStrategy(index); }
   int  getMappingStrategy() const noexcept { return synth.getMappingStrategy(); }
 
+  juce::Rectangle<int> rawDataBounds;
+  juce::Rectangle<int> dspBounds;
+  juce::Rectangle<int> debugBounds;
+
   // Standard AudioProcessor overrides
   void prepareToPlay(double sampleRate, int samplesPerBlock) override;
   void releaseResources() override {}
@@ -100,8 +104,8 @@ public:
   const juce::String getProgramName(int) override { return {}; }
   void changeProgramName(int, const juce::String &) override {}
 
-  void getStateInformation(juce::MemoryBlock &) override {}
-  void setStateInformation(const void *, int) override {}
+  void getStateInformation(juce::MemoryBlock &destData) override;
+  void setStateInformation(const void *data, int sizeInBytes) override;
 
 private:
   // Timer callback - computes msg/sec every second

@@ -156,12 +156,31 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   debug.addChangeListener(this);
 
   // Auto-open all auxiliary windows on launch
-  if (!rawDataWindow) showDataButton.onClick();
-  if (!dspWindow)     dspButton.onClick();
-  if (!debug.isWindowOpen()) debug.show();
+  if (!rawDataWindow) {
+    showDataButton.onClick();
+    if (!processor.rawDataBounds.isEmpty()) rawDataWindow->setBounds(processor.rawDataBounds);
+  }
+  if (!dspWindow) {
+    dspButton.onClick();
+    if (!processor.dspBounds.isEmpty()) dspWindow->setBounds(processor.dspBounds);
+  }
+  if (!debug.isWindowOpen()) {
+    debug.show();
+    if (!processor.debugBounds.isEmpty()) debug.setBounds(processor.debugBounds);
+  }
+}
+
+void NIMEReceiverEditor::saveWindowBoundsToProcessor() {
+  if (rawDataWindow && rawDataWindow->isVisible())
+    processor.rawDataBounds = rawDataWindow->getBounds();
+  if (dspWindow && dspWindow->isVisible())
+    processor.dspBounds = dspWindow->getBounds();
+  if (debug.isWindowOpen())
+    processor.debugBounds = debug.getBounds();
 }
 
 NIMEReceiverEditor::~NIMEReceiverEditor() {
+  saveWindowBoundsToProcessor();
   debug.print.blue("Plugin Editor destroyed.");
   debug.removeChangeListener(this);
   stopTimer();

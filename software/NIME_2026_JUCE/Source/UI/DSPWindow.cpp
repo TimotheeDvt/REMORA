@@ -28,8 +28,16 @@ DSPComponent::DSPComponent(NIMEReceiverProcessor& p)
     addAndMakeVisible(mappingCombo);
 
     globalVolumeSlider.setSliderStyle(juce::Slider::LinearHorizontal);
-    globalVolumeSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    globalVolumeSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 20);
+    globalVolumeSlider.setColour(juce::Slider::textBoxTextColourId, Palette::textHi);
+    globalVolumeSlider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
     globalVolumeSlider.setRange(0.0, 2.0, 0.01);
+    globalVolumeSlider.textFromValueFunction = [](double val) {
+        return juce::String(juce::roundToInt(val * 100.0)) + "%";
+    };
+    globalVolumeSlider.valueFromTextFunction = [](const juce::String& text) {
+        return text.upToFirstOccurrenceOf("%", false, false).getDoubleValue() / 100.0;
+    };
     globalVolumeSlider.setValue(processor.getSynth().uiGlobalVolume.load());
     globalVolumeSlider.onValueChange = [this] {
         processor.getSynth().uiGlobalVolume.store(static_cast<float>(globalVolumeSlider.getValue()));
@@ -117,7 +125,7 @@ void DSPComponent::resized() {
     row.removeFromLeft(10);
     globalVolumeLabel.setBounds(row.removeFromLeft(100));
     row.removeFromLeft(5);
-    globalVolumeSlider.setBounds(row.removeFromLeft(150));
+    globalVolumeSlider.setBounds(row.removeFromLeft(200));
 
     rootNoteLabel.setBounds(row.removeFromRight(150));
 }
