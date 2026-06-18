@@ -53,6 +53,8 @@ void BozendoMapping2::prepare(double sample_rate_hz) {
     accumulated_spin_degrees_ = 0.f;
     continuous_spin_count_ = 0;
 
+    smoothed_lpf_cutoff_hz_ = 20000.f;
+
     axial_thrust_peak_envelope_ = 0.f;
     previous_axial_acceleration_ = 0.f;
     previous_axial_jerk_ = 0.f;
@@ -399,4 +401,15 @@ void BozendoMapping2::process(const StaffSoundParams& input_parameters, MappingO
     applyNoiseToOutput(mapping_output, laban_time_suddenness_normalized);
     applyModulationToOutput(mapping_output, laban_weight, laban_flow_bound, laban_flow_free);
     applyStereoPanToOutput(mapping_output, laban_flow_free, rotation_axis_x, rotation_axis_y);
+
+    // Morph global LPF cutoff using a sine wave driven by the spin count
+    // Increased multiplier to 1.5f so it sweeps back and forth faster
+    float spin_phase = static_cast<float>(continuous_spin_count_) * 1.5f;
+    float sine_val = std::sin(spin_phase);
+
+    // Map sine wave output (-1.0 to 1.0) to a frequency range (400 Hz to 20000 Hz)
+    float target_lpf_cutoff = juce::jmap(sine_val, -1.0f, 1.0f, 400.0f, 20000.0f);
+    smoothed_lpf_cutoff_hz_ = MathHelpers::applyOnePoleFilter(smoothed_lpf_cutoff_hz_, target_lpf_cutoff, 0.1f);
+
+    mapping_output.lpfCutoffHz = smoothed_lpf_cutoff_hz_;
 }

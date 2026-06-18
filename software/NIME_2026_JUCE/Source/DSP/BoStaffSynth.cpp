@@ -26,7 +26,7 @@ BoStaffSynth::BoStaffSynth() {
 
 BoStaffSynth::~BoStaffSynth() {}
 
-void BoStaffSynth::prepareToPlay(double sampleRate, int) {
+void BoStaffSynth::prepareToPlay(double sampleRate, int samplesPerBlock) {
     currentSampleRate = static_cast<float>(sampleRate);
     sampleRateRecip   = 1.0f / currentSampleRate;
 
@@ -52,6 +52,9 @@ void BoStaffSynth::prepareToPlay(double sampleRate, int) {
     }
 
     noiseFilterState = 0.0f;
+
+    masterLowPassFilterL.reset();
+    masterLowPassFilterR.reset();
 }
 
 void BoStaffSynth::setSoundEnabled(bool b) { soundEnabled.store(b); }
@@ -114,6 +117,10 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
 
     rootFreq.setTargetValue(mappingOut.rootHz);
     masterGain.setTargetValue(mappingOut.masterGain);
+
+    auto lpfCoeffs = juce::IIRCoefficients::makeLowPass(currentSampleRate, std::clamp(static_cast<double>(mappingOut.lpfCutoffHz), 20.0, 20000.0));
+    masterLowPassFilterL.setCoefficients(lpfCoeffs);
+    masterLowPassFilterR.setCoefficients(lpfCoeffs);
 
     float vibratoDepth  = mappingOut.vibratoDepth;
     float vibratoRate   = mappingOut.vibratoRateHz;
@@ -195,4 +202,7 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
         left[i]  = mixL * masterNow;
         if (right) right[i] = mixR * masterNow;
     }
+
+    masterLowPassFilterL.processSamples(left, numSamples);
+    if (right) masterLowPassFilterR.processSamples(right, numSamples);
 }

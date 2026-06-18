@@ -80,6 +80,8 @@ private:
     float accumulated_spin_degrees_ = 0.f;
     int   continuous_spin_count_ = 0;
 
+    float smoothed_lpf_cutoff_hz_ = 20000.f;
+
     static constexpr float kChordVoicing[3] = { 7.f, 12.f, 19.f };
 
     float noise_envelope_ = 0.f;

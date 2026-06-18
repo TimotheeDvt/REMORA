@@ -140,4 +140,7 @@ private:
   std::atomic<bool> soundEnabled{true};
 
   static float semitoneRatio(float semitones);
+
+  juce::IIRFilter masterLowPassFilterL;
+  juce::IIRFilter masterLowPassFilterR;
 };
