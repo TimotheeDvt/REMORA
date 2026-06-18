@@ -28,6 +28,8 @@ void BozendoMapping2::prepare(double sample_rate_hz) {
     smoothed_gyroscope_magnitude_ = 0.f;
     noise_envelope_ = 0.f;
     smoothed_output_gain_ = 0.f;
+    current_base_semitones_ = 0.f;
+    target_base_semitones_ = 0.f;
     last_timestamp_ticks_ = 0;
 
     for (int i = 0; i < 3; ++i) {
@@ -230,32 +232,34 @@ bool BozendoMapping2::updateSpinClassification(float axis_x, float axis_y, float
 void BozendoMapping2::applyPitchAndChordToOutput(MappingOutput& mapping_output, const StaffSoundParams& input_parameters) {
     juce::ignoreUnused(input_parameters);
 
-    float base_semitones = 0.f;
-
     if (is_rotation_axis_vertical_) {
         if (rotation_spin_direction_ < 0.f) {
             // CW Vertical: 1st Note (C)
-            base_semitones = 0.f;
+            target_base_semitones_ = 0.f;
         } else {
             // CCW Vertical: 2nd Note (E)
-            base_semitones = 4.f;
+            target_base_semitones_ = 4.f;
         }
     } else {
         if (rotation_spin_direction_ < 0.f) {
             // CW Horizontal: 3rd Note (G)
-            base_semitones = 7.f;
+            target_base_semitones_ = 7.f;
         } else {
             // CCW Horizontal: 4th Note (A)
-            base_semitones = 9.f;
+            target_base_semitones_ = 9.f;
         }
     }
+
+    // Morph speed scales with how fast the staff is moving
+    float morph_speed = juce::jlimit(0.005f, 0.2f, smoothed_gyroscope_magnitude_ / 2000.0f);
+    current_base_semitones_ = MathHelpers::applyOnePoleFilter(current_base_semitones_, target_base_semitones_, morph_speed);
 
     // Instead of a chord, we only play octaves of the root note to maintain the same pitch class.
     mapping_output.chordSemitones[0] = 12.f;  // +1 Octave
     mapping_output.chordSemitones[1] = 7.f;  // +5th
     mapping_output.chordSemitones[2] = -12.f; // -1 Octave
 
-    mapping_output.rootHz = MathHelpers::convertSemitonesToHertz(base_semitones, kRootFrequencyHz);
+    mapping_output.rootHz = MathHelpers::convertSemitonesToHertz(current_base_semitones_, kRootFrequencyHz);
 }
 
 void BozendoMapping2::applyVoicesToOutput(MappingOutput& mapping_output, float melody_gain) {
@@ -366,7 +370,7 @@ void BozendoMapping2::process(const StaffSoundParams& input_parameters, MappingO
         debug.print.cyan(
             is_rotation_axis_vertical_ ? "VERTICAL" : "HORIZONTAL",
             rotation_spin_direction_ > 0.f ? "COUNTER_CLOCKWISE_OR_FORWARD" : "CLOCKWISE_OR_BACKWARD",
-            "| Playing:", note_name, "| Freq:", mapping_output.rootHz, "Hz"
+            "| Morphing to:", note_name
         );
     }
 

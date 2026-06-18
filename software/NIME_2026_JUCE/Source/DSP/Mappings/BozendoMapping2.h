@@ -97,6 +97,9 @@ private:
 
     float smoothed_output_gain_ = 0.f;
 
+    float current_base_semitones_ = 0.f;
+    float target_base_semitones_ = 0.f;
+
     void calculateDeltaTime();
     void updateTipPositionHistory(const StaffSoundParams& input_parameters, float& current_tip_x, float& current_tip_y, float& current_tip_z);
     void calculateRotationAxisAtMidpoint(float& axis_x, float& axis_y, float& axis_z);
