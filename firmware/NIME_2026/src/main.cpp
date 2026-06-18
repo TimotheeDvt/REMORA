@@ -17,6 +17,7 @@ const uint16_t localPort = 8888;
 MPU9250 mpu;
 
 #define SEND_INTERVAL_MS 10 // 100 Hz transmission rate
+#define LED_PIN 13          // Blue STAT LED
 
 // WiFi
 void connectWiFi() {
@@ -56,6 +57,9 @@ void setup() {
   Serial.println("\n\n=========================================");
   Serial.println("ESP32-S2 IS BOOTING... (MPU-9250 version)");
   Serial.println("=========================================\n");
+
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW); // Start with LED off
 
   Wire.begin(1, 2);
   Wire.setClock(400000);
@@ -124,6 +128,11 @@ void loop() {
     Udp.beginPacket(outIp, outPort);
     msg.send(Udp);
     Udp.endPacket();
+
+    // Toggle the blue LED to show activity
+    static bool ledState = false;
+    ledState = !ledState;
+    digitalWrite(LED_PIN, ledState);
     }
   }
 }
