@@ -12,7 +12,7 @@ NIMEReceiverProcessor::NIMEReceiverProcessor()
 
   // Make Bozendo the default mapping on launch
   for (int i = 0; i < synth.getMappingCount(); ++i) {
-    if (juce::String(synth.getMappingName(i)).containsIgnoreCase("Bozendo")) {
+    if (juce::String(synth.getMappingName(i)).containsIgnoreCase("Bozendo 2")) {
       setMappingStrategy(i);
       break;
     }
