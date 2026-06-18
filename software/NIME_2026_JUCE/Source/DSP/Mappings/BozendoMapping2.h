@@ -113,7 +113,7 @@ private:
     bool updateSpinClassification(float axis_x, float axis_y, float axis_z);
 
     void applyPitchAndChordToOutput(MappingOutput& mapping_output, const StaffSoundParams& input_parameters);
-    void applyVoicesToOutput(MappingOutput& mapping_output, float smoothed_gyroscope, float melody_gain);
+    void applyVoicesToOutput(MappingOutput& mapping_output, float melody_gain);
     void applyMasterGainToOutput(MappingOutput& mapping_output, float laban_weight, float motion_gate);
     void applyTimbreToOutput(MappingOutput& mapping_output, float laban_space_focus, float laban_weight);
     void applyNoiseToOutput(MappingOutput& mapping_output, float suddenness_normalized);

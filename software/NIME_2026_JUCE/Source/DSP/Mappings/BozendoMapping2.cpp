@@ -228,13 +228,7 @@ bool BozendoMapping2::updateSpinClassification(float axis_x, float axis_y, float
 }
 
 void BozendoMapping2::applyPitchAndChordToOutput(MappingOutput& mapping_output, const StaffSoundParams& input_parameters) {
-    // Use staff tilt (pitch) to control the octave.
-    int octave_offset = 0;
-    if (input_parameters.pitch > 0.5f) {
-        octave_offset = 12; // Pointing up
-    } else if (input_parameters.pitch < -0.5f) {
-        octave_offset = -12; // Pointing down
-    }
+    juce::ignoreUnused(input_parameters);
 
     float base_semitones = 0.f;
 
@@ -258,22 +252,20 @@ void BozendoMapping2::applyPitchAndChordToOutput(MappingOutput& mapping_output, 
 
     // Instead of a chord, we only play octaves of the root note to maintain the same pitch class.
     mapping_output.chordSemitones[0] = 12.f;  // +1 Octave
-    mapping_output.chordSemitones[1] = 24.f;  // +2 Octaves
+    mapping_output.chordSemitones[1] = 7.f;  // +5th
     mapping_output.chordSemitones[2] = -12.f; // -1 Octave
 
-    mapping_output.rootHz = MathHelpers::convertSemitonesToHertz(base_semitones + octave_offset, kRootFrequencyHz);
+    mapping_output.rootHz = MathHelpers::convertSemitonesToHertz(base_semitones, kRootFrequencyHz);
 }
 
-void BozendoMapping2::applyVoicesToOutput(MappingOutput& mapping_output, float smoothed_gyroscope, float melody_gain) {
+void BozendoMapping2::applyVoicesToOutput(MappingOutput& mapping_output, float melody_gain) {
     mapping_output.numVoices = 4;
     mapping_output.voiceGain[0] = melody_gain;
 
-    // Use gyroscope magnitude (bow speed) to fade in the octave voices
-    float bow_speed_normalized = juce::jlimit(0.0f, 1.0f, smoothed_gyroscope / 500.0f);
-
-    mapping_output.voiceGain[1] = juce::jlimit(0.0f, 1.0f, (bow_speed_normalized - 0.1f) * 3.0f) * 0.8f;
-    mapping_output.voiceGain[2] = juce::jlimit(0.0f, 1.0f, (bow_speed_normalized - 0.3f) * 3.0f) * 0.7f;
-    mapping_output.voiceGain[3] = juce::jlimit(0.f, 1.f, (bow_speed_normalized - 0.5f) * 3.0f) * 0.6f;
+    // All voices play together, with gains relative to the melody gain.
+    mapping_output.voiceGain[1] = melody_gain * 0.8f;
+    mapping_output.voiceGain[2] = melody_gain * 0.7f;
+    mapping_output.voiceGain[3] = melody_gain * 0.6f;
 }
 
 void BozendoMapping2::applyMasterGainToOutput(MappingOutput& mapping_output, float laban_weight, float motion_gate) {
@@ -283,12 +275,11 @@ void BozendoMapping2::applyMasterGainToOutput(MappingOutput& mapping_output, flo
 }
 
 void BozendoMapping2::applyTimbreToOutput(MappingOutput& mapping_output, float laban_space_focus, float laban_weight) {
-    constexpr float kDirectGain[6]   = { 1.0f, 0.60f, 0.40f, 0.30f, 0.20f, 0.15f };
-    constexpr float kIndirectGain[6] = { 1.0f, 0.10f, 0.50f, 0.05f, 0.30f, 0.03f };
+    constexpr float kConstantGain[6] = { 1.0f, 0.60f, 0.40f, 0.30f, 0.20f, 0.15f };
     for (int i = 0; i < 6; ++i) {
-        mapping_output.partialAmps[i] = kDirectGain[i] * laban_space_focus + kIndirectGain[i] * (1.f - laban_space_focus);
+        mapping_output.partialAmps[i] = kConstantGain[i];
     }
-    mapping_output.driveAmt = laban_weight * (1.f - laban_space_focus * 0.7f) * 2.5f;
+    mapping_output.driveAmt = 1.0f + laban_weight * 1.0f;
 
     // peak adds bright transient: boost upper partials
     float peak_brightness = axial_thrust_peak_envelope_ * 0.8f;
@@ -311,28 +302,22 @@ void BozendoMapping2::applyNoiseToOutput(MappingOutput& mapping_output, float su
 }
 
 void BozendoMapping2::applyModulationToOutput(MappingOutput& mapping_output, float laban_weight, float flow_bound, float flow_free) {
-    mapping_output.vibratoDepth  = flow_free * laban_weight * 0.020f;
-    mapping_output.vibratoRateHz = 4.5f + smoothed_gyroscope_magnitude_ * 0.005f;
-    mapping_output.tremoloDepth  = flow_bound * laban_weight * 0.30f;
-    mapping_output.tremoloRateHz = 3.0f + flow_bound * 4.0f;
+    mapping_output.vibratoDepth  = 0.0f;
+    mapping_output.vibratoRateHz = 0.0f;
+    mapping_output.tremoloDepth  = 0.0f;
+    mapping_output.tremoloRateHz = 0.0f;
 }
 
 void BozendoMapping2::applyStereoPanToOutput(MappingOutput& mapping_output, float flow_free, float axis_x, float axis_y) {
-    float pan_bias = 0.f;
-    float perpendicular_magnitude = std::sqrt(axis_x * axis_x + axis_y * axis_y);
-    if (perpendicular_magnitude > 1e-3f) {
-        float azimuth = std::atan2(axis_y, axis_x);
-        pan_bias = juce::jlimit(-0.2f, 0.2f, azimuth / juce::MathConstants<float>::pi * 0.2f);
-    }
-    const float spread = 0.3f + flow_free * 0.5f;
-    mapping_output.panL[0] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.10f + pan_bias);
-    mapping_output.panR[0] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.10f - pan_bias);
-    mapping_output.panL[1] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.10f + pan_bias);
-    mapping_output.panR[1] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.10f - pan_bias);
-    mapping_output.panL[2] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.40f + pan_bias);
-    mapping_output.panR[2] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.40f - pan_bias);
-    mapping_output.panL[3] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.40f + pan_bias);
-    mapping_output.panR[3] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.40f - pan_bias);
+    const float spread = 0.5f;
+    mapping_output.panL[0] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.10f);
+    mapping_output.panR[0] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.10f);
+    mapping_output.panL[1] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.10f);
+    mapping_output.panR[1] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.10f);
+    mapping_output.panL[2] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.40f);
+    mapping_output.panR[2] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.40f);
+    mapping_output.panL[3] = juce::jlimit(0.f, 1.f, 0.5f - spread * 0.40f);
+    mapping_output.panR[3] = juce::jlimit(0.f, 1.f, 0.5f + spread * 0.40f);
 }
 
 void BozendoMapping2::process(const StaffSoundParams& input_parameters, MappingOutput& mapping_output) {
@@ -385,8 +370,8 @@ void BozendoMapping2::process(const StaffSoundParams& input_parameters, MappingO
         );
     }
 
-    float melody_gain = is_moving ? juce::jlimit(0.2f, 1.0f, 0.2f + smoothed_gyroscope_magnitude_ / kGyroscopeCeiling * 0.8f) : 0.0f;
-    applyVoicesToOutput(mapping_output, smoothed_gyroscope_magnitude_, melody_gain);
+    float melody_gain = is_moving ? 1.0f : 0.0f;
+    applyVoicesToOutput(mapping_output, melody_gain);
 
     float motion_gate = juce::jlimit(0.0f, 1.0f, (smoothed_gyroscope_magnitude_ - kGyroscopeFloor * 0.5f) / (kGyroscopeFloor * 1.5f));
     applyMasterGainToOutput(mapping_output, laban_weight, motion_gate);
