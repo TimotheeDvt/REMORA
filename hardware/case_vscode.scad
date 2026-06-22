@@ -13,25 +13,29 @@ translate([-65, 11, 0]) rotate([90, 0, 270]) import("Sparkfun Thing Plus v8.stl"
 translate([50, 7, 5]) rotate([90, 0, 90]) import("MPU-9250.stl");
 translate([23, 0, 0]) rotate([180, 180, 0]) import("2xAAA BATTERY HOLDER.stl");
 
-% difference() {
-    // // 1. THE OUTER DOME (Scaled sphere to make an ellipsoid)
+difference() {
+    // THE OUTER DOME (Scaled sphere to make an ellipsoid)
     scale([case_length/2, case_width/2, case_height]) {
         sphere(r = 1);
     }
 
-    // // 4. THE STAFF GROOVE (Cuts a cylinder out of the bottom)
+    // THE STAFF GROOVE (Cuts a cylinder out of the bottom)
     rotate([0, 90, 0]) { // Align cylinder with the length of the staff
         translate([20, 0, -case_length/2 - 15]) {
             cylinder(r = staff_diameter/2, h = case_length + 30);
         }
     }
 
-    // 5. STRAP SLOTS (Cuts holes for the straps on both sides)
-    translate([case_length/5, -case_width/2, case_height/3])  {
+    // STRAP SLOTS (Cuts holes for the straps on both sides)
+    translate([case_length/9 * 2.5, -case_width/2, case_height/2])  {
         cube([strap_width, case_width, strap_thickness]);
     }
 
-    translate([-case_length/5, -case_width/2, case_height/3])  {
+    translate([-case_length/9 * 2.5, -case_width/2, case_height/2])  {
+        cube([strap_width, case_width, strap_thickness]);
+    }
+
+    translate([-strap_width/2, -case_width/2, case_height/2])  {
         cube([strap_width, case_width, strap_thickness]);
     }
 }
