@@ -8,6 +8,7 @@ strap_width = 8;          // Width of your velcro strap
 strap_thickness = 2;       // Thickness of your velcro strap
 plate_lenght = case_length/3 * 2;
 plate_width = case_width - 5;
+screw_d = 1.5;
 
 $fn = 100; // Makes circles smooth (render quality)
 
@@ -19,20 +20,49 @@ plate1_l = plate_lenght/2;
 plate2_l = plate_lenght/3*2 - 3;
 plate3_l = plate_lenght/3*2 - 3;
 color("blue") union() {
-    translate([-plate_lenght/2, -plate_width/2, 1]) {
-        // center plate
-        translate([plate_lenght/4, 0, 0]) cube([plate1_l, plate_width, strap_thickness]);
-        // MPU plate
-        translate([plate_lenght/2, plate_width/6 + 2, 0]) cube([plate2_l, plate_width/3*2-4, strap_thickness]);
-        // ESP plate
-        translate([-4, plate_width/6 - 2, 0]) cube([plate3_l, plate_width/3*2+4, strap_thickness]);
+    difference() {
+        translate([-plate_lenght/2, -plate_width/2, 1]) {
+            // center plate
+            translate([plate_lenght/4, 0, 0]) cube([plate1_l, plate_width, strap_thickness]);
+            // MPU plate
+            translate([plate_lenght/2, plate_width/6 + 2, 0]) cube([plate2_l, plate_width/3*2-4, strap_thickness]);
+            // ESP plate
+            translate([-4, plate_width/6 - 2, 0]) cube([plate3_l, plate_width/3*2+4, strap_thickness]);
 
 
-        linear_extrude(height = strap_thickness) {
-            polygon(points=[[plate_lenght/4, 0], [-4, plate_width/6 - 2], [plate_lenght/4, plate_width/6 - 2]]);
-            polygon(points=[[plate_lenght/4, plate_width], [-4, plate_width - 3], [plate_lenght/4, plate_width - 3]]);
-            polygon(points=[[plate1_l + plate2_l, plate_width/3-3], [plate1_l/2*3, 7], [plate1_l/2*3, 0]]);
-            polygon(points=[[plate1_l + plate2_l, plate_width/3*2+3], [plate1_l/2*3, plate_width/3*2+3], [plate1_l/2*3, plate_width/3*2+10]]);
+            linear_extrude(height = strap_thickness) {
+                polygon(points=[[plate_lenght/4, 0], [-4, plate_width/6 - 2], [plate_lenght/4, plate_width/6 - 2]]);
+                polygon(points=[[plate_lenght/4, plate_width], [-4, plate_width - 3], [plate_lenght/4, plate_width - 3]]);
+                polygon(points=[[plate1_l + plate2_l, plate_width/3-3], [plate1_l/2*3, 7], [plate1_l/2*3, 0]]);
+                polygon(points=[[plate1_l + plate2_l, plate_width/3*2+3], [plate1_l/2*3, plate_width/3*2+3], [plate1_l/2*3, plate_width/3*2+10]]);
+            }
+        }
+
+        // ESP
+        color("purple") translate([-61.2, -9.3, 0]) {
+            cylinder(r = screw_d, h = 10);
+        }
+        color("purple") translate([-61.2, 8.6, 0]) {
+            cylinder(r = screw_d, h = 10);
+        }
+
+        // MPU
+        color("purple") translate([52.2, -6, 0]) {
+            cylinder(r = screw_d, h = 10);
+        }
+        color("purple") translate([72.8, -6, 0]) {
+            cylinder(r = screw_d, h = 10);
+        }
+
+        // BATTERY
+        color("purple") translate([8, 2.35, 0]) {
+            cylinder(r = screw_d, h = 10);
+        }
+        color("purple") translate([23, 0, 0]) {
+            cylinder(r = screw_d, h = 10);
+        }
+        color("purple") translate([38, -2.35, 0]) {
+            cylinder(r = screw_d, h = 10);
         }
     }
 }
