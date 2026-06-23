@@ -67,4 +67,9 @@ difference() {
     translate([-strap_width/2, -case_width/2, case_height/3*2])  {
         cube([strap_width, case_width, strap_thickness]);
     }
+
+    // USB SLOT To move
+    translate([-case_length/2 + 2.5, -strap_width/2 - 1, 8])  {
+        cube([10, strap_width+2, strap_thickness*2]);
+    }
 }
