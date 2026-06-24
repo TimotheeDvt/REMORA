@@ -6,14 +6,15 @@ case_height     = 30;
 wall_thickness  = 0.06;
 strap_width     = 7;        // Width of the strap
 strap_thickness = 2.2;        // Thickness of the strap
-screw_d         = 2.5;      // Diameter of the screw holes
+screw_d         = 1.5;      // Diameter of the screw holes
+screw_head_d    = screw_d * 2;
 
 // RENDER MODE
 // Change this to change what you see or export:
 // "both" -> Visual preview of the closed box
 // "base" -> Render only the bottom piece to print it
 // "cap"  -> Render only the top lid to print it
-render_mode = "both";
+render_mode = "cap";
 
 // STL IMPORT POSITIONS
 esp32_file  = "Sparkfun Thing Plus v8.stl";
@@ -94,6 +95,28 @@ module standard_hole_cuts() {
     translate([8, 2.35, -5])     cylinder(r = screw_d, h = 20);
     translate([23, 0, -5])       cylinder(r = screw_d, h = 20);
     translate([38, -2.35, -5])   cylinder(r = screw_d, h = 20);
+
+    translate([-61.2, -9.3, 13]) cylinder(r = screw_head_d, h = 9);
+    translate([-61.2, 8.6, 13])  cylinder(r = screw_head_d, h = 9);
+    translate([72.8, -6, 13])    cylinder(r = screw_head_d, h = 9);
+}
+
+module screw_reinforcements() {
+    intersection() {
+        scale([case_length/2, case_width/2, case_height]) {
+            sphere(r = 1);
+        }
+
+        union() {
+            translate([-61.2, -9.3, 4]) cylinder(r = screw_head_d + 1.5, h = 25);
+            translate([-61.2, 8.6, 4])  cylinder(r = screw_head_d + 1.5, h = 25);
+            translate([72.8, -6, 4])    cylinder(r = screw_head_d + 1.5, h = 25);
+        }
+    }
+
+    translate([-61.2, -9.3, 4]) cylinder(r = screw_head_d, h = 9);
+    translate([-61.2, 8.6, 4])  cylinder(r = screw_head_d, h = 9);
+    translate([72.8, -6, 4])    cylinder(r = screw_head_d, h = 9);
 }
 
 
@@ -117,12 +140,15 @@ if (render_mode == "cap" || render_mode == "both") {
     // Slightly lifts the cap in "both" preview mode to see inside
     preview_lift = (render_mode == "both") ? 15 : 0;
 
-    translate([0, 0, preview_lift]) color("cyan") difference() {
-        intersection() {
-            raw_uncut_case();
-            // Bounding block to isolate the upper part
-            translate([-case_length/2 - 5, -case_width/2 - 5, strap_thickness + 1])
-                cube([case_length + 10, case_width + 10, case_height]);
+    translate([0, 0, preview_lift]) difference() {
+        union() {
+            intersection() {
+                raw_uncut_case();
+                // Bounding block to isolate the upper part
+                translate([-case_length/2 - 5, -case_width/2 - 5, strap_thickness + 1])
+                    cube([case_length + 10, case_width + 10, case_height]);
+            }
+            screw_reinforcements();
         }
 
         standard_hole_cuts();
