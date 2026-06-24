@@ -14,7 +14,7 @@ screw_head_d    = screw_d * 2;
 // "both" -> Visual preview of the closed box
 // "base" -> Render only the bottom piece to print it
 // "cap"  -> Render only the top lid to print it
-render_mode = "cap";
+render_mode = "both";
 
 // STL IMPORT POSITIONS
 esp32_file  = "Sparkfun Thing Plus v8.stl";
@@ -47,7 +47,7 @@ module raw_uncut_case() {
                 sphere(r = 1 - wall_thickness);
             }
             translate([-case_length/2, -case_width/2, 1]) {
-                cube([case_length, case_width, strap_thickness]);
+                cube([case_length, case_width, strap_thickness-1]);
             }
         }
 
@@ -97,7 +97,7 @@ module standard_hole_cuts() {
     translate([38, -2.35, -5])   cylinder(r = screw_d, h = 20);
 
     translate([-61.2, -9.3, 13]) cylinder(r = screw_head_d, h = 9);
-    translate([-61.2, 8.6, 13])  cylinder(r = screw_head_d, h = 9);
+    translate([-61.2, 8.6, 13])  cylinder(r = screw_head_d, h = 8);
     translate([72.8, -6, 13])    cylinder(r = screw_head_d, h = 9);
 }
 
@@ -109,13 +109,13 @@ module screw_reinforcements() {
 
         union() {
             translate([-61.2, -9.3, 4]) cylinder(r = screw_head_d + 1.5, h = 25);
-            translate([-61.2, 8.6, 4])  cylinder(r = screw_head_d + 1.5, h = 25);
+            translate([-61.2, 8.6, 13])  cylinder(r = screw_head_d + 1.5, h = 8);
             translate([72.8, -6, 4])    cylinder(r = screw_head_d + 1.5, h = 25);
         }
     }
 
     translate([-61.2, -9.3, 4]) cylinder(r = screw_head_d, h = 9);
-    translate([-61.2, 8.6, 4])  cylinder(r = screw_head_d, h = 9);
+    translate([-61.2, 8.6, 9])  cylinder(r = screw_head_d, h = 4);
     translate([72.8, -6, 4])    cylinder(r = screw_head_d, h = 9);
 }
 
