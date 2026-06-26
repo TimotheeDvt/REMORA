@@ -1,4 +1,7 @@
-// PARAMETERS
+preview_lift_both = 15;
+render_mode = "both"; // ["both", "cap", "base"]
+show_ghosts = true;
+module __Customizer_Limit__ () {}
 staff_diameter  = 30;       // Diameter of the staff in mm
 case_length     = 180;
 case_width      = 35;
@@ -8,13 +11,6 @@ strap_width     = 7;        // Width of the strap
 strap_thickness = 2.2;        // Thickness of the strap
 screw_d         = 1.5;      // Diameter of the screw holes
 screw_head_d    = screw_d * 2;
-
-// RENDER MODE
-// Change this to change what you see or export:
-// "both" -> Visual preview of the closed box
-// "base" -> Render only the bottom piece to print it
-// "cap"  -> Render only the top lid to print it
-render_mode = "both";
 
 // STL IMPORT POSITIONS
 esp32_file  = "Sparkfun Thing Plus v8.stl";
@@ -29,17 +25,17 @@ battery_file= "2xAAA BATTERY HOLDER.stl";
 battery_pos = [23, 0, 4];
 battery_rot = [180, 180, 0];
 
-staff_pos = [20, 0, -case_length/2 - 15];
+staff_pos = [20, 0, -case_length/2 - 50];
 staff_rot = [0, 90, 0];
 
 $fn = 100;
 
 // IMPORT GHOSTS
-if (render_mode == "both") {
+if (show_ghosts) {
     % color("green", 0.3) translate(esp32_pos)   rotate(esp32_rot)   import(esp32_file);
     % color("green", 0.3) translate(mpu_pos)     rotate(mpu_rot)     import(mpu_file);
     % color("green", 0.3) translate(battery_pos) rotate(battery_rot) import(battery_file);
-    % color("green", 0.3) rotate(staff_rot) translate(staff_pos) cylinder(r = staff_diameter/2, h = case_length + 30);
+    % color("green", 0.3) rotate(staff_rot) translate(staff_pos) cylinder(r = staff_diameter/2, h = case_length + 100);
 }
 
 // FULL GEOMETRY MODULE
@@ -142,7 +138,7 @@ if (render_mode == "base" || render_mode == "both") {
 // Cap
 if (render_mode == "cap" || render_mode == "both") {
     // Slightly lifts the cap in "both" preview mode to see inside
-    preview_lift = (render_mode == "both") ? 15 : 0;
+    preview_lift = (render_mode == "both") ? preview_lift_both : 0;
 
     translate([0, 0, preview_lift]) difference() {
         union() {
