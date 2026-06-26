@@ -116,7 +116,7 @@ private:
 
     void calculateDeltaTime();
     void updateTipPositionHistory(const StaffSoundParams& input_parameters, float& current_tip_x, float& current_tip_y, float& current_tip_z);
-    void calculateRotationAxisAtMidpoint(float& axis_x, float& axis_y, float& axis_z);
+    void calculateRotationAxisAtMidpoint(const StaffSoundParams& input_parameters, float& axis_x, float& axis_y, float& axis_z);
     void updateGravityVector(const StaffSoundParams& input_parameters);
     void calculateDynamicAcceleration(const StaffSoundParams& input_parameters, float& dynamic_accel_x, float& dynamic_accel_y, float& dynamic_accel_z, float& dynamic_accel_magnitude);
     float integrateVelocityForLabanWeight(float dynamic_accel_x, float dynamic_accel_y, float dynamic_accel_z);

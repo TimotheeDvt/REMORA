@@ -85,16 +85,13 @@ void BozendoMapping2::updateTipPositionHistory(const StaffSoundParams& input_par
     tip_position_z_history_[2] = tip_position_z_history_[1]; tip_position_z_history_[1] = tip_position_z_history_[0]; tip_position_z_history_[0] = current_tip_z;
 }
 
-void BozendoMapping2::calculateRotationAxisAtMidpoint(float& axis_x, float& axis_y, float& axis_z) {
-    // velocity_mean = (position[0] - position[2]) / 2 (central difference, 1-frame latency)
-    float velocity_mean_x = (tip_position_x_history_[0] - tip_position_x_history_[2]) * 0.5f;
-    float velocity_mean_y = (tip_position_y_history_[0] - tip_position_y_history_[2]) * 0.5f;
-    float velocity_mean_z = (tip_position_z_history_[0] - tip_position_z_history_[2]) * 0.5f;
-
-    // axis = position[1] cross_product velocity_mean (rotation axis at midpoint)
-    axis_x = tip_position_y_history_[1] * velocity_mean_z - tip_position_z_history_[1] * velocity_mean_y;
-    axis_y = tip_position_z_history_[1] * velocity_mean_x - tip_position_x_history_[1] * velocity_mean_z;
-    axis_z = tip_position_x_history_[1] * velocity_mean_y - tip_position_y_history_[1] * velocity_mean_x;
+void BozendoMapping2::calculateRotationAxisAtMidpoint(const StaffSoundParams& input_parameters, float& axis_x, float& axis_y, float& axis_z) {
+    // Mathematically transform the local gyroscope velocity vector into the world frame using the quaternion orientation
+    MathHelpers::rotateVectorByQuaternion(
+        input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz,
+        input_parameters.gx, input_parameters.gy, input_parameters.gz,
+        axis_x, axis_y, axis_z
+    );
 }
 
 void BozendoMapping2::updateGravityVector(const StaffSoundParams& input_parameters) {
@@ -396,7 +393,7 @@ void BozendoMapping2::process(const StaffSoundParams& input_parameters, MappingO
     updateTipPositionHistory(input_parameters, tip_x, tip_y, tip_z);
 
     float rotation_axis_x, rotation_axis_y, rotation_axis_z;
-    calculateRotationAxisAtMidpoint(rotation_axis_x, rotation_axis_y, rotation_axis_z);
+    calculateRotationAxisAtMidpoint(input_parameters, rotation_axis_x, rotation_axis_y, rotation_axis_z);
 
     updateGravityVector(input_parameters);
 
