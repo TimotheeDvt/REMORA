@@ -86,12 +86,31 @@ void BozendoMapping2::updateTipPositionHistory(const StaffSoundParams& input_par
 }
 
 void BozendoMapping2::calculateRotationAxisAtMidpoint(const StaffSoundParams& input_parameters, float& axis_x, float& axis_y, float& axis_z) {
-    // Mathematically transform the local gyroscope velocity vector into the world frame using the quaternion orientation
+    // get the current staff longitudinal axis pointing direction in world coordinates
+    float tip_x, tip_y, tip_z;
+    MathHelpers::rotateVectorByQuaternion(
+        input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz,
+        1.0f, 0.0f, 0.0f,
+        tip_x, tip_y, tip_z
+    );
+
+    // rotate the local gyroscope angular velocity vector into world coordinates
+    float omega_x, omega_y, omega_z;
     MathHelpers::rotateVectorByQuaternion(
         input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz,
         input_parameters.gx, input_parameters.gy, input_parameters.gz,
-        axis_x, axis_y, axis_z
+        omega_x, omega_y, omega_z
     );
+
+    // compute the projection of omega normal to the staff axis: A = omega - (omega . tip) * tip
+    float dot_product = omega_x * tip_x + omega_y * tip_y + omega_z * tip_z;
+
+    axis_x = omega_x - dot_product * tip_x;
+    axis_y = omega_y - dot_product * tip_y;
+    axis_z = omega_z - dot_product * tip_z;
+
+    // normalize the vector to form a stable unit normal vector tracking the spin plane
+    MathHelpers::normalize3DVector(axis_x, axis_y, axis_z);
 }
 
 void BozendoMapping2::updateGravityVector(const StaffSoundParams& input_parameters) {
