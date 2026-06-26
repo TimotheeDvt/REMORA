@@ -29,13 +29,17 @@ battery_file= "2xAAA BATTERY HOLDER.stl";
 battery_pos = [23, 0, 4];
 battery_rot = [180, 180, 0];
 
+staff_pos = [20, 0, -case_length/2 - 15];
+staff_rot = [0, 90, 0];
+
 $fn = 100;
 
 // IMPORT GHOSTS
 if (render_mode == "both") {
-    % color("green") translate(esp32_pos)   rotate(esp32_rot)   import(esp32_file);
-    % color("green") translate(mpu_pos)     rotate(mpu_rot)     import(mpu_file);
-    % color("green") translate(battery_pos) rotate(battery_rot) import(battery_file);
+    % color("green", 0.3) translate(esp32_pos)   rotate(esp32_rot)   import(esp32_file);
+    % color("green", 0.3) translate(mpu_pos)     rotate(mpu_rot)     import(mpu_file);
+    % color("green", 0.3) translate(battery_pos) rotate(battery_rot) import(battery_file);
+    % color("green", 0.3) rotate(staff_rot) translate(staff_pos) cylinder(r = staff_diameter/2, h = case_length + 30);
 }
 
 // FULL GEOMETRY MODULE
