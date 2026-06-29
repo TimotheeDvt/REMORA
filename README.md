@@ -65,7 +65,7 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 │   ├── case_vscode.scad                  # Main casing model
 │   └── base_print.scad                   # Utils to export a pdf design pattern
 │
-└── other_tests/                          # Prototypes and exploratory tools
+└── tests/                                # OSC Receiver test
 ```
 
 ---
