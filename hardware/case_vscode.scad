@@ -3,8 +3,8 @@ render_mode = "both"; // ["both", "cap", "base"]
 show_ghosts = true;
 module __Customizer_Limit__ () {}
 staff_diameter  = 30;       // Diameter of the staff in mm
-case_length     = 180;
-case_width      = 35;
+case_length     = 190;
+case_width      = 40;
 case_height     = 30;
 wall_thickness  = 0.06;
 strap_width     = 7;        // Width of the strap
@@ -14,16 +14,24 @@ screw_head_d    = screw_d * 2;
 
 // STL IMPORT POSITIONS
 esp32_file  = "Assets/Sparkfun Thing Plus v8.stl";
-esp32_pos   = [-65, 11, 2];
+esp32_pos   = [-70, 11.5, -2];
 esp32_rot   = [90, 0, 270];
+esp32_screw_x = -66.2;
+esp32_screw_y_1 = -9;
+esp32_screw_y_2 = 8.6;
 
 mpu_file    = "Assets/MPU-9250.stl";
-mpu_pos     = [50, 7, 8];
+mpu_pos     = [48, 7, 3];
 mpu_rot     = [90, 0, 90];
+mpu_screw_y = -6;
+mpu_screw_x_1 = 50.2;
+mpu_screw_x_2 = 70.8;
 
 battery_file= "Assets/2xAAA BATTERY HOLDER.stl";
-battery_pos = [23, 0, 4];
+battery_pos = [20, 0, 2];
 battery_rot = [180, 180, 0];
+battery_screw_x = [5, 20, 35];
+battery_screw_y = [2.35, 0, -2.35];
 
 staff_pos = [20, 0, -case_length/2 - 50];
 staff_rot = [0, 90, 0];
@@ -86,19 +94,19 @@ module standard_hole_cuts() {
 
     // Screws Holes
     // ESP
-    translate([-61.2, -9.3, -5]) cylinder(r = screw_d, h = 30);
-    translate([-61.2, 8.6, -5])  cylinder(r = screw_d, h = 30);
+    translate([esp32_screw_x, esp32_screw_y_1, -5]) cylinder(r = screw_d, h = 30);
+    translate([esp32_screw_x, esp32_screw_y_2, -5])  cylinder(r = screw_d, h = 30);
     // MPU
-    translate([52.2, -6, -5])    cylinder(r = screw_d, h = 10);
-    translate([72.8, -6, -5])    cylinder(r = screw_d, h = 30);
+    translate([mpu_screw_x_1, mpu_screw_y, -5])    cylinder(r = screw_d, h = 10);
+    translate([mpu_screw_x_2, mpu_screw_y, -5])    cylinder(r = screw_d, h = 30);
     // Battery
-    translate([8, 2.35, -5])     cylinder(r = screw_d, h = 20);
-    translate([23, 0, -5])       cylinder(r = screw_d, h = 20);
-    translate([38, -2.35, -5])   cylinder(r = screw_d, h = 20);
+    translate([battery_screw_x[0], battery_screw_y[0], -5])     cylinder(r = screw_d, h = 20);
+    translate([battery_screw_x[1], battery_screw_y[1], -5])       cylinder(r = screw_d, h = 20);
+    translate([battery_screw_x[2], battery_screw_y[2], -5])   cylinder(r = screw_d, h = 20);
 
-    translate([-61.2, -9.3, 13]) cylinder(r = screw_head_d, h = 9);
-    translate([-61.2, 8.6, 13])  cylinder(r = screw_head_d, h = 8);
-    translate([72.8, -6, 13])    cylinder(r = screw_head_d, h = 9);
+    translate([esp32_screw_x, esp32_screw_y_1, 13]) cylinder(r = screw_head_d, h = 9);
+    translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d, h = 8);
+    translate([mpu_screw_x_2, mpu_screw_y, 13])    cylinder(r = screw_head_d, h = 9);
 }
 
 module screw_reinforcements() {
@@ -108,15 +116,15 @@ module screw_reinforcements() {
         }
 
         union() {
-            translate([-61.2, -9.3, 4]) cylinder(r = screw_head_d + 1.5, h = 25);
-            translate([-61.2, 8.6, 13])  cylinder(r = screw_head_d + 1.5, h = 8);
-            translate([72.8, -6, 4])    cylinder(r = screw_head_d + 1.5, h = 25);
+            translate([esp32_screw_x, esp32_screw_y_1, 4]) cylinder(r = screw_head_d + 1.5, h = 25);
+            translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d + 1.5, h = 8);
+            translate([mpu_screw_x_2, mpu_screw_y, 4])    cylinder(r = screw_head_d + 1.5, h = 25);
         }
     }
 
-    translate([-61.2, -9.3, 4]) cylinder(r = screw_head_d, h = 9);
-    translate([-61.2, 8.6, 9])  cylinder(r = screw_head_d, h = 4);
-    translate([72.8, -6, 4])    cylinder(r = screw_head_d, h = 9);
+    translate([esp32_screw_x, esp32_screw_y_1, 4]) cylinder(r = screw_head_d, h = 9);
+    translate([esp32_screw_x, esp32_screw_y_2, 9])  cylinder(r = screw_head_d, h = 4);
+    translate([mpu_screw_x_2, mpu_screw_y, 4])    cylinder(r = screw_head_d, h = 9);
 }
 
 
