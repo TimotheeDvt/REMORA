@@ -13,15 +13,15 @@ screw_d         = 1.5;      // Diameter of the screw holes
 screw_head_d    = screw_d * 2;
 
 // STL IMPORT POSITIONS
-esp32_file  = "Sparkfun Thing Plus v8.stl";
+esp32_file  = "Assets/Sparkfun Thing Plus v8.stl";
 esp32_pos   = [-65, 11, 2];
 esp32_rot   = [90, 0, 270];
 
-mpu_file    = "MPU-9250.stl";
+mpu_file    = "Assets/MPU-9250.stl";
 mpu_pos     = [50, 7, 8];
 mpu_rot     = [90, 0, 90];
 
-battery_file= "2xAAA BATTERY HOLDER.stl";
+battery_file= "Assets/2xAAA BATTERY HOLDER.stl";
 battery_pos = [23, 0, 4];
 battery_rot = [180, 180, 0];
 

@@ -44,7 +44,7 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 │   └── NIME_2026_JUCE/             # JUCE CMake project (VST3 + Standalone)
 │       ├── CMakeLists.txt
 │       ├── Makefile                # Convenience wrapper around CMake
-│       ├── JUCE/                   # JUCE submodule (not tracked here)
+│       ├── JUCE/                   # JUCE library (not tracked here)
 │       ├── Assets/
 │       │   └── logo.png
 │       └── Source/
@@ -57,33 +57,17 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 │           │   ├── MathHelpers.h         # Quaternion / vector maths
 │           │   ├── IMappingStrategy.h    # Abstract mapping interface
 │           │   ├── BoStaffSynth.{h,cpp}  # 4-voice additive synth engine
-│           │   └── Mappings/
-│           │       ├── SimpleMapping          # Minimal pitch+roll sine wave
-│           │       ├── BowedChordMapping      # Gyro-bowed chords (main mapping)
-│           │       ├── LeadDroneMapping       # Lead melody over drone bass
-│           │       ├── SpinFilterMapping      # Rotation-speed pentatonic filter synth
-│           │       ├── BozendoMapping         # Laban Effort-based expressive mapping
-│           │       └── BozendoMapping2        # Bozendo variant - 4-note arpeggio
+│           │   └── Mappings/             # Mappings implementations
 │           ├── OSC/
 │           │   └── OscReceiverManager.{h,cpp} # JUCE OSCReceiver wrapper
-│           └── UI/
-│               ├── Palette.h              # Colour constants
-│               ├── StyleHelpers.h         # Label styling utility
-│               ├── BoStaffVisualizer.{h,cpp} # 3D staff + motion trail renderer
-│               ├── RawDataWindow.{h,cpp}  # Live IMU data inspector
-│               ├── DebugLog.{h,cpp}       # Global coloured debug logger
-│               └── DebugConsole.{h,cpp}   # Floating debug window
+│           └── UI/                       # UI related utilities and windows
+├── hardware/
+│   ├── Assets/                           # Models for ESP32, MPU chips and battery holder
+│   ├── PRINTABLE/                        # Printable STL for 3D printer
+│   ├── case_vscode.scad                  # Main casing model
+│   └── base_print.scad                   # Utils to export a pdf design pattern
 │
-└── other_tests/                    # Prototypes and exploratory tools
-    ├── testOSCReceiver.py          # Minimal Python OSC listener (port 8000)
-    ├── exploration_tests/
-    │   └── simulation_pitch_yaw_relative_pos.py  # Qt + Matplotlib 3D dial simulator
-    └── PlugData/
-        └── testsMockData/
-            ├── mockData.py         # 50 Hz mock OSC sender for PlugData patches
-            ├── bo_live_simulation.py  # Live Qt visualiser with complementary filter
-            ├── bo_test.pd          # PlugData patch - sine + ADSR proof of concept
-            └── receiveFromTipsAB.pd   # OSC receive abstraction for PlugData
+└── other_tests/                          # Prototypes and exploratory tools
 ```
 
 ---
@@ -122,7 +106,7 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 
 ### What the Firmware Does
 
-- Initialises the MPU-9250 over I²C (SDA = GPIO 1, SCL = GPIO 2)
+- Initialises the MPU-9250 over I2C (SDA = GPIO 1, SCL = GPIO 2)
 - Connects to Wi-Fi and sends a `/esp32/connected <ip>` handshake packet
 - Loops at 100 Hz, sending `/esp32/imu ax ay az gx gy gz mx my mz qw qx qy qz <ip>` to the configured broadcast/host address on port 8000
 
@@ -171,7 +155,7 @@ Build artefacts are written to `build/NIMEReceiver_artefacts/`:
 
 1. Ensure the ESP32 is streaming to your machine (or use `other_tests/testOSCReceiver.py` to verify packets are arriving on port 8000).
 2. Launch the standalone or load the VST3 in your DAW.
-3. Click **CONNECT** - the plugin auto-connects to port 8000 on startup.
+3. The plugin auto-connects to port 8000 on startup.
 4. Optionally click **CALIBRATE** and follow the three-pose procedure to align the sensor's local frame with musical space.
 5. Select a mapping from the dropdown and move the staff.
 
