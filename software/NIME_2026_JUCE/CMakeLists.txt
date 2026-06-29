@@ -20,7 +20,6 @@ juce_add_plugin(NIMEReceiver
 juce_generate_juce_header(NIMEReceiver)
 juce_add_binary_data(NIMEReceiverData SOURCES Assets/logo.png)
 
-# Automatically find all .cpp and .h files in the Source folder
 file(GLOB_RECURSE SOURCE_FILES "Source/*.cpp" "Source/*.h")
 target_sources(NIMEReceiver PRIVATE ${SOURCE_FILES})
 
