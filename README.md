@@ -34,33 +34,31 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 
 ```
 .
-├── firmware/
-│   └── NIME_2026/                  # PlatformIO project for the ESP32-S2
-│       ├── platformio.ini          # Board, platform, and library config
-│       └── src/
-│           └── main.cpp            # IMU read loop + OSC transmission
+├── firmware/                       # PlatformIO project for the ESP32-S2
+│   ├── platformio.ini          # Board, platform, and library config
+│   └── src/
+│       └── main.cpp            # IMU read loop + OSC transmission
 │
-├── software/
-│   └── NIME_2026_JUCE/             # JUCE CMake project (VST3 + Standalone)
-│       ├── CMakeLists.txt
-│       ├── Makefile                # Convenience wrapper around CMake
-│       ├── JUCE/                   # JUCE library (not tracked here)
-│       ├── Assets/
-│       │   └── logo.png
-│       └── Source/
-│           ├── PluginProcessor.{h,cpp}   # Audio processor, calibration, OSC bridge
-│           ├── PluginEditor.{h,cpp}      # Main UI
-│           ├── DATA/
-│           │   ├── IMUData.h             # Lock-free IMU data store (seqlock)
-│           │   └── OrientationPoint.h    # Timestamped quaternion for trail rendering
-│           ├── DSP/
-│           │   ├── MathHelpers.h         # Quaternion / vector maths
-│           │   ├── IMappingStrategy.h    # Abstract mapping interface
-│           │   ├── BoStaffSynth.{h,cpp}  # 4-voice additive synth engine
-│           │   └── Mappings/             # Mappings implementations
-│           ├── OSC/
-│           │   └── OscReceiverManager.{h,cpp} # JUCE OSCReceiver wrapper
-│           └── UI/                       # UI related utilities and windows
+├── software/                       # JUCE CMake project (VST3 + Standalone)
+│   ├── CMakeLists.txt
+│   ├── Makefile                # Convenience wrapper around CMake
+│   ├── JUCE/                   # JUCE library (not tracked here)
+│   ├── Assets/
+│   │   └── logo.png
+│   └── Source/
+│       ├── PluginProcessor.{h,cpp}   # Audio processor, calibration, OSC bridge
+│       ├── PluginEditor.{h,cpp}      # Main UI
+│       ├── DATA/
+│       │   ├── IMUData.h             # Lock-free IMU data store (seqlock)
+│       │   └── OrientationPoint.h    # Timestamped quaternion for trail rendering
+│       ├── DSP/
+│       │   ├── MathHelpers.h         # Quaternion / vector maths
+│       │   ├── IMappingStrategy.h    # Abstract mapping interface
+│       │   ├── BoStaffSynth.{h,cpp}  # 4-voice additive synth engine
+│       │   └── Mappings/             # Mappings implementations
+│       ├── OSC/
+│       │   └── OscReceiverManager.{h,cpp} # JUCE OSCReceiver wrapper
+│       └── UI/                       # UI related utilities and windows
 ├── hardware/
 │   ├── Assets/                           # Models for ESP32, MPU chips and battery holder
 │   ├── PRINTABLE/                        # Printable STL for 3D printer

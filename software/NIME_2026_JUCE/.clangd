@@ -1,9 +1,0 @@
-CompileFlags:
-  CompilationDatabase: build/
-  Add:
-    - "-std=c++17"
-    - "/Zc:__cplusplus"
-Diagnostics:
-  UnusedIncludes: None
-  Suppress:
-    - "*"
