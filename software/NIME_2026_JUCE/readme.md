@@ -1,80 +1,84 @@
-# NIME 2026 JUCE Project
+# NIME OSC Receiver Plugin
 
-This project is a JUCE-based audio plugin and standalone application developed as a NIME (New Interface for Musical Expression). It functions as an OSC receiver for a custom ESP32-based IMU sensor, translating physical movements and gestures directly into sound.
+A real-time, dynamic **JUCE-based audio plugin** (VST3 and Standalone) engineered to receive incoming multi-sensor IMU data via **Open Sound Control (OSC)**. The software serves as a modular audio mapping engine, converting spatial movements and hardware interactions into complex sound synthesis.
 
-## How it Works
+## Core Features
 
-The software receives high-speed OSC packets over Wi-Fi containing 9DOF data (quaternions, accelerometer, gyroscope, magnetometer). The plugin maintains a relative orientation state based on user calibration, preventing drift and ensuring intuitive control regardless of the performer's starting position. The received motion data is smoothed to minimize latency while preventing audio artifacts, and is then fed into an internal synthesizer.
-
-## Current Mapping
-
-The plugin uses a 4-voice additive chord synthesiser with a bowed-string physical model.
-
-**Pitch (tilt up/down):** Controls the root note, quantized to the chromatic scale across two octaves (C2–C4). Each degree of tilt snaps to the nearest semitone. A 150ms glide smooths transitions between notes.
-
-**Yaw (horizontal swing):** Selects the chord type voiced above the root:
-- Far left: minor triad
-- Center-left: power chord (open fifth)
-- Center-right: major triad
-- Far right: suspended 4th
-- High roll + left: minor 7th
-- High roll + right: major 7th
-
-Chord changes crossfade over 200ms.
-
-**Roll (twist):** Below 70% twist - controls vibrato depth and spectral brightness (timbre shifts from flute to bowed string). Above 70% twist - unlocks the 7th chord vocabulary in the yaw mapping.
-
-**Gyroscope magnitude (motion speed):** Acts as bow pressure. The staff must be moving to produce sound. Slow motion = quiet sustain. Fast motion = loud, driven, saturated tone. Holding the staff still causes the sound to fade.
-
-**Yaw angular velocity (gz):** Controls tremolo rate and depth - spinning the staff adds amplitude flutter.
-
-**Accelerometer spike:** Striking or sharply changing direction triggers a percussive noise burst layered over the chord. Vertical acceleration (az) controls the brightness of the hit.
-
-**Stereo spread:** The four chord voices are spread L → R, giving the sound spatial width.
-
-## Mapping Strategies
-
-The plugin supports multiple mapping strategies, selectable via the "mapping" dropdown in the UI at runtime with no interruption to audio.
-
-### Simple (Pitch+Roll)
-The original minimal mapping. A single continuous sine wave; no chords, no motion gate.
-- Tilt: frequency (100-1000 Hz, not quantized)
-- Twist: volume
-
-### Bowed Chord
-The full expressive mapping. See "Current Mapping" above for details.
-
-### Lead + Drone
-A mapping based on rotation around two axes (pitch and yaw).
-- Pitch (tilt): Lead voice pitch, quantized to a major scale.
-- Yaw: Modulates the automatic drone bass accompaniment's pan and swell.
-- Acceleration/Gyro: Modulates master volume, drone swell, and timbre brightness.
-
-### Spin Filter
-Designed for heavy Y/Z-axis rotation.
-- Rotation Speed (Gyro): Climbs a C minor pentatonic scale. Faster spins hold higher notes.
-- Roll (twist): Acts as a frequency cutoff filter, fading out upper harmonics.
-- Pitch (tilt up/down): Controls vibrato depth.
-- Yaw (horizontal swing): Slowly pans the two voices in opposite directions.
-
-## Future Directions
-
-- Implement mode switching triggered by specific gesture conditions (e.g., changing modes when the device is rolling but not translating).
-- Extract and utilize Laban Effort Descriptors from the raw sensor data to map the qualitative feeling of the movement (Weight, Space, Time, Flow) to advanced synthesis parameters.
+* **Multi-Format Support:** Compiles as both a VST3 plugin and a standalone desktop application.
+* **Modular Mapping Architecture:** Driven by a base `IMappingStrategy` class, making it easy to hot-swap or add new sensor-to-DSP strategies.
+* **Integrated Synth Engine:** Features a built-in algorithmic synthesis framework (`BoStaffSynth`) designed specifically for performance interaction.
+* **Visual Diagnostic Windows:** Includes dedicated GUI interfaces for viewing live raw IMU data streams, debugging console logs, and visually monitoring spatial movements.
 
 ---
 
-## Building
+## Performance Mapping Strategies
 
-Requires **CMake 3.15+** and **Visual Studio 2022** (Desktop C++). Outputs to `build/NIMEReceiver_artefacts/`.
+This technical section details how physical movements stream into the base `IMappingStrategy` classes and directly manipulate the parameters of the synthesizer engine.
 
-Run the following command in the root of the project to generate the build files:
-```powershell
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-```
+---
 
-Once configured, compile the plugin using:
-```powershell
-cmake --build build --config Release
-```
-Your compiled `.vst3` or standalone application will be located inside the `build/NIMEReceiver_artefacts/` directory.
+### 1. Simple Mapping
+
+* **Movement Inputs:** Absolute pitch tilt, yaw angles, and smooth gyroscope magnitude.
+* **DSP Transformation:**
+  * **Pitch Tilt & Orientation:** Directly maps lineally or exponentially onto individual voice levels or fundamental pitches.
+  * **Sustained Energy:** High steady rotation increases master volume output, acting as a simple dynamic motion gate.
+
+---
+
+### 2. Bowed Chord Mapping
+
+* **Movement Inputs:** Total Gyroscopic Velocity ($|Gyro|$), Absolute Yaw, Pitch, and Roll ($|\text{Roll}|$).
+* **DSP Transformation:**
+  * **Excitation (The Bow):** Synthesizer excitement and voice gains are scaled by gyroscopic magnitude above a floor of $12.0^\circ/\text{s}$. If the device stops, the sound dampens instantly.
+  * **Chord Harmonization:** Yaw angle selects 1 of 4 chords. Tilting the device past an intense roll boundary ($>0.7\text{ rad}$) overrides the scale into secondary chord sets.
+  * **Acoustic Friction & Strikes:** Linear acceleration changes ($\Delta Accel$) generate an impulse envelope ($0.9990$ decay half-life) triggering a physical modeling-style noise stroke. Absolute roll maps to vibrato depth and high Z-axis angular velocity adds dynamic tremolo.
+
+---
+
+### 3. Bozendo Mapping (V1)
+
+* **Movement Inputs:** Laban Movement Analysis features (Weight, Time, Space, Flow), calculated from dynamic linear acceleration ($\text{Accel} - \text{Gravity}$) and angular differences.
+* **DSP Transformation:**
+  * **Quantized Note Steps:** Smoothed gyroscopic magnitude quantizes directly into a 5-note Pentatonic Minor Scale. Faster movement transitions step-wise higher up the scale.
+  * **Harmonic Polyphony:** Laban Weight (integrated velocity from non-gravitational acceleration) dynamically calculates voice presence. Heavy, high-momentum gestures open up 4 concurrent polyphonic voices playing Major, Minor, 7th, or Diminished structures based on rotation plane axis (Vertical vs. Horizontal) and direction (CW vs. CCW).
+
+---
+
+### 4. Deep Dive: Bozendo Mapping (V2) - Best one yet
+
+The V2 Bozendo mapping shifts the paradigm from scale-quantization to absolute geometric trajectory analysis, momentum tracking, and interactive gesture triggers.
+
+#### A. The Directional Angular Compass (Pitch Selection) *(azimuth detection in development)*
+
+Instead of scaling note steps by speed, **Bozendo 2 tracks the orientation angle of the active spin plane**.
+
+* **Movement:** The rotation axis vector is mapped into world space coordinates and checked for spatial alignment. If the plane is vertical, it computes the exact **azimuth direction** (the angle the staff faces relative to standard compass headings).
+* **DSP Result:** The horizontal compass domain is broken down into 4 distinct quadrants ($90^\circ$ sectors protected by an $11^\circ$ hysteresis buffer to stop note flickering):
+* **Sector 0 (East/West):** Core pitch class **C** (0 semitones).
+* **Sector 1 (North/South):** Core pitch class **G** (+7 semitones).
+* **Sector 2 (West/East):** Core pitch class **E** (+4 semitones).
+* **Sector 3 (South/North):** Core pitch class **A** (+9 semitones).
+
+
+* **Polar Harmonics:** Spinning Clockwise vs. Counter-Clockwise injects an automatic $+3$ semitones modal modification offset.
+* The target synthesis engines bypass traditional chord intervals here, generating absolute, powerful octaves and perfect fifth structures (`[+12, +7, -12] semitones`).
+
+#### B. Continuous Rotational Velocity (The Filter Modulation Sweep)
+
+* **Movement:** The mapping strategy tracks accumulated rotational angular degrees over time. Every time a full loop is achieved ($360^\circ$), a persistent variable `continuous_spin_count_` increments. If the performer breaks momentum or changes the orientation axis type, the spin registry instantly resets.
+* **DSP Result:** The spin count feeds into an active phase modulator: $\text{Phase} = \text{Count} \times 1.5$. The sine wave output derived from this phase drives a global **Low-Pass Filter sweep**, fluidly sliding back and forth across a sweeping window between **$400\text{ Hz}$ and $20,000\text{ Hz}$**. Continuous physical spinning outputs a cyclic timbral wave effect.
+
+#### C. Axial Thrust Detection (Transient Punches) *(in development)*
+
+* **Movement:** Real-time tracking isolating linear acceleration vectors traveling purely along the staff's length (longitudinal axis) while verifying angular velocity remains low. Sudden forward stabs or strict longitudinal pulls trigger a high-resolution zero-crossing signed jerk detection routine ($>1.5\text{ g}$ threshold).
+* **DSP Result:** Once validated, a fast-decaying impulse generator activates, creating immediate changes across three synth layers simultaneously:
+  * **Gain Envelope Boost:** Overrides standard attenuation settings to deliver a maximum volume punch through the synthesis output line.
+  * **Harmonic Waveshaping & Distortion:** Instantly multiplies internal wave saturation (`driveAmt`) upwards by $+2.0$, while forcefully injecting energy into the high upper partial elements (partials 3, 4, and 5). The tone shifts aggressively from a clean fundamental tone into a sharp, growling distortion.
+  * **High-Frequency White Noise Injection:** Releases a brief, localized burst of unpitched high-frequency noise (`noiseAmount`) into the synthesis path, creating a realistic, sharp percussive strike.
+
+---
+
+## Project Context
+
+This software component is a core part of the larger **timotheedvt/2026_nime_td** ecosystem. It bridges the gap between hardware physical controllers and modern digital audio workstations.
