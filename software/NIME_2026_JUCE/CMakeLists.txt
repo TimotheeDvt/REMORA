@@ -8,84 +8,29 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_subdirectory(JUCE)
 
 juce_add_plugin(NIMEReceiver
-    PLUGIN_MANUFACTURER_CODE  Nime
-    PLUGIN_CODE               NmRx
+    PLUGIN_MANUFACTURER_CODE  Nime      PLUGIN_CODE  NmRx
     FORMATS                   VST3 Standalone
     PRODUCT_NAME              "NIME OSC Receiver"
     COMPANY_NAME              "NIME Project"
-    IS_SYNTH                  FALSE
-    NEEDS_MIDI_INPUT          FALSE
-    NEEDS_MIDI_OUTPUT         FALSE
-    IS_MIDI_EFFECT            FALSE
-    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    VST3_CATEGORIES           Tools
     BUNDLE_ID                 com.NIMEProject.NIMEReceiver
     ICON_BIG                  "Assets/logo.png"
+    VST3_CATEGORIES           Tools
 )
 
 juce_generate_juce_header(NIMEReceiver)
+juce_add_binary_data(NIMEReceiverData SOURCES Assets/logo.png)
 
-juce_add_binary_data(NIMEReceiverData
-    SOURCES
-        Assets/logo.png
-)
+# Automatically find all .cpp and .h files in the Source folder
+file(GLOB_RECURSE SOURCE_FILES "Source/*.cpp" "Source/*.h")
+target_sources(NIMEReceiver PRIVATE ${SOURCE_FILES})
 
-target_sources(NIMEReceiver
-    PRIVATE
-        Source/PluginProcessor.cpp
-        Source/PluginProcessor.h
-        Source/PluginEditor.cpp
-        Source/PluginEditor.h
-        Source/DATA/IMUData.h
-        Source/DSP/MathHelpers.h
-        Source/DSP/IMappingStrategy.h
-        Source/DSP/Mappings/BowedChordMapping.h
-        Source/DSP/Mappings/BowedChordMapping.cpp
-        Source/DSP/Mappings/SimpleMapping.h
-        Source/DSP/Mappings/SimpleMapping.cpp
-        Source/DSP/Mappings/LeadDroneMapping.h
-        Source/DSP/Mappings/LeadDroneMapping.cpp
-        Source/DSP/Mappings/SpinFilterMapping.h
-        Source/DSP/Mappings/SpinFilterMapping.cpp
-        Source/DSP/Mappings/BozendoMapping.h
-        Source/DSP/Mappings/BozendoMapping.cpp
-        Source/DSP/Mappings/BozendoMapping2.h
-        Source/DSP/Mappings/BozendoMapping2.cpp
-        Source/DSP/BoStaffSynth.h
-        Source/DSP/BoStaffSynth.cpp
-        Source/OSC/OscReceiverManager.cpp
-        Source/OSC/OscReceiverManager.h
-        Source/UI/Palette.h
-        Source/UI/RawDataWindow.cpp
-        Source/UI/RawDataWindow.h
-        Source/UI/DSPWindow.cpp
-        Source/UI/DSPWindow.h
-        Source/UI/StyleHelpers.h
-        Source/UI/BoStaffVisualizer.h
-        Source/UI/BoStaffVisualizer.cpp
-        Source/UI/DebugConsole.h
-        Source/UI/DebugConsole.cpp
-        Source/UI/DebugLog.h
-        Source/UI/DebugLog.cpp
-)
-
-target_compile_definitions(NIMEReceiver
-    PUBLIC
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
-        JUCE_VST3_CAN_REPLACE_VST2=0
+target_compile_definitions(NIMEReceiver PUBLIC
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0
 )
 
 target_link_libraries(NIMEReceiver
-    PRIVATE
-        NIMEReceiverData
-        juce::juce_audio_utils
-        juce::juce_osc
-        juce::juce_dsp
-    PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags
-        juce::juce_recommended_warning_flags
+    PRIVATE NIMEReceiverData juce::juce_audio_utils juce::juce_osc juce::juce_dsp
+    PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags
 )
-
-target_compile_features(NIMEReceiver PUBLIC cxx_std_17)
