@@ -11,6 +11,8 @@ strap_width     = 7;        // Width of the strap
 strap_thickness = 2.2;        // Thickness of the strap
 screw_d         = 1.5;      // Diameter of the screw holes
 screw_head_d    = screw_d * 2;
+// pole_d          = 1;
+// pole_h          = 6;
 
 // STL IMPORT POSITIONS
 esp32_file  = "Assets/Sparkfun Thing Plus v8.stl";
@@ -106,7 +108,16 @@ module standard_hole_cuts() {
 
     translate([esp32_screw_x, esp32_screw_y_1, 13]) cylinder(r = screw_head_d, h = 9);
     translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d, h = 8);
-    translate([mpu_screw_x_2, mpu_screw_y, 13])    cylinder(r = screw_head_d, h = 9);
+    translate([mpu_screw_x_2, mpu_screw_y, 16])    cylinder(r = screw_head_d, h = 9);
+
+    /* Disabled for now, can't print it upside down + diameter too small
+        // Pole
+        // ESP32 Side
+        translate([-case_length/2 + 15, 9, 0]) cylinder(r = pole_d, h = pole_h);
+        translate([-case_length/2 + 15, -9, 0]) cylinder(r = pole_d, h = pole_h);
+        // MPU
+        translate([case_length/2 - 3.5, 0, 0]) cylinder(r = pole_d, h = pole_h);
+    */
 }
 
 module screw_reinforcements() {
@@ -118,13 +129,13 @@ module screw_reinforcements() {
         union() {
             translate([esp32_screw_x, esp32_screw_y_1, 4]) cylinder(r = screw_head_d + 1.5, h = 25);
             translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d + 1.5, h = 8);
-            translate([mpu_screw_x_2, mpu_screw_y, 4])    cylinder(r = screw_head_d + 1.5, h = 25);
+            translate([mpu_screw_x_2, mpu_screw_y, 7])    cylinder(r = screw_head_d + 1.5, h = 25);
         }
     }
 
     translate([esp32_screw_x, esp32_screw_y_1, 4]) cylinder(r = screw_head_d, h = 9);
     translate([esp32_screw_x, esp32_screw_y_2, 9])  cylinder(r = screw_head_d, h = 4);
-    translate([mpu_screw_x_2, mpu_screw_y, 4])    cylinder(r = screw_head_d, h = 9);
+    translate([mpu_screw_x_2, mpu_screw_y, 7])    cylinder(r = screw_head_d, h = 9);
 }
 
 
@@ -132,14 +143,25 @@ module screw_reinforcements() {
 
 // Base
 if (render_mode == "base" || render_mode == "both") {
-    color("blue") difference() {
-        intersection() {
-            raw_uncut_case();
-            // Bounding block to isolate the lower part
-            translate([-case_length/2 - 5, -case_width/2 - 5, -case_height])
-                cube([case_length + 10, case_width + 10, case_height + strap_thickness + 1]);
+    union() {
+        difference() {
+            intersection() {
+                raw_uncut_case();
+                // Bounding block to isolate the lower part
+                translate([-case_length/2 - 5, -case_width/2 - 5, -case_height])
+                    cube([case_length + 10, case_width + 10, case_height + strap_thickness + 1]);
+            }
+            standard_hole_cuts();
         }
-        standard_hole_cuts();
+
+        /* Disabled for now, can't print it upside down + diameter too small
+            // Pole
+            // ESP32 Side
+            translate([-case_length/2 + 15, 9, 0]) cylinder(r = pole_d, h = pole_h);
+            translate([-case_length/2 + 15, -9, 0]) cylinder(r = pole_d, h = pole_h);
+            // MPU
+            translate([case_length/2 - 3.5, 0, 0]) cylinder(r = pole_d, h = pole_h);
+        */
     }
 }
 
@@ -162,7 +184,7 @@ if (render_mode == "cap" || render_mode == "both") {
         standard_hole_cuts();
 
         // USB-C Slot
-        translate([-case_length/2 + 2.5, -strap_width/2 - 1, 8])
-            cube([20, strap_width + 2, strap_thickness * 2]);
+        translate([-case_length/2 + 0, -strap_width/2 - 2, 3])
+            cube([20, strap_width + 4, strap_thickness * 2 + 2]);
     }
 }
