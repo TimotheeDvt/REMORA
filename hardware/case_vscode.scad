@@ -10,7 +10,7 @@ wall_thickness  = 0.06;
 strap_width     = 7;        // Width of the strap
 strap_thickness = 2.2;        // Thickness of the strap
 screw_d         = 1.5;      // Diameter of the screw holes
-screw_head_d    = screw_d * 2;
+screw_head_d    = screw_d * 2 + 0.5;
 // pole_d          = 1;
 // pole_h          = 6;
 
@@ -110,6 +110,10 @@ module standard_hole_cuts() {
     translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d, h = 8);
     translate([mpu_screw_x_2, mpu_screw_y, 16])    cylinder(r = screw_head_d, h = 9);
 
+    // button
+    translate([-case_length/4 + 6, 0, 16])    cylinder(r = screw_head_d, h = 15);
+    translate([-23, 0, 13]) scale([case_length/2, case_width/2, case_height]) sphere(r = 0.5);
+
     /* Disabled for now, can't print it upside down + diameter too small
         // Pole
         // ESP32 Side
@@ -127,13 +131,13 @@ module screw_reinforcements() {
         }
 
         union() {
-            translate([esp32_screw_x, esp32_screw_y_1, 4]) cylinder(r = screw_head_d + 1.5, h = 25);
+            translate([esp32_screw_x, esp32_screw_y_1, 13]) cylinder(r = screw_head_d + 1.5, h = 25);
             translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d + 1.5, h = 8);
             translate([mpu_screw_x_2, mpu_screw_y, 7])    cylinder(r = screw_head_d + 1.5, h = 25);
         }
     }
 
-    translate([esp32_screw_x, esp32_screw_y_1, 4]) cylinder(r = screw_head_d, h = 9);
+    translate([esp32_screw_x, esp32_screw_y_1, 9]) cylinder(r = screw_head_d, h = 4);
     translate([esp32_screw_x, esp32_screw_y_2, 9])  cylinder(r = screw_head_d, h = 4);
     translate([mpu_screw_x_2, mpu_screw_y, 7])    cylinder(r = screw_head_d, h = 9);
 }
