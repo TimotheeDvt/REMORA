@@ -74,7 +74,7 @@ module raw_uncut_case() {
 }
 
 // HOLES MODULE
-module standard_hole_cuts() {
+module standard_hole_cuts(draw_button_shere = false) {
     // Staff
     rotate([0, 90, 0]) {
         translate([20, 0, -case_length/2 - 15]) {
@@ -112,7 +112,7 @@ module standard_hole_cuts() {
 
     // button
     translate([-case_length/4 + 6, 0, 16])    cylinder(r = screw_head_d, h = 15);
-    translate([-23, 0, 13]) scale([case_length/2, case_width/2, case_height]) sphere(r = 0.5);
+    if(draw_button_shere) translate([-23, 0, 13]) scale([case_length/2, case_width/2, case_height]) sphere(r = 0.5);
 
     /* Disabled for now, can't print it upside down + diameter too small
         // Pole
@@ -185,7 +185,7 @@ if (render_mode == "cap" || render_mode == "both") {
             screw_reinforcements();
         }
 
-        standard_hole_cuts();
+        standard_hole_cuts(true);
 
         // USB-C Slot
         translate([-case_length/2 + 0, -strap_width/2 - 2, 3])
