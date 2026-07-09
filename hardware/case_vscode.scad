@@ -10,7 +10,7 @@ wall_thickness  = 0.06;
 strap_width     = 7;        // Width of the strap
 strap_thickness = 2.2;        // Thickness of the strap
 screw_d         = 1.5;      // Diameter of the screw holes
-screw_head_d    = screw_d * 2 + 0.5;
+screw_head_d    = screw_d * 2 + 1;
 // pole_d          = 1;
 // pole_h          = 6;
 
@@ -99,7 +99,7 @@ module standard_hole_cuts(draw_button_shere = false) {
     translate([esp32_screw_x, esp32_screw_y_1, -5]) cylinder(r = screw_d, h = 30);
     translate([esp32_screw_x, esp32_screw_y_2, -5])  cylinder(r = screw_d, h = 30);
     // MPU
-    translate([mpu_screw_x_1, mpu_screw_y, -5])    cylinder(r = screw_d, h = 10);
+    translate([mpu_screw_x_1, mpu_screw_y, -5])    cylinder(r = screw_d, h = 20);
     translate([mpu_screw_x_2, mpu_screw_y, -5])    cylinder(r = screw_d, h = 30);
     // Battery
     translate([battery_screw_x[0], battery_screw_y[0], -5])     cylinder(r = screw_d, h = 20);
@@ -108,7 +108,7 @@ module standard_hole_cuts(draw_button_shere = false) {
 
     translate([esp32_screw_x, esp32_screw_y_1, 13]) cylinder(r = screw_head_d, h = 9);
     translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d, h = 8);
-    translate([mpu_screw_x_2, mpu_screw_y, 16])    cylinder(r = screw_head_d, h = 9);
+    translate([mpu_screw_x_2, mpu_screw_y, 13])    cylinder(r = screw_head_d, h = 100);
 
     // button
     translate([-case_length/4 + 6, 0, 16])    cylinder(r = screw_head_d, h = 15);
@@ -139,7 +139,7 @@ module screw_reinforcements() {
 
     translate([esp32_screw_x, esp32_screw_y_1, 9]) cylinder(r = screw_head_d, h = 4);
     translate([esp32_screw_x, esp32_screw_y_2, 9])  cylinder(r = screw_head_d, h = 4);
-    translate([mpu_screw_x_2, mpu_screw_y, 7])    cylinder(r = screw_head_d, h = 9);
+    translate([mpu_screw_x_2, mpu_screw_y,7])    cylinder(r = screw_head_d, h = 4);
 }
 
 
@@ -188,7 +188,7 @@ if (render_mode == "cap" || render_mode == "both") {
         standard_hole_cuts(true);
 
         // USB-C Slot
-        translate([-case_length/2 + 0, -strap_width/2 - 2, 3])
-            cube([20, strap_width + 4, strap_thickness * 2 + 2]);
+        translate([-case_length/2 + 0, -strap_width/2 - 3.5, 3])
+            cube([20, strap_width + 7, strap_thickness * 2 + 2]);
     }
 }
