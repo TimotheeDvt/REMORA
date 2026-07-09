@@ -88,7 +88,7 @@ module standard_hole_cuts(draw_button_shere = false) {
     translate([strap_offset_x, -case_width/2, case_height/2])
         cube([strap_width, case_width, strap_thickness]);
 
-    translate([-strap_offset_x, -case_width/2, case_height/2])
+    translate([-case_length/4 + 6, -case_width/2, case_height/2])
         cube([strap_width, case_width, strap_thickness]);
 
     translate([-strap_width/2, -case_width/2, case_height/3*2])
@@ -111,8 +111,23 @@ module standard_hole_cuts(draw_button_shere = false) {
     translate([mpu_screw_x_2, mpu_screw_y, 13])    cylinder(r = screw_head_d, h = 100);
 
     // button
-    translate([-case_length/4 + 6, 0, 16])    cylinder(r = screw_head_d, h = 15);
-    if(draw_button_shere) translate([-23, 0, 13]) scale([case_length/2, case_width/2, case_height]) sphere(r = 0.5);
+    translate([-case_length/4 + 10, 0, 16])    cylinder(r = screw_head_d, h = 15);
+
+    color("red") translate([-case_length/4 + 10 - 22.5, -8, 14]) {
+        difference() {
+            intersection() {
+                // main block
+                cube([45, 16, 13]);
+
+                // curve (creates a subtle dome/arc across the top)
+                translate([22.5, 8, -178]) sphere(r = 190);
+            }
+            translate([22.5, 8, 11.5]) cylinder(r = 4.5, h = 2.5);
+        }
+
+        translate([22.5, 8, 11.5]) cylinder(r = 4.25, h = 0.5);
+        translate([22.5, 8, 12]) cylinder(r = 2.25, h = 2.5);
+    }
 
     /* Disabled for now, can't print it upside down + diameter too small
         // Pole
@@ -183,6 +198,10 @@ if (render_mode == "cap" || render_mode == "both") {
                     cube([case_length + 10, case_width + 10, case_height]);
             }
             screw_reinforcements();
+            union() {
+                translate([-case_length/4 + 10 - 24, -5, 25.8]) cube([50, 10, 1]);
+                translate([-case_length/4 + 10 - 24, -5, 17]) cube([1, 10, 10]);
+            }
         }
 
         standard_hole_cuts(true);
