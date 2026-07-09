@@ -17,6 +17,8 @@ private:
     NIMEReceiverProcessor& processor;
 
     juce::ComboBox mappingCombo;
+    juce::TextButton prevMapButton;
+    juce::TextButton nextMapButton;
     juce::Slider globalVolumeSlider;
     juce::Label globalVolumeLabel;
     juce::Label rootNoteLabel;

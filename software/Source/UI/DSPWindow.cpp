@@ -14,7 +14,8 @@ DSPComponent::DSPComponent(NIMEReceiverProcessor& p)
     mappingCombo.setColour(juce::ComboBox::outlineColourId, Palette::border);
     mappingCombo.setColour(juce::ComboBox::arrowColourId, Palette::textMid);
 
-    for (int i = 0; i < processor.getSynth().getMappingCount(); ++i) {
+    const int mappingCount = processor.getSynth().getMappingCount();
+    for (int i = 0; i < mappingCount; ++i) {
         const char* name = processor.getSynth().getMappingName(i);
         if (name != nullptr)
             mappingCombo.addItem(name, i + 1);
@@ -26,6 +27,27 @@ DSPComponent::DSPComponent(NIMEReceiverProcessor& p)
         debug.print.cyan("Mapping strategy changed to:", processor.getSynth().getMappingName(newStrategyIndex));
     };
     addAndMakeVisible(mappingCombo);
+
+    prevMapButton.setButtonText("<");
+    prevMapButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
+    prevMapButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
+    prevMapButton.onClick = [this, mappingCount] {
+        int newStrategyIndex = (mappingCombo.getSelectedId() - 2 + mappingCount) % mappingCount;
+        debug.print.cyan(newStrategyIndex);
+        processor.setMappingStrategy(newStrategyIndex);
+        mappingCombo.setSelectedItemIndex(newStrategyIndex);
+    };
+    addAndMakeVisible(prevMapButton);
+
+    nextMapButton.setButtonText(">");
+    nextMapButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
+    nextMapButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
+    nextMapButton.onClick = [this, mappingCount] {
+        int newStrategyIndex = (mappingCombo.getSelectedId()) % mappingCount;
+        processor.setMappingStrategy(newStrategyIndex);
+        mappingCombo.setSelectedItemIndex(newStrategyIndex);
+    };
+    addAndMakeVisible(nextMapButton);
 
     globalVolumeSlider.setSliderStyle(juce::Slider::LinearHorizontal);
     globalVolumeSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 20);
@@ -109,7 +131,7 @@ void DSPComponent::paint(juce::Graphics& g) {
     if (maxHz > 0.0f) {
         float lpfHz = processor.getSynth().getCurrentLpfCutoff();
         float lpfX = juce::jmap(lpfHz, 0.0f, maxHz, (float)scopeBounds.getX(), (float)scopeBounds.getRight());
-        
+
         g.setColour(Palette::yellow.withAlpha(0.8f));
         g.drawVerticalLine(static_cast<int>(lpfX), static_cast<float>(scopeBounds.getY()), static_cast<float>(scopeBounds.getBottom()));
         g.setFont(12.0f);
@@ -121,8 +143,10 @@ void DSPComponent::resized() {
     auto bounds = getLocalBounds().reduced(10);
     auto row = bounds.removeFromTop(24);
 
-    mappingCombo.setBounds(row.removeFromLeft(150));
-    row.removeFromLeft(10);
+    mappingCombo.setBounds(row.removeFromLeft(100));
+    row.removeFromLeft(5);
+    prevMapButton.setBounds(row.removeFromLeft(25));
+    nextMapButton.setBounds(row.removeFromLeft(25));
     globalVolumeLabel.setBounds(row.removeFromLeft(100));
     row.removeFromLeft(5);
     globalVolumeSlider.setBounds(row.removeFromLeft(200));
