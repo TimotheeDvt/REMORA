@@ -10,7 +10,7 @@ const char *WIFI_SSID = "MUSIC-TIM";
 const char *WIFI_PASSWORD = "***REMOVED***";
 
 WiFiUDP Udp;
-const IPAddress outIp(10, 42, 0, 255);
+const IPAddress outIp(10, 42, 0, 1);
 const uint16_t outPort = 8000;
 const uint16_t localPort = 8888;
 
