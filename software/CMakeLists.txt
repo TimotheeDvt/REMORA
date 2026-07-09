@@ -29,7 +29,9 @@ target_compile_definitions(NIMEReceiver PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
 )
 
+target_link_options(NIMEReceiver PRIVATE -fuse-ld=mold)
+
 target_link_libraries(NIMEReceiver
     PRIVATE NIMEReceiverData juce::juce_audio_utils juce::juce_osc juce::juce_dsp
-    PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags
+    PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags
 )

@@ -8,7 +8,7 @@ configure:
 
 # Compiles the project using the generated build files
 build:
-	cmake --build build --config Release
+	cmake --build build --config Release -j4
 
 # Cleans the build directory
 clean:
