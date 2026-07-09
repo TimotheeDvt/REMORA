@@ -156,18 +156,18 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   debug.addChangeListener(this);
 
   // Auto-open all auxiliary windows on launch
-  if (!rawDataWindow) {
-    showDataButton.onClick();
-    if (!processor.rawDataBounds.isEmpty()) rawDataWindow->setBounds(processor.rawDataBounds);
-  }
-  if (!dspWindow) {
-    dspButton.onClick();
-    if (!processor.dspBounds.isEmpty()) dspWindow->setBounds(processor.dspBounds);
-  }
-  if (!debug.isWindowOpen()) {
-    debug.show();
-    if (!processor.debugBounds.isEmpty()) debug.setBounds(processor.debugBounds);
-  }
+  // if (!rawDataWindow) {
+  //   showDataButton.onClick();
+  //   if (!processor.rawDataBounds.isEmpty()) rawDataWindow->setBounds(processor.rawDataBounds);
+  // }
+  // if (!dspWindow) {
+  //   dspButton.onClick();
+  //   if (!processor.dspBounds.isEmpty()) dspWindow->setBounds(processor.dspBounds);
+  // }
+  // if (!debug.isWindowOpen()) {
+  //   debug.show();
+  //   if (!processor.debugBounds.isEmpty()) debug.setBounds(processor.debugBounds);
+  // }
 }
 
 void NIMEReceiverEditor::saveWindowBoundsToProcessor() {
