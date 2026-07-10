@@ -13,6 +13,3 @@ build:
 # Cleans the build directory
 clean:
 	rm -rf build
-
-
-# test
