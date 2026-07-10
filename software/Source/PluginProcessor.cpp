@@ -253,6 +253,9 @@ void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     params.ax = snap.ax;
     params.ay = snap.ay;
     params.az = snap.az;
+    params.mx = snap.mx;
+    params.my = snap.my;
+    params.mz = snap.mz;
   }
 
   synth.processBlock(buffer, params);
