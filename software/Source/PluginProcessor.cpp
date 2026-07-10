@@ -58,26 +58,24 @@ void NIMEReceiverProcessor::recordPoseC() {
   calibState.store((int)CalibState::Done);
 }
 
-static MathHelpers::Quat computeAlignQuat(MathHelpers::Quat qA,
-                                          MathHelpers::Quat qB,
-                                          MathHelpers::Quat qC) {
-  MathHelpers::Vec3 bestL{1.f, 0.f, 0.f};
-  float minError = 1e9f;
-
-  MathHelpers::Vec3 candidates[6] = {{1.f, 0.f, 0.f}, {-1.f, 0.f, 0.f},
-                                     {0.f, 1.f, 0.f}, {0.f, -1.f, 0.f},
-                                     {0.f, 0.f, 1.f}, {0.f, 0.f, -1.f}};
+static MathHelpers::Quat computeAlignQuat(MathHelpers::Quat qA, MathHelpers::Quat qB, MathHelpers::Quat qC) {
+  MathHelpers::Vec3 candidates[6] = {{1.f, 0.f, 0.f},  {-1.f, 0.f, 0.f},
+                                     {0.f, 1.f, 0.f},  {0.f, -1.f, 0.f},
+                                     {0.f, 0.f, 1.f},  {0.f, 0.f, -1.f}};
 
   auto dot = [](MathHelpers::Vec3 a, MathHelpers::Vec3 b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
   };
   auto abs_f = [](float x) { return x < 0.f ? -x : x; };
 
-  for (auto L : candidates) {
+  int bestIndex = 0; // default: +X
+  float minError = 1e9f;
+
+  for (int i = 0; i < 6; ++i) {
+    const auto &L = candidates[i];
     auto vA = MathHelpers::normalize(MathHelpers::rotate(L, qA));
     auto vB = MathHelpers::normalize(MathHelpers::rotate(L, qB));
     auto vC = MathHelpers::normalize(MathHelpers::rotate(L, qC));
-
     float err = abs_f(dot(vA, vB)) + abs_f(dot(vB, vC)) + abs_f(dot(vC, vA));
     float handedness = dot(MathHelpers::cross(vA, vB), vC);
 
@@ -85,24 +83,20 @@ static MathHelpers::Quat computeAlignQuat(MathHelpers::Quat qA,
     if (handedness < 0.f) {
       if (err < minError) {
         minError = err;
-        bestL = L;
+        bestIndex = i;
       }
     }
   }
 
-  if (bestL.x == 1.f)
-    return {1.f, 0.f, 0.f, 0.f};
-  if (bestL.x == -1.f)
-    return {0.f, 0.f, 1.f, 0.f};
-  if (bestL.y == 1.f)
-    return {0.70710678f, 0.f, 0.f, 0.70710678f};
-  if (bestL.y == -1.f)
-    return {0.70710678f, 0.f, 0.f, -0.70710678f};
-  if (bestL.z == 1.f)
-    return {0.70710678f, 0.f, -0.70710678f, 0.f};
-  if (bestL.z == -1.f)
-    return {0.70710678f, 0.f, 0.70710678f, 0.f};
-  return {1.f, 0.f, 0.f, 0.f};
+  switch (bestIndex) {
+    case 0: return {1.f, 0.f, 0.f, 0.f};                       // +X
+    case 1: return {0.f, 0.f, 1.f, 0.f};                       // -X
+    case 2: return {0.70710678f, 0.f, 0.f, 0.70710678f};       // +Y
+    case 3: return {0.70710678f, 0.f, 0.f, -0.70710678f};      // -Y
+    case 4: return {0.70710678f, 0.f, -0.70710678f, 0.f};      // +Z
+    case 5: return {0.70710678f, 0.f, 0.70710678f, 0.f};       // -Z
+    default: return {1.f, 0.f, 0.f, 0.f};
+  }
 }
 
 void NIMEReceiverProcessor::computeCorrection() {
