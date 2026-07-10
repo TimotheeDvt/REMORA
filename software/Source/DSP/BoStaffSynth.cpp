@@ -86,7 +86,7 @@ int BoStaffSynth::getMappingStrategy() const noexcept {
 
 const char* BoStaffSynth::getMappingName(int index) const {
     if (index >= 0 && index < static_cast<int>(mappings.size()))
-        return mappings[index]->getName();
+        return mappings[static_cast<size_t>(index)]->getName();
     return nullptr;
 }
 
@@ -128,7 +128,7 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
 
     int activeIndex = activeMappingIndex.load();
     if (activeIndex >= 0 && activeIndex < static_cast<int>(mappings.size())) {
-        mappings[activeIndex]->process(params, mappingOut);
+        mappings[static_cast<size_t>(activeIndex)]->process(params, mappingOut);
     }
 
     rootFreq.setTargetValue(mappingOut.rootHz);

@@ -220,7 +220,8 @@ void BozendoMapping::updateSpinClassification(float axis_x, float axis_y, float 
         rotation_spin_direction_ = (smoothed_rotation_axis_z_ >= 0.f) ? 1.f : -1.f;
     }
 
-    if (is_rotation_axis_vertical_ != was_rotation_axis_vertical_ || rotation_spin_direction_ != previous_rotation_spin_direction_) {
+    constexpr float kEps = 1e-6f;
+    if (is_rotation_axis_vertical_ != was_rotation_axis_vertical_ || std::abs(rotation_spin_direction_ - previous_rotation_spin_direction_) > kEps) {
         was_rotation_axis_vertical_ = is_rotation_axis_vertical_;
         previous_rotation_spin_direction_ = rotation_spin_direction_;
         debug.print.cyan(

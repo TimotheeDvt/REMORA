@@ -72,6 +72,7 @@ public:
   // Standard AudioProcessor overrides
   void prepareToPlay(double sampleRate, int samplesPerBlock) override;
   void releaseResources() override {}
+  using juce::AudioProcessor::processBlock;
   void processBlock(juce::AudioBuffer<float> &buffer,
                     juce::MidiBuffer &midiMessages) override;
 
