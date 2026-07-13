@@ -235,9 +235,12 @@ bool AzimutMapping::updateSpinClassification(float axis_x, float axis_y, float a
 }
 
 float AzimutMapping::calculateTiltCompensatedAzimuthDegrees(const StaffSoundParams& input_parameters) {
-    const float ax = input_parameters.ax;
-    const float ay = input_parameters.ay;
-    const float az = input_parameters.az;
+    // Use the filtered gravity estimate rather than the raw accelerometer: while spinning
+    // (the only time this is called), ax/ay/az are dominated by centripetal/dynamic
+    // acceleration, not gravity, which corrupts the roll/pitch tilt estimate below.
+    const float ax = gravity_x_;
+    const float ay = gravity_y_;
+    const float az = gravity_z_;
 
     const float roll  = std::atan2(ay, az);
     const float pitch  = std::atan2(-ax, ay * std::sin(roll) + az * std::cos(roll));
@@ -246,10 +249,13 @@ float AzimutMapping::calculateTiltCompensatedAzimuthDegrees(const StaffSoundPara
     const float my = input_parameters.my - kMagOffsetY;
     const float mz = input_parameters.mz - kMagOffsetZ;
 
-    const float mx_comp = mx * std::cos(pitch) + mz * std::sin(pitch);
-    const float my_comp = mx * std::sin(roll) * std::sin(pitch)
-                         + my * std::cos(roll)
-                         - mz * std::sin(roll) * std::cos(pitch);
+    // Standard tilt-compensated compass projection (Freescale/NXP AN4248 eq. 22-23):
+    // Xh = Mx*cos(theta) + My*sin(phi)*sin(theta) + Mz*cos(phi)*sin(theta)
+    // Yh = My*cos(phi) - Mz*sin(phi)
+    const float mx_comp = mx * std::cos(pitch)
+                        + my * std::sin(roll) * std::sin(pitch)
+                        + mz * std::cos(roll) * std::sin(pitch);
+    const float my_comp = my * std::cos(roll) - mz * std::sin(roll);
 
     float azimuth_degrees = std::atan2(my_comp, mx_comp) * (180.0f / juce::MathConstants<float>::pi);
     if (azimuth_degrees < 0.f) {
@@ -268,7 +274,22 @@ int AzimutMapping::classifyAzimuthSector(float azimuth_degrees) {
         return current_azimuth_sector_;
     }
 
-    float distance_past_boundary = azimuth_degrees - boundaries[current_azimuth_sector_];
+    // boundaries[current_azimuth_sector_] is only the correct edge when moving forward
+    // into the next sector. Moving backward into the previous sector crosses the OTHER
+    // edge of the current sector (90 degrees away), so pick whichever boundary is
+    // actually adjacent to the transition instead of always using the "forward" one.
+    float relevant_boundary;
+    if (raw_sector == (current_azimuth_sector_ + 1) % 4) {
+        relevant_boundary = boundaries[current_azimuth_sector_];
+    } else if (raw_sector == (current_azimuth_sector_ + 3) % 4) {
+        relevant_boundary = boundaries[(current_azimuth_sector_ + 3) % 4];
+    } else {
+        // Jumped more than one sector in a single update; hysteresis is not meaningful here.
+        current_azimuth_sector_ = raw_sector;
+        return current_azimuth_sector_;
+    }
+
+    float distance_past_boundary = azimuth_degrees - relevant_boundary;
     while (distance_past_boundary > 180.f)  distance_past_boundary -= 360.f;
     while (distance_past_boundary < -180.f) distance_past_boundary += 360.f;
 
