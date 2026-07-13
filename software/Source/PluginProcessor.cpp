@@ -10,9 +10,9 @@ NIMEReceiverProcessor::NIMEReceiverProcessor()
   // Automatically attempt to connect to port 8000 on startup
   startOSCReceiver(8000);
 
-  // Make Bozendo the default mapping on launch
+  // Make Azimut the default mapping on launch
   for (int i = 0; i < synth.getMappingCount(); ++i) {
-    if (juce::String(synth.getMappingName(i)).containsIgnoreCase("Bozendo 2")) {
+    if (juce::String(synth.getMappingName(i)).containsIgnoreCase("Azimut")) {
       setMappingStrategy(i);
       break;
     }
