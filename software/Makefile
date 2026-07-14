@@ -1,6 +1,6 @@
 .PHONY: all configure build clean
 
-all: clean configure build
+all: configure build
 
 # Generates the Visual Studio / MSVC build files
 configure:
