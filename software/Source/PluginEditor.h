@@ -53,7 +53,6 @@ private:
   std::unique_ptr<DSPWindow> dspWindow;
 
   juce::TextButton calibrateButton;
-  juce::Label calibHintLabel;
 
   BoStaffVisualizer boStaffVisualizer;
   CalibrationOverlay calibrationOverlay;
