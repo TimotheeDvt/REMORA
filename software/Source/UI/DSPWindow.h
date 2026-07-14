@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SpectrumAnalyserThread.h"
 #include <JuceHeader.h>
 
 class NIMEReceiverProcessor;
@@ -23,9 +24,8 @@ private:
     juce::Label globalVolumeLabel;
     juce::Label rootNoteLabel;
 
-    juce::dsp::FFT forwardFFT;
-    juce::dsp::WindowingFunction<float> window;
-    std::array<float, 2048 * 2> fftData {};
+    SpectrumAnalyserThread spectrumAnalyser;
+    std::array<float, SpectrumAnalyserThread::numBins> spectrumDb {};
     juce::Path spectrumPath;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DSPComponent)

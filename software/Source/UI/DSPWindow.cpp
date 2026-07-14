@@ -6,8 +6,7 @@
 
 DSPComponent::DSPComponent(NIMEReceiverProcessor& p)
     : processor(p),
-      forwardFFT(BoStaffSynth::fftOrder),
-      window(BoStaffSynth::fftSize, juce::dsp::WindowingFunction<float>::hann)
+      spectrumAnalyser(p.getSynth())
 {
     mappingCombo.setColour(juce::ComboBox::backgroundColourId, Palette::panel);
     mappingCombo.setColour(juce::ComboBox::textColourId, Palette::textHi);
@@ -82,26 +81,16 @@ DSPComponent::~DSPComponent() {
 void DSPComponent::timerCallback() {
     auto& synth = processor.getSynth();
 
-    if (synth.nextFFTBlockReady.load()) {
-        std::copy(synth.fftData.begin(), synth.fftData.begin() + BoStaffSynth::fftSize, fftData.begin());
-        std::fill(fftData.begin() + BoStaffSynth::fftSize, fftData.end(), 0.0f);
-        synth.nextFFTBlockReady.store(false);
-
-        window.multiplyWithWindowingTable(fftData.data(), BoStaffSynth::fftSize);
-        forwardFFT.performFrequencyOnlyForwardTransform(fftData.data());
-
+    if (spectrumAnalyser.getLatestMagnitudesDb(spectrumDb)) {
         auto scopeBounds = getLocalBounds().withTrimmedTop(40).reduced(10).toFloat();
         spectrumPath.clear();
 
-        const float minDB = -100.0f;
-        const float maxDB = 0.0f;
+        constexpr float minDB = -100.0f;
+        constexpr float maxDB = 0.0f;
 
-        for (size_t i = 0; i < static_cast<size_t>(BoStaffSynth::fftSize / 2); ++i) {
-            float level = juce::Decibels::gainToDecibels(fftData[i]) - juce::Decibels::gainToDecibels((float)BoStaffSynth::fftSize);
-            level = juce::jlimit(minDB, maxDB, level);
-
-            float x = juce::jmap((float)i, 0.0f, (float)(BoStaffSynth::fftSize / 2), scopeBounds.getX(), scopeBounds.getRight());
-            float y = juce::jmap(level, minDB, maxDB, scopeBounds.getBottom(), scopeBounds.getY());
+        for (size_t i = 0; i < spectrumDb.size(); ++i) {
+            float x = juce::jmap((float)i, 0.0f, (float)spectrumDb.size(), scopeBounds.getX(), scopeBounds.getRight());
+            float y = juce::jmap(spectrumDb[i], minDB, maxDB, scopeBounds.getBottom(), scopeBounds.getY());
 
             if (i == 0) spectrumPath.startNewSubPath(x, y);
             else spectrumPath.lineTo(x, y);

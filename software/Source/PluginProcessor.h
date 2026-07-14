@@ -10,6 +10,20 @@
 #include <atomic>
 #include <vector>
 
+// Threading model:
+//  - OSC reception:   OscReceiverManager listens with RealtimeCallback, so
+//                      oscMessageReceived() runs on JUCE's dedicated OSC
+//                      network thread, never the message or audio thread.
+//  - Sound processing: processBlock() runs on the host's real-time audio
+//                      thread, as usual for an AudioProcessor.
+//  - GUI:              PluginEditor and its sub-windows run on the JUCE
+//                      message thread; the spectrum analyser FFT they used
+//                      to run inline has been moved to SpectrumAnalyserThread
+//                      (see UI/SpectrumAnalyserThread.h) so it doesn't
+//                      compete with GUI painting/event handling.
+// All cross-thread data (IMU samples, orientation history, calibration
+// quaternions) is passed via atomics/seqlocks rather than locks so none of
+// these threads ever block each other.
 class NIMEReceiverProcessor : public juce::AudioProcessor, private juce::Timer {
 public:
   NIMEReceiverProcessor();
