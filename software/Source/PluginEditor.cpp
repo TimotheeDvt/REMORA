@@ -15,7 +15,7 @@ REMORAEditor::REMORAEditor(REMORAProcessor &p)
 
   // Title
   styleLabel(titleLabel,
-             "REMORA - Real-time Expressive Motion-to-Output Routing Audio",
+             "REMORA - Real-time Expressive Motion to Output Routing Audio",
              13.f, Palette::textMid, juce::Justification::centredLeft);
   addAndMakeVisible(titleLabel);
 

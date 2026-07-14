@@ -1,5 +1,5 @@
 # REMORA Plugin
-### Real-time Expressive Motion-to-Output Routing Audio
+### Real-time Expressive Motion to Output Routing Audio
 
 A real-time, dynamic **JUCE-based audio plugin** (VST3 and Standalone) engineered to receive incoming multi-sensor IMU data via **Open Sound Control (OSC)**. The software serves as a modular audio mapping engine, converting spatial movements and hardware interactions into complex sound synthesis.
 
