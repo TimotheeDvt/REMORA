@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "UI/BoStaffVisualizer.h"
+#include "UI/CalibrationOverlay.h"
 #include "UI/RawDataWindow.h"
 #include "UI/DSPWindow.h"
 #include <JuceHeader.h>
@@ -24,6 +25,8 @@ private:
   void refreshMainStats();
   void toggleConnection();
   void updateConnectionUI();
+  void onCalibrateClicked();
+  void updateCalibrationVisibility();
 
   NIMEReceiverProcessor &processor;
 
@@ -53,6 +56,7 @@ private:
   juce::Label calibHintLabel;
 
   BoStaffVisualizer boStaffVisualizer;
+  CalibrationOverlay calibrationOverlay;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverEditor)
 };

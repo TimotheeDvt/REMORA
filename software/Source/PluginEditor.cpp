@@ -94,43 +94,17 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   calibrateButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
   calibrateButton.setColour(juce::TextButton::textColourOffId,
                             Palette::textMid);
-  calibrateButton.onClick = [this] {
-    auto state = (NIMEReceiverProcessor::CalibState)processor.getCalibState();
-    if (state == NIMEReceiverProcessor::CalibState::Idle ||
-        state == NIMEReceiverProcessor::CalibState::Done) {
-      processor.startCalibration();
-      debug.print.yellow("Calibration started: Waiting for Pose A");
-      calibrateButton.setButtonText("POSE A ->");
-      calibHintLabel.setText(
-          "Hold staff HORIZONTAL pointing FORWARD, then click",
-          juce::dontSendNotification);
-      calibHintLabel.setColour(juce::Label::textColourId, Palette::yellow);
-    } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseA) {
-      processor.recordPoseA();
-      debug.print.yellow("Recorded Pose A. Waiting for Pose B");
-      calibrateButton.setButtonText("POSE B ->");
-      calibHintLabel.setText("Hold staff VERTICAL pointing UP, then click",
-                             juce::dontSendNotification);
-    } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseB) {
-      processor.recordPoseB();
-      debug.print.yellow("Recorded Pose B. Waiting for Pose C");
-      calibrateButton.setButtonText("POSE C ->");
-      calibHintLabel.setText("Hold staff HORIZONTAL pointing RIGHT, then click",
-                             juce::dontSendNotification);
-    } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseC) {
-      processor.recordPoseC();
-      debug.print.green("Recorded Pose C. Calibration complete.");
-      calibrateButton.setButtonText("CALIBRATE");
-      calibHintLabel.setText("Calibration complete.",
-                             juce::dontSendNotification);
-      calibHintLabel.setColour(juce::Label::textColourId, Palette::green);
-    }
-  };
+  calibrateButton.onClick = [this] { onCalibrateClicked(); };
   addAndMakeVisible(calibrateButton);
 
   styleLabel(calibHintLabel, "", 10.f, Palette::textLo,
              juce::Justification::centredLeft);
   addAndMakeVisible(calibHintLabel);
+
+  calibrationOverlay.onClicked = [this] { onCalibrateClicked(); };
+  calibrationOverlay.setStepText("CALIBRATION REQUIRED",
+                                 "Click to begin calibration", Palette::yellow);
+  addAndMakeVisible(calibrationOverlay);
 
   // Status dot (repurposed Label as a coloured dot)
   statusDot.setOpaque(false);
@@ -154,6 +128,10 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   updateConnectionUI();
 
   debug.addChangeListener(this);
+
+  // Show the big calibration overlay in place of the staff view until
+  // calibration has been completed at least once for this session.
+  updateCalibrationVisibility();
 
   // Auto-open all auxiliary windows on launch
   // if (!rawDataWindow) {
@@ -273,9 +251,12 @@ void NIMEReceiverEditor::resized() {
   layoutRow(currentY, {&calibHintLabel});
   currentY += itemH + padding;
 
-  // Visualizer gets the 2/3 space
-  boStaffVisualizer.setBounds(padding, topSpace, w - 2 * padding,
-                              visualizerH - padding);
+  // Bottom 2/3 space: the staff visualizer once calibrated, or the big
+  // calibration overlay until then.
+  const juce::Rectangle<int> bottomArea(padding, topSpace, w - 2 * padding,
+                                        visualizerH - padding);
+  boStaffVisualizer.setBounds(bottomArea);
+  calibrationOverlay.setBounds(bottomArea);
 }
 
 void NIMEReceiverEditor::changeListenerCallback(
@@ -374,4 +355,53 @@ void NIMEReceiverEditor::updateConnectionUI() {
     connectButton.setColour(juce::TextButton::buttonColourId,
                             Palette::accentDim);
   }
+}
+
+void NIMEReceiverEditor::onCalibrateClicked() {
+  auto state = (NIMEReceiverProcessor::CalibState)processor.getCalibState();
+
+  juce::String buttonText;
+  juce::String hintText;
+  juce::Colour hintColour = Palette::yellow;
+
+  if (state == NIMEReceiverProcessor::CalibState::Idle ||
+      state == NIMEReceiverProcessor::CalibState::Done) {
+    processor.startCalibration();
+    debug.print.yellow("Calibration started: Waiting for Pose A");
+    buttonText = "POSE A ->";
+    hintText = "Hold staff HORIZONTAL pointing FORWARD, then click";
+  } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseA) {
+    processor.recordPoseA();
+    debug.print.yellow("Recorded Pose A. Waiting for Pose B");
+    buttonText = "POSE B ->";
+    hintText = "Hold staff VERTICAL pointing UP, then click";
+  } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseB) {
+    processor.recordPoseB();
+    debug.print.yellow("Recorded Pose B. Waiting for Pose C");
+    buttonText = "POSE C ->";
+    hintText = "Hold staff HORIZONTAL pointing RIGHT, then click";
+  } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseC) {
+    processor.recordPoseC();
+    debug.print.green("Recorded Pose C. Calibration complete.");
+    buttonText = "CALIBRATE";
+    hintText = "Calibration complete.";
+    hintColour = Palette::green;
+  }
+
+  calibrateButton.setButtonText(buttonText);
+  calibHintLabel.setText(hintText, juce::dontSendNotification);
+  calibHintLabel.setColour(juce::Label::textColourId, hintColour);
+
+  calibrationOverlay.setStepText(buttonText, hintText, hintColour);
+
+  updateCalibrationVisibility();
+}
+
+void NIMEReceiverEditor::updateCalibrationVisibility() {
+  const bool calibrationDone =
+      (NIMEReceiverProcessor::CalibState)processor.getCalibState() ==
+      NIMEReceiverProcessor::CalibState::Done;
+
+  boStaffVisualizer.setVisible(calibrationDone);
+  calibrationOverlay.setVisible(!calibrationDone);
 }
