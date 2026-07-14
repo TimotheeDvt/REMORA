@@ -24,10 +24,10 @@
 // All cross-thread data (IMU samples, orientation history, calibration
 // quaternions) is passed via atomics/seqlocks rather than locks so none of
 // these threads ever block each other.
-class NIMEReceiverProcessor : public juce::AudioProcessor, private juce::Timer {
+class REMORAProcessor : public juce::AudioProcessor, private juce::Timer {
 public:
-  NIMEReceiverProcessor();
-  ~NIMEReceiverProcessor() override;
+  REMORAProcessor();
+  ~REMORAProcessor() override;
 
   // OSC control
   bool startOSCReceiver(int port) { return oscManager.startOSCReceiver(port); }
@@ -107,7 +107,7 @@ public:
   juce::AudioProcessorEditor *createEditor() override;
   bool hasEditor() const override { return true; }
 
-  const juce::String getName() const override { return "NIME OSC Receiver"; }
+  const juce::String getName() const override { return "REMORA"; }
   bool acceptsMidi() const override { return false; }
   bool producesMidi() const override { return false; }
   bool isMidiEffect() const override { return false; }
@@ -175,5 +175,5 @@ private:
 
   mutable std::vector<OrientationPoint> recentOrientationsScratch;
 
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverProcessor)
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(REMORAProcessor)
 };

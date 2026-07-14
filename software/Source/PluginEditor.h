@@ -7,12 +7,12 @@
 #include "UI/DSPWindow.h"
 #include <JuceHeader.h>
 
-class NIMEReceiverEditor : public juce::AudioProcessorEditor,
+class REMORAEditor : public juce::AudioProcessorEditor,
                            private juce::Timer,
                            private juce::ChangeListener {
 public:
-  explicit NIMEReceiverEditor(NIMEReceiverProcessor &);
-  ~NIMEReceiverEditor() override;
+  explicit REMORAEditor(REMORAProcessor &);
+  ~REMORAEditor() override;
 
   void paint(juce::Graphics &) override;
   void resized() override;
@@ -28,7 +28,7 @@ private:
   void onCalibrateClicked();
   void updateCalibrationVisibility();
 
-  NIMEReceiverProcessor &processor;
+  REMORAProcessor &processor;
 
   // Connection bar
   juce::Label titleLabel;
@@ -57,5 +57,5 @@ private:
   BoStaffVisualizer boStaffVisualizer;
   CalibrationOverlay calibrationOverlay;
 
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIMEReceiverEditor)
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(REMORAEditor)
 };

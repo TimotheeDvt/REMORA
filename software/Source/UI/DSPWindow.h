@@ -3,11 +3,11 @@
 #include "SpectrumAnalyserThread.h"
 #include <JuceHeader.h>
 
-class NIMEReceiverProcessor;
+class REMORAProcessor;
 
 class DSPComponent : public juce::Component, private juce::Timer {
 public:
-    explicit DSPComponent(NIMEReceiverProcessor& p);
+    explicit DSPComponent(REMORAProcessor& p);
     ~DSPComponent() override;
 
     void paint(juce::Graphics& g) override;
@@ -15,7 +15,7 @@ public:
     void timerCallback() override;
 
 private:
-    NIMEReceiverProcessor& processor;
+    REMORAProcessor& processor;
 
     juce::ComboBox mappingCombo;
     juce::TextButton prevMapButton;
@@ -33,7 +33,7 @@ private:
 
 class DSPWindow : public juce::DocumentWindow {
 public:
-    explicit DSPWindow(NIMEReceiverProcessor& p);
+    explicit DSPWindow(REMORAProcessor& p);
     void closeButtonPressed() override;
 
 private:

@@ -6,7 +6,7 @@
 #include <BinaryData.h>
 #include <initializer_list>
 
-NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
+REMORAEditor::REMORAEditor(REMORAProcessor &p)
     : AudioProcessorEditor(&p), processor(p) {
   debug.print.blue("Plugin Editor created.");
   setResizable(true, true);
@@ -14,8 +14,9 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   setSize(780, 780);
 
   // Title
-  styleLabel(titleLabel, "NIME  OSC  RECEIVER", 13.f, Palette::textMid,
-             juce::Justification::centredLeft);
+  styleLabel(titleLabel,
+             "REMORA - Real-time Expressive Motion-to-Output Routing Audio",
+             13.f, Palette::textMid, juce::Justification::centredLeft);
   addAndMakeVisible(titleLabel);
 
   // Connect button
@@ -142,7 +143,7 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   // }
 }
 
-void NIMEReceiverEditor::saveWindowBoundsToProcessor() {
+void REMORAEditor::saveWindowBoundsToProcessor() {
   if (rawDataWindow && rawDataWindow->isVisible())
     processor.rawDataBounds = rawDataWindow->getBounds();
   if (dspWindow && dspWindow->isVisible())
@@ -151,7 +152,7 @@ void NIMEReceiverEditor::saveWindowBoundsToProcessor() {
     processor.debugBounds = debug.getBounds();
 }
 
-NIMEReceiverEditor::~NIMEReceiverEditor() {
+REMORAEditor::~REMORAEditor() {
   saveWindowBoundsToProcessor();
   debug.print.blue("Plugin Editor destroyed.");
   debug.removeChangeListener(this);
@@ -160,7 +161,7 @@ NIMEReceiverEditor::~NIMEReceiverEditor() {
   dspWindow.reset();
 }
 
-void NIMEReceiverEditor::paint(juce::Graphics &g) {
+void REMORAEditor::paint(juce::Graphics &g) {
   // Background
   g.fillAll(Palette::bg);
 
@@ -200,7 +201,7 @@ void NIMEReceiverEditor::paint(juce::Graphics &g) {
                        static_cast<float>(w - padding));
 }
 
-void NIMEReceiverEditor::resized() {
+void REMORAEditor::resized() {
   const int w = getWidth();
   const int h = getHeight();
 
@@ -249,12 +250,12 @@ void NIMEReceiverEditor::resized() {
   calibrationOverlay.setBounds(bottomArea);
 }
 
-void NIMEReceiverEditor::changeListenerCallback(
+void REMORAEditor::changeListenerCallback(
     juce::ChangeBroadcaster *source) {
   juce::ignoreUnused(source);
 }
 
-void NIMEReceiverEditor::timerCallback() {
+void REMORAEditor::timerCallback() {
   refreshMainStats();
 
   boStaffVisualizer.updateStaff(
@@ -263,7 +264,7 @@ void NIMEReceiverEditor::timerCallback() {
   repaint();
 }
 
-void NIMEReceiverEditor::refreshMainStats() {
+void REMORAEditor::refreshMainStats() {
   static double cachedSampleRate = 0.0;
   static int cachedBlockSize = 0;
 
@@ -318,7 +319,7 @@ void NIMEReceiverEditor::refreshMainStats() {
   }
 }
 
-void NIMEReceiverEditor::toggleConnection() {
+void REMORAEditor::toggleConnection() {
   if (!connected) {
     const int port = udpPort;
 
@@ -335,7 +336,7 @@ void NIMEReceiverEditor::toggleConnection() {
   }
 }
 
-void NIMEReceiverEditor::updateConnectionUI() {
+void REMORAEditor::updateConnectionUI() {
   if (connected) {
     connectButton.setButtonText("DISCONNECT");
     connectButton.setColour(juce::TextButton::buttonColourId,
@@ -347,31 +348,31 @@ void NIMEReceiverEditor::updateConnectionUI() {
   }
 }
 
-void NIMEReceiverEditor::onCalibrateClicked() {
-  auto state = (NIMEReceiverProcessor::CalibState)processor.getCalibState();
+void REMORAEditor::onCalibrateClicked() {
+  auto state = (REMORAProcessor::CalibState)processor.getCalibState();
 
   juce::String overlayButtonText;
   juce::String hintText;
   juce::Colour hintColour = Palette::yellow;
   bool nowDone = false;
 
-  if (state == NIMEReceiverProcessor::CalibState::Idle ||
-      state == NIMEReceiverProcessor::CalibState::Done) {
+  if (state == REMORAProcessor::CalibState::Idle ||
+      state == REMORAProcessor::CalibState::Done) {
     processor.startCalibration();
     debug.print.yellow("Calibration started: Waiting for Pose A");
     overlayButtonText = "POSE A ->";
     hintText = "Hold staff HORIZONTAL pointing FORWARD, then click";
-  } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseA) {
+  } else if (state == REMORAProcessor::CalibState::WaitingPoseA) {
     processor.recordPoseA();
     debug.print.yellow("Recorded Pose A. Waiting for Pose B");
     overlayButtonText = "POSE B ->";
     hintText = "Hold staff VERTICAL pointing UP, then click";
-  } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseB) {
+  } else if (state == REMORAProcessor::CalibState::WaitingPoseB) {
     processor.recordPoseB();
     debug.print.yellow("Recorded Pose B. Waiting for Pose C");
     overlayButtonText = "POSE C ->";
     hintText = "Hold staff HORIZONTAL pointing RIGHT, then click";
-  } else if (state == NIMEReceiverProcessor::CalibState::WaitingPoseC) {
+  } else if (state == REMORAProcessor::CalibState::WaitingPoseC) {
     processor.recordPoseC();
     debug.print.green("Recorded Pose C. Calibration complete.");
     overlayButtonText = "CALIBRATE";
@@ -387,10 +388,10 @@ void NIMEReceiverEditor::onCalibrateClicked() {
   updateCalibrationVisibility();
 }
 
-void NIMEReceiverEditor::updateCalibrationVisibility() {
+void REMORAEditor::updateCalibrationVisibility() {
   const bool calibrationDone =
-      (NIMEReceiverProcessor::CalibState)processor.getCalibState() ==
-      NIMEReceiverProcessor::CalibState::Done;
+      (REMORAProcessor::CalibState)processor.getCalibState() ==
+      REMORAProcessor::CalibState::Done;
 
   boStaffVisualizer.setVisible(calibrationDone);
   calibrationOverlay.setVisible(!calibrationDone);

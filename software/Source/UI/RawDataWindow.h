@@ -5,7 +5,7 @@
 
 class RawDataComponent : public juce::Component, private juce::Timer {
 public:
-  explicit RawDataComponent(NIMEReceiverProcessor &);
+  explicit RawDataComponent(REMORAProcessor &);
   ~RawDataComponent() override;
 
   void paint(juce::Graphics &) override;
@@ -13,7 +13,7 @@ public:
   void timerCallback() override;
 
 private:
-  NIMEReceiverProcessor &processor;
+  REMORAProcessor &processor;
 
   juce::Label rateValueLabel;
   juce::Label rateUnitLabel;
@@ -46,7 +46,7 @@ private:
 
 class RawDataWindow : public juce::DocumentWindow {
 public:
-  explicit RawDataWindow(NIMEReceiverProcessor &p);
+  explicit RawDataWindow(REMORAProcessor &p);
   void closeButtonPressed() override;
 
 private:

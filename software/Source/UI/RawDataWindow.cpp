@@ -3,7 +3,7 @@
 #include "StyleHelpers.h"
 #include "../DSP/MathHelpers.h"
 
-RawDataComponent::RawDataComponent(NIMEReceiverProcessor &p) : processor(p) {
+RawDataComponent::RawDataComponent(REMORAProcessor &p) : processor(p) {
   setSize(500, 350);
 
   // Rate display
@@ -229,7 +229,7 @@ juce::Colour RawDataComponent::rateColour(float mps) {
   return Palette::green;
 }
 
-RawDataWindow::RawDataWindow(NIMEReceiverProcessor &p)
+RawDataWindow::RawDataWindow(REMORAProcessor &p)
     : DocumentWindow("Raw Data", Palette::bg, DocumentWindow::closeButton),
       content(p) {
   setContentNonOwned(&content, true);

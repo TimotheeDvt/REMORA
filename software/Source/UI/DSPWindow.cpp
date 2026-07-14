@@ -4,7 +4,7 @@
 #include "StyleHelpers.h"
 #include "DebugLog.h"
 
-DSPComponent::DSPComponent(NIMEReceiverProcessor& p)
+DSPComponent::DSPComponent(REMORAProcessor& p)
     : processor(p),
       spectrumAnalyser(p.getSynth())
 {
@@ -141,7 +141,7 @@ void DSPComponent::resized() {
     rootNoteLabel.setBounds(row.removeFromRight(150));
 }
 
-DSPWindow::DSPWindow(NIMEReceiverProcessor& p)
+DSPWindow::DSPWindow(REMORAProcessor& p)
     : juce::DocumentWindow("DSP Panel", Palette::bg, juce::DocumentWindow::allButtons),
       dspComponent(p)
 {

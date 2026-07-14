@@ -1,7 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-NIMEReceiverProcessor::NIMEReceiverProcessor()
+REMORAProcessor::REMORAProcessor()
     : AudioProcessor(BusesProperties().withOutput(
           "Output", juce::AudioChannelSet::stereo(), true)) {
   recentOrientationsScratch.reserve(512);
@@ -19,18 +19,18 @@ NIMEReceiverProcessor::NIMEReceiverProcessor()
   }
 }
 
-NIMEReceiverProcessor::~NIMEReceiverProcessor() { stopTimer(); }
+REMORAProcessor::~REMORAProcessor() { stopTimer(); }
 
 // Timer - fires every 1000ms on the message thread
-void NIMEReceiverProcessor::timerCallback() {
+void REMORAProcessor::timerCallback() {
   oscManager.updateMessagesPerSecond();
 }
 
-void NIMEReceiverProcessor::startCalibration() {
+void REMORAProcessor::startCalibration() {
   calibState.store((int)CalibState::WaitingPoseA);
 }
 
-void NIMEReceiverProcessor::recordPoseA() {
+void REMORAProcessor::recordPoseA() {
   const auto &d = getIMUData();
   poseAw.store(d.qw.load(std::memory_order_relaxed));
   poseAx.store(d.qx.load(std::memory_order_relaxed));
@@ -39,7 +39,7 @@ void NIMEReceiverProcessor::recordPoseA() {
   calibState.store((int)CalibState::WaitingPoseB);
 }
 
-void NIMEReceiverProcessor::recordPoseB() {
+void REMORAProcessor::recordPoseB() {
   const auto &d = getIMUData();
   poseBw.store(d.qw.load(std::memory_order_relaxed));
   poseBx.store(d.qx.load(std::memory_order_relaxed));
@@ -48,7 +48,7 @@ void NIMEReceiverProcessor::recordPoseB() {
   calibState.store((int)CalibState::WaitingPoseC);
 }
 
-void NIMEReceiverProcessor::recordPoseC() {
+void REMORAProcessor::recordPoseC() {
   const auto &d = getIMUData();
   poseCw.store(d.qw.load(std::memory_order_relaxed));
   poseCx.store(d.qx.load(std::memory_order_relaxed));
@@ -99,7 +99,7 @@ static MathHelpers::Quat computeAlignQuat(MathHelpers::Quat qA, MathHelpers::Qua
   }
 }
 
-void NIMEReceiverProcessor::computeCorrection() {
+void REMORAProcessor::computeCorrection() {
   MathHelpers::Quat qA{poseAw.load(), poseAx.load(), poseAy.load(),
                        poseAz.load()};
   MathHelpers::Quat qB{poseBw.load(), poseBx.load(), poseBy.load(),
@@ -184,7 +184,7 @@ void NIMEReceiverProcessor::computeCorrection() {
   corrQuat.store(corr);
 }
 
-MathHelpers::Quat NIMEReceiverProcessor::getCalibratedQuat() const {
+MathHelpers::Quat REMORAProcessor::getCalibratedQuat() const {
   const auto &d = getIMUData();
   IMURawSnapshot snap;
   while (!d.trySnapshot(snap)) {
@@ -199,12 +199,12 @@ MathHelpers::Quat NIMEReceiverProcessor::getCalibratedQuat() const {
   return MathHelpers::multiply(corr, MathHelpers::multiply(q_raw, qAlign));
 }
 
-void NIMEReceiverProcessor::prepareToPlay(double sampleRate,
+void REMORAProcessor::prepareToPlay(double sampleRate,
                                           int samplesPerBlock) {
   synth.prepareToPlay(sampleRate, samplesPerBlock);
 }
 
-void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
+void REMORAProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                          juce::MidiBuffer &) {
   // Determine if we have valid live connection data
   // Use tick age instead of messagesPerSecond (which has 1s update latency).
@@ -262,7 +262,7 @@ void NIMEReceiverProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 }
 
 std::vector<OrientationPoint>
-NIMEReceiverProcessor::getRecentOrientations(float maxAgeMs) const {
+REMORAProcessor::getRecentOrientations(float maxAgeMs) const {
   recentOrientationsScratch.clear();
   auto now = juce::Time::getMillisecondCounter();
   size_t writeIdx = historyWriteIndex.load(std::memory_order_acquire);
@@ -282,19 +282,19 @@ NIMEReceiverProcessor::getRecentOrientations(float maxAgeMs) const {
   return recentOrientationsScratch;
 }
 
-juce::AudioProcessorEditor *NIMEReceiverProcessor::createEditor() {
-  return new NIMEReceiverEditor(*this);
+juce::AudioProcessorEditor *REMORAProcessor::createEditor() {
+  return new REMORAEditor(*this);
 }
 
 juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter() {
-  return new NIMEReceiverProcessor();
+  return new REMORAProcessor();
 }
 
-void NIMEReceiverProcessor::getStateInformation(juce::MemoryBlock &destData) {
-  if (auto* ed = dynamic_cast<NIMEReceiverEditor*>(getActiveEditor()))
+void REMORAProcessor::getStateInformation(juce::MemoryBlock &destData) {
+  if (auto* ed = dynamic_cast<REMORAEditor*>(getActiveEditor()))
     ed->saveWindowBoundsToProcessor();
 
-  juce::XmlElement xml("NIMEReceiverState");
+  juce::XmlElement xml("REMORAState");
   xml.setAttribute("rawDataBounds", rawDataBounds.toString());
   xml.setAttribute("dspBounds", dspBounds.toString());
   xml.setAttribute("debugBounds", debugBounds.toString());
@@ -304,9 +304,9 @@ void NIMEReceiverProcessor::getStateInformation(juce::MemoryBlock &destData) {
   copyXmlToBinary(xml, destData);
 }
 
-void NIMEReceiverProcessor::setStateInformation(const void *data, int sizeInBytes) {
+void REMORAProcessor::setStateInformation(const void *data, int sizeInBytes) {
   std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
-  if (xmlState != nullptr && xmlState->hasTagName("NIMEReceiverState")) {
+  if (xmlState != nullptr && xmlState->hasTagName("REMORAState")) {
     rawDataBounds = juce::Rectangle<int>::fromString(xmlState->getStringAttribute("rawDataBounds"));
     dspBounds = juce::Rectangle<int>::fromString(xmlState->getStringAttribute("dspBounds"));
     debugBounds = juce::Rectangle<int>::fromString(xmlState->getStringAttribute("debugBounds"));
