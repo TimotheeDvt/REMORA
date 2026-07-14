@@ -4,6 +4,7 @@
 #include <cmath>
 #include <algorithm>
 
+constexpr float AzimutMapping::kRootSemitoneTable[2][2][2];
 constexpr float AzimutMapping::kChordVoicing[3];
 
 void AzimutMapping::prepare(double sample_rate_hz) {
@@ -42,18 +43,16 @@ void AzimutMapping::prepare(double sample_rate_hz) {
     smoothed_rotation_axis_y_ = 0.f;
     smoothed_rotation_axis_z_ = 1.f;
 
+    smoothed_forward_axis_x_ = 1.f;
+    smoothed_forward_axis_y_ = 0.f;
+
     is_rotation_axis_vertical_ = false;
     rotation_spin_direction_  = 1.f;
-    reference_azimuth_x_   = 1.f;
-    reference_azimuth_y_   = 0.f;
-    is_reference_azimuth_set_ = false;
     was_rotation_axis_vertical_ = false;
     previous_rotation_spin_direction_ = 1.f;
 
-    last_raw_azimuth_degrees_ = 0.f;
-    azimuth_offset_degrees_ = 0.f;
-    is_calibrated_ = false;
-    was_moving_last_frame_ = false;
+    is_facing_north_ = true;
+    previous_is_facing_north_ = true;
 
     accumulated_spin_degrees_ = 0.f;
     continuous_spin_count_ = 0;
@@ -86,10 +85,12 @@ void AzimutMapping::updateTipPositionHistory(const StaffSoundParams& input_param
 }
 
 void AzimutMapping::calculateRotationAxisAtMidpoint(float& axis_x, float& axis_y, float& axis_z) {
+    // velocity_mean = (position[0] - position[2]) / 2
     float velocity_mean_x = (tip_position_x_history_[0] - tip_position_x_history_[2]) * 0.5f;
     float velocity_mean_y = (tip_position_y_history_[0] - tip_position_y_history_[2]) * 0.5f;
     float velocity_mean_z = (tip_position_z_history_[0] - tip_position_z_history_[2]) * 0.5f;
 
+    // axis = position[1] cross_product velocity_mean (rotation axis at midpoint)
     axis_x = tip_position_y_history_[1] * velocity_mean_z - tip_position_z_history_[1] * velocity_mean_y;
     axis_y = tip_position_z_history_[1] * velocity_mean_x - tip_position_x_history_[1] * velocity_mean_z;
     axis_z = tip_position_x_history_[1] * velocity_mean_y - tip_position_y_history_[1] * velocity_mean_x;
@@ -212,13 +213,10 @@ bool AzimutMapping::updateSpinClassification(float axis_x, float axis_y, float a
 
     if (is_rotation_axis_vertical_) {
         if (perpendicular_magnitude > 1e-3f) {
-            if (!is_reference_azimuth_set_) {
-                reference_azimuth_x_ = smoothed_rotation_axis_x_ / perpendicular_magnitude;
-                reference_azimuth_y_ = smoothed_rotation_axis_y_ / perpendicular_magnitude;
-                is_reference_azimuth_set_ = true;
-            }
-            float dot_product = (smoothed_rotation_axis_x_ / perpendicular_magnitude) * reference_azimuth_x_ + (smoothed_rotation_axis_y_ / perpendicular_magnitude) * reference_azimuth_y_;
-            rotation_spin_direction_ = (dot_product >= 0.f) ? 1.f : -1.f;
+            float axis_x_norm = smoothed_rotation_axis_x_ / perpendicular_magnitude;
+            float axis_y_norm = smoothed_rotation_axis_y_ / perpendicular_magnitude;
+            float reference_component = (std::abs(axis_x_norm) >= std::abs(axis_y_norm)) ? axis_x_norm : axis_y_norm;
+            rotation_spin_direction_ = (reference_component >= 0.f) ? 1.f : -1.f;
         }
     } else {
         rotation_spin_direction_ = (smoothed_rotation_axis_z_ >= 0.f) ? 1.f : -1.f;
@@ -234,110 +232,48 @@ bool AzimutMapping::updateSpinClassification(float axis_x, float axis_y, float a
     return spin_changed;
 }
 
-float AzimutMapping::calculateTiltCompensatedAzimuthDegrees(const StaffSoundParams& input_parameters) {
-    // Use the filtered gravity estimate rather than the raw accelerometer: while spinning
-    // (the only time this is called), ax/ay/az are dominated by centripetal/dynamic
-    // acceleration, not gravity, which corrupts the roll/pitch tilt estimate below.
-    const float ax = gravity_x_;
-    const float ay = gravity_y_;
-    const float az = gravity_z_;
+bool AzimutMapping::updateFacingClassification(float tip_x, float tip_y) {
+    smoothed_forward_axis_x_ = MathHelpers::applyOnePoleFilter(smoothed_forward_axis_x_, tip_x, kForwardAxisSmoothingCoefficient);
+    smoothed_forward_axis_y_ = MathHelpers::applyOnePoleFilter(smoothed_forward_axis_y_, tip_y, kForwardAxisSmoothingCoefficient);
 
-    const float roll  = std::atan2(ay, az);
-    const float pitch  = std::atan2(-ax, ay * std::sin(roll) + az * std::cos(roll));
-
-    const float mx = input_parameters.mx - kMagOffsetX;
-    const float my = input_parameters.my - kMagOffsetY;
-    const float mz = input_parameters.mz - kMagOffsetZ;
-
-    // Standard tilt-compensated compass projection (Freescale/NXP AN4248 eq. 22-23):
-    // Xh = Mx*cos(theta) + My*sin(phi)*sin(theta) + Mz*cos(phi)*sin(theta)
-    // Yh = My*cos(phi) - Mz*sin(phi)
-    const float mx_comp = mx * std::cos(pitch)
-                        + my * std::sin(roll) * std::sin(pitch)
-                        + mz * std::cos(roll) * std::sin(pitch);
-    const float my_comp = my * std::cos(roll) - mz * std::sin(roll);
-
-    float azimuth_degrees = std::atan2(my_comp, mx_comp) * (180.0f / juce::MathConstants<float>::pi);
-    if (azimuth_degrees < 0.f) {
-        azimuth_degrees += 360.f;
-    }
-    return azimuth_degrees;
-}
-
-int AzimutMapping::classifyAzimuthSector(float azimuth_degrees) {
-    const float boundaries[4] = { 45.f, 135.f, 225.f, 315.f };
-
-    int raw_sector = static_cast<int>(std::floor((azimuth_degrees + 45.f) / 90.f)) % 4;
-    if (raw_sector < 0) raw_sector += 4;
-
-    if (raw_sector == current_azimuth_sector_) {
-        return current_azimuth_sector_;
-    }
-
-    // boundaries[current_azimuth_sector_] is only the correct edge when moving forward
-    // into the next sector. Moving backward into the previous sector crosses the OTHER
-    // edge of the current sector (90 degrees away), so pick whichever boundary is
-    // actually adjacent to the transition instead of always using the "forward" one.
-    float relevant_boundary;
-    if (raw_sector == (current_azimuth_sector_ + 1) % 4) {
-        relevant_boundary = boundaries[current_azimuth_sector_];
-    } else if (raw_sector == (current_azimuth_sector_ + 3) % 4) {
-        relevant_boundary = boundaries[(current_azimuth_sector_ + 3) % 4];
+    float facing_x, facing_y;
+    if (is_rotation_axis_vertical_) {
+        facing_x = smoothed_rotation_axis_x_;
+        facing_y = smoothed_rotation_axis_y_;
     } else {
-        // Jumped more than one sector in a single update; hysteresis is not meaningful here.
-        current_azimuth_sector_ = raw_sector;
-        return current_azimuth_sector_;
+        facing_x = smoothed_forward_axis_x_;
+        facing_y = smoothed_forward_axis_y_;
     }
 
-    float distance_past_boundary = azimuth_degrees - relevant_boundary;
-    while (distance_past_boundary > 180.f)  distance_past_boundary -= 360.f;
-    while (distance_past_boundary < -180.f) distance_past_boundary += 360.f;
+    float abs_x = std::abs(facing_x);
+    float abs_y = std::abs(facing_y);
 
-    if (std::abs(distance_past_boundary) > kAzimuthHysteresisDegrees) {
-        current_azimuth_sector_ = raw_sector;
+    if (is_facing_north_) {
+        is_facing_north_ = !(abs_y > abs_x * kFacingHysteresisRatio);
+    } else {
+        is_facing_north_ = (abs_x > abs_y * kFacingHysteresisRatio);
     }
-    return current_azimuth_sector_;
+
+    bool facing_changed = (is_facing_north_ != previous_is_facing_north_);
+    previous_is_facing_north_ = is_facing_north_;
+    return facing_changed;
 }
 
 void AzimutMapping::applyPitchAndChordToOutput(MappingOutput& mapping_output, const StaffSoundParams& input_parameters) {
     juce::ignoreUnused(input_parameters);
 
-    if (is_rotation_axis_vertical_) {
-        // Sectors 0 and 2 = North/South axis. Sectors 1 and 3 = East/West axis.
-        bool is_ns_axis = (current_azimuth_sector_ == 0 || current_azimuth_sector_ == 2);
+    const int plane_index = is_rotation_axis_vertical_ ? 0 : 1;
+    const int spin_index = (rotation_spin_direction_ < 0.f) ? 0 : 1;
+    const int facing_index = is_facing_north_ ? 0 : 1;
+    target_base_semitones_ = kRootSemitoneTable[plane_index][spin_index][facing_index];
 
-        if (is_ns_axis) {
-            // S/N: CW => D (+2 semitones), CCW => E (+4 semitones)
-            if (rotation_spin_direction_ < 0.f) {
-                target_base_semitones_ = 2.f;  // D
-            } else {
-                target_base_semitones_ = 4.f;  // E
-            }
-        } else {
-            // E/W: CW => B (+11 semitones), CCW => C (+0 semitones)
-            if (rotation_spin_direction_ < 0.f) {
-                target_base_semitones_ = 11.f; // B
-            } else {
-                target_base_semitones_ = 0.f;  // C
-            }
-        }
-    } else {
-        // Horizontal rotations
-        if (rotation_spin_direction_ < 0.f) {
-            // Horizontal CW => G (+7 semitones)
-            target_base_semitones_ = 7.f;
-        } else {
-            // Horizontal CCW => A (+9 semitones)
-            target_base_semitones_ = 9.f;
-        }
-    }
-
+    // Morph speed scales with how fast the staff is moving
     float morph_speed = juce::jlimit(0.005f, 0.2f, smoothed_gyroscope_magnitude_ / 2000.0f);
     current_base_semitones_ = MathHelpers::applyOnePoleFilter(current_base_semitones_, target_base_semitones_, morph_speed);
 
-    // Play octaves and a fifth of the root note to maintain pitch class clarity
+    // Instead of a chord, we only play octaves of the root note to maintain the same pitch class.
     mapping_output.chordSemitones[0] = 12.f;  // +1 Octave
-    mapping_output.chordSemitones[1] = 7.f;   // +5th
+    mapping_output.chordSemitones[1] = 7.f;  // +5th
     mapping_output.chordSemitones[2] = -12.f; // -1 Octave
 
     mapping_output.rootHz = MathHelpers::convertSemitonesToHertz(current_base_semitones_, kRootFrequencyHz);
@@ -433,9 +369,10 @@ void AzimutMapping::process(const StaffSoundParams& input_parameters, MappingOut
 
     const bool is_moving = smoothed_gyroscope_magnitude_ > kGyroscopeFloor;
     bool spin_changed = false;
-
+    bool facing_changed = false;
     if (is_moving) {
         spin_changed = updateSpinClassification(rotation_axis_x, rotation_axis_y, rotation_axis_z);
+        facing_changed = updateFacingClassification(tip_x, tip_y);
 
         if (spin_changed) {
             accumulated_spin_degrees_ = 0.f;
@@ -448,56 +385,25 @@ void AzimutMapping::process(const StaffSoundParams& input_parameters, MappingOut
                 debug.print.magenta("Full circles in current spin:", continuous_spin_count_);
             }
         }
-
-        if (is_rotation_axis_vertical_) {
-            const float raw_azimuth_degrees = calculateTiltCompensatedAzimuthDegrees(input_parameters);
-            last_raw_azimuth_degrees_ = raw_azimuth_degrees;
-
-            // Apply the active calibration offset
-            float adjusted_azimuth = raw_azimuth_degrees - azimuth_offset_degrees_;
-            if (adjusted_azimuth < 0.f) adjusted_azimuth += 360.f;
-            if (adjusted_azimuth >= 360.f) adjusted_azimuth -= 360.f;
-
-            const float raw_azimuth_radians = adjusted_azimuth * (juce::MathConstants<float>::pi / 180.0f);
-
-            // Gating improvement: Only update coordinates / sectors at the initial start of the spin
-            // or when the gyroscope indicates it hasn't exceeded extreme velocities where centrifugal force
-            // completely breaks accelerometer tilt data (e.g., under 450 deg/s).
-            if (!was_moving_last_frame_ || gyroscope_magnitude < 450.0f) {
-                smoothed_azimuth_x_ = MathHelpers::applyOnePoleFilter(smoothed_azimuth_x_, std::cos(raw_azimuth_radians), kAzimuthSmoothingCoefficient);
-                smoothed_azimuth_y_ = MathHelpers::applyOnePoleFilter(smoothed_azimuth_y_, std::sin(raw_azimuth_radians), kAzimuthSmoothingCoefficient);
-
-                current_azimuth_degrees_ = std::atan2(smoothed_azimuth_y_, smoothed_azimuth_x_) * (180.0f / juce::MathConstants<float>::pi);
-                if (current_azimuth_degrees_ < 0.f) current_azimuth_degrees_ += 360.f;
-
-                const int previous_sector = current_azimuth_sector_;
-                classifyAzimuthSector(current_azimuth_degrees_);
-                if (current_azimuth_sector_ != previous_sector) {
-                    static const char* kSectorNoteNames[4] = { "N/S (N)", "E/W (E)", "N/S (S)", "E/W (W)" };
-                    debug.print.cyan("Azimuth sector changed:", current_azimuth_degrees_, "deg ->", kSectorNoteNames[current_azimuth_sector_]);
-                }
-            }
-        }
     }
 
     applyPitchAndChordToOutput(mapping_output, input_parameters);
 
-    if (spin_changed) {
-        bool is_ns_axis = (current_azimuth_sector_ == 0 || current_azimuth_sector_ == 2);
-        const char* note_name = "";
-        if (is_rotation_axis_vertical_) {
-            if (is_ns_axis) {
-                note_name = (rotation_spin_direction_ < 0.f) ? "D" : "E";
-            } else {
-                note_name = (rotation_spin_direction_ < 0.f) ? "B" : "C";
-            }
-        } else {
-            note_name = (rotation_spin_direction_ < 0.f) ? "G" : "A";
-        }
+    if (spin_changed || facing_changed) {
+        static constexpr const char* kNoteNames[2][2][2] = {
+            { { "C", "G" },   // Vertical CW:  North, East
+              { "E", "B" } }, // Vertical CCW: North, East
+            { { "G", "D+8ve" },  // Horizontal CW:  North, East
+              { "A", "E+8ve" } } // Horizontal CCW: North, East
+        };
+        const int plane_index = is_rotation_axis_vertical_ ? 0 : 1;
+        const int spin_index = (rotation_spin_direction_ < 0.f) ? 0 : 1;
+        const int facing_index = is_facing_north_ ? 0 : 1;
         debug.print.cyan(
             is_rotation_axis_vertical_ ? "VERTICAL" : "HORIZONTAL",
             rotation_spin_direction_ > 0.f ? "COUNTER_CLOCKWISE_OR_FORWARD" : "CLOCKWISE_OR_BACKWARD",
-            "| Morphing to:", note_name
+            is_facing_north_ ? "NORTH" : "EAST",
+            "| Morphing to:", kNoteNames[plane_index][spin_index][facing_index]
         );
     }
 
@@ -519,7 +425,4 @@ void AzimutMapping::process(const StaffSoundParams& input_parameters, MappingOut
     smoothed_lpf_cutoff_hz_ = MathHelpers::applyOnePoleFilter(smoothed_lpf_cutoff_hz_, target_lpf_cutoff, 0.03f);
 
     mapping_output.lpfCutoffHz = smoothed_lpf_cutoff_hz_;
-
-    // Save state for the next block evaluation
-    was_moving_last_frame_ = is_moving;
 }

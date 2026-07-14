@@ -6,26 +6,17 @@
 #include "../MathHelpers.h"
 #include <cmath>
 
+// Same body-motion mapping as BozendoMapping2 (Laban weight/time/space/flow,
+// spin plane + direction), plus a third axis: which way the staff is facing
+// in the horizontal plane. Facing is measured relative to the calibration
+// gesture's "forward" pose (virtual world +X = North, +Y = East) rather than
+// magnetic north, since the magnetometer is unreliable near the staff's own
+// hardware and stage equipment.
 class AzimutMapping : public IMappingStrategy {
 public:
     const char* getName() const override { return "Azimut"; }
     void prepare(double sample_rate_hz) override;
     void process(const StaffSoundParams& input_parameters, MappingOutput& mapping_output) override;
-
-    // --- Calibration Mechanism ---
-    void calibrateNorth() {
-        azimuth_offset_degrees_ = last_raw_azimuth_degrees_;
-        is_calibrated_ = true;
-    }
-
-    void resetCalibration() {
-        azimuth_offset_degrees_ = 0.0f;
-        is_calibrated_ = false;
-    }
-
-    // --- UI Getters ---
-    float getCurrentAzimuthDegrees() const { return current_azimuth_degrees_; }
-    bool isCalibrated() const { return is_calibrated_; }
 
 private:
     double sample_rate_hz_ = 44100.0;
@@ -70,49 +61,50 @@ private:
     static constexpr float kRootFrequencyHz = 130.81f; // C3
 
     // Tip position history - 3 frames, ring buffer
+    // tip_position_i = rotate({1,0,0}, quaternion_i) in world frame
+    // Also doubles as the staff's long-axis direction in world frame, used
+    // as the "facing" vector when the spin plane is horizontal.
     float tip_position_x_history_[3] = {1.f, 1.f, 1.f};
     float tip_position_y_history_[3] = {0.f, 0.f, 0.f};
     float tip_position_z_history_[3] = {0.f, 0.f, 0.f};
 
-    // Smoothed rotation axis
+    // Smoothed rotation axis (faster than before)
     float smoothed_rotation_axis_x_ = 0.f;
     float smoothed_rotation_axis_y_ = 0.f;
     float smoothed_rotation_axis_z_ = 1.f;
+    // Time Constant approx 25ms at 100Hz
     static constexpr float kRotationAxisSmoothingCoefficient = 0.35f;
+
+    // Smoothed staff long-axis (world frame), used for facing detection
+    // during horizontal-plane spins.
+    float smoothed_forward_axis_x_ = 1.f;
+    float smoothed_forward_axis_y_ = 0.f;
+    static constexpr float kForwardAxisSmoothingCoefficient = 0.20f;
 
     bool  is_rotation_axis_vertical_ = false;
     float rotation_spin_direction_  = 1.f;
 
-    float reference_azimuth_x_ = 1.f;
-    float reference_azimuth_y_ = 0.f;
-    bool  is_reference_azimuth_set_ = false;
-
     bool  was_rotation_axis_vertical_ = false;
     float previous_rotation_spin_direction_ = 1.f;
 
-    // --- Calibration and Direction Tracking ---
-    float last_raw_azimuth_degrees_ = 0.f;
-    float azimuth_offset_degrees_ = 0.f;
-    bool  is_calibrated_ = false;
-    bool  was_moving_last_frame_ = false;
-
-    static constexpr float kMagOffsetX = 0.f;
-    static constexpr float kMagOffsetY = 0.f;
-    static constexpr float kMagOffsetZ = 0.f;
-
-    // Hysteresis band (degrees)
-    static constexpr float kAzimuthHysteresisDegrees = 11.0f;
-    static constexpr float kAzimuthSmoothingCoefficient = 0.15f;
-
-    float smoothed_azimuth_x_ = 1.f;
-    float smoothed_azimuth_y_ = 0.f;
-    float current_azimuth_degrees_ = 0.f;
-    int   current_azimuth_sector_ = 0; // 0=N, 1=E, 2=S, 3=W
+    bool  is_facing_north_ = true;
+    bool  previous_is_facing_north_ = true;
+    static constexpr float kFacingHysteresisRatio = 1.15f; // ~48deg / ~42deg switch points
 
     float accumulated_spin_degrees_ = 0.f;
     int   continuous_spin_count_ = 0;
 
     float smoothed_lpf_cutoff_hz_ = 20000.f;
+
+    // Root note table: [is_horizontal][is_ccw][is_east], semitone offsets relative to kRootFrequencyHz
+    static constexpr float kRootSemitoneTable[2][2][2] = {
+        // Vertical plane
+        { { 0.f, 7.f },   // CW:  North=C(0),  East=G(7)
+          { 4.f, 11.f } },// CCW: North=E(4),  East=B(11)
+        // Horizontal plane
+        { { 7.f, 7.f },  // CW:  North=G(7),  East=G(7)
+          { 9.f, 9.f } } // CCW: North=A(9),  East=A(9)
+    };
 
     static constexpr float kChordVoicing[3] = { 7.f, 12.f, 19.f };
 
@@ -120,13 +112,16 @@ private:
     static constexpr float kNoiseDecayCoefficient = 0.9985f;
 
     // Peak / thrust detection
+    // A peak = linear acceleration along the staff long axis in world frame
+    // with simultaneously low rotation.
+    // rotation_gate: gyroscope_magnitude must be below kPeakMaximumGyroscope to qualify as a thrust
     float axial_thrust_peak_envelope_ = 0.f;
     float previous_axial_acceleration_ = 0.f;
     float previous_axial_jerk_ = 0.f;
     float thrust_cooldown_seconds_ = 0.f;
-    static constexpr float kPeakMaximumGyroscope = 90.f;
-    static constexpr float kPeakAxialAccelerationThreshold = 1.5f;
-    static constexpr float kPeakDecayCoefficient = 0.94f;
+    static constexpr float kPeakMaximumGyroscope = 90.f;  // deg/s - lowered to distinguish from circle spins
+    static constexpr float kPeakAxialAccelerationThreshold = 1.5f;   // g - minimum axial acceleration to qualify
+    static constexpr float kPeakDecayCoefficient = 0.94f;  // per packet approx 100Hz -> approx 150ms half-life
     static constexpr float kThrustCooldownDurationSeconds = 0.2f;
 
     float smoothed_output_gain_ = 0.f;
@@ -148,9 +143,7 @@ private:
     void updateLabanFlow(float dynamic_acceleration_magnitude, float& flow_bound, float& flow_free);
 
     bool updateSpinClassification(float axis_x, float axis_y, float axis_z);
-
-    float calculateTiltCompensatedAzimuthDegrees(const StaffSoundParams& input_parameters);
-    int   classifyAzimuthSector(float azimuth_degrees);
+    bool updateFacingClassification(float tip_x, float tip_y);
 
     void applyPitchAndChordToOutput(MappingOutput& mapping_output, const StaffSoundParams& input_parameters);
     void applyVoicesToOutput(MappingOutput& mapping_output, float melody_gain);
