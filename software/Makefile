@@ -1,4 +1,4 @@
-.PHONY: all configure build clean
+.PHONY: all configure build clean c b
 
 all: configure build
 
@@ -13,3 +13,7 @@ build:
 # Cleans the build directory
 clean:
 	rm -rf build
+
+# Shorthand aliases
+c: configure
+b: build
