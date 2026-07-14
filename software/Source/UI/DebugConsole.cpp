@@ -1,5 +1,6 @@
 #include "DebugConsole.h"
 #include "DebugLog.h"
+#include "StyleHelpers.h"
 
 class DebugConsole::Content   : public juce::Component,
                                 private juce::ListBoxModel
@@ -12,8 +13,7 @@ public:
         listBox.setColour (juce::ListBox::backgroundColourId, getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId).darker(0.8f));
 
         addAndMakeVisible (clearButton);
-        clearButton.setButtonText ("Clear");
-        clearButton.onClick = [this] { clear(); };
+        styleButton(clearButton, "Clear", {}, [this] { clear(); });
     }
 
     void resized() override

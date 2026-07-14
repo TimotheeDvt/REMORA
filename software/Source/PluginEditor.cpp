@@ -19,82 +19,80 @@ NIMEReceiverEditor::NIMEReceiverEditor(NIMEReceiverProcessor &p)
   addAndMakeVisible(titleLabel);
 
   // Connect button
-  connectButton.setButtonText("CONNECT");
-  connectButton.setColour(juce::TextButton::buttonColourId, Palette::accentDim);
-  connectButton.setColour(juce::TextButton::buttonOnColourId, Palette::red);
-  connectButton.setColour(juce::TextButton::textColourOffId, Palette::textHi);
-  connectButton.onClick = [this] { toggleConnection(); };
+  styleButton(connectButton, "CONNECT",
+             {{juce::TextButton::buttonColourId, Palette::accentDim},
+              {juce::TextButton::buttonOnColourId, Palette::red},
+              {juce::TextButton::textColourOffId, Palette::textHi}},
+             [this] { toggleConnection();
+            }
+  );
   addAndMakeVisible(connectButton);
 
   // Sound toggle button
   soundButton.setClickingTogglesState(true);
   soundButton.setToggleState(processor.isSoundEnabled(),
                              juce::dontSendNotification);
-  soundButton.setColour(juce::TextButton::textColourOffId, Palette::textHi);
-  soundButton.onClick = [this] {
-    const bool isEnabled = soundButton.getToggleState();
-    processor.setSoundEnabled(isEnabled);
-    soundButton.setButtonText(isEnabled ? "SOUND ON" : "MUTED");
-    soundButton.setColour(juce::TextButton::buttonColourId,
-                          isEnabled ? Palette::accentDim
-                                    : Palette::red.darker(0.3f));
-    soundButton.setColour(juce::TextButton::buttonOnColourId,
-                          isEnabled ? Palette::accentDim
-                                    : Palette::red.darker(0.3f));
-  };
+  styleButton(soundButton, "", {{juce::TextButton::textColourOffId, Palette::textHi}},
+             [this] {
+               const bool isEnabled = soundButton.getToggleState();
+               processor.setSoundEnabled(isEnabled);
+               soundButton.setButtonText(isEnabled ? "SOUND ON" : "MUTED");
+               soundButton.setColour(juce::TextButton::buttonColourId,
+                                     isEnabled ? Palette::accentDim
+                                               : Palette::red.darker(0.3f));
+               soundButton.setColour(juce::TextButton::buttonOnColourId,
+                                     isEnabled ? Palette::accentDim
+                                               : Palette::red.darker(0.3f));
+             }
+  );
   soundButton.onClick(); // Trigger once to set initial text and colors
   soundButton.addShortcut(juce::KeyPress(juce::KeyPress::spaceKey, 0, 0));
   addAndMakeVisible(soundButton);
 
   // Show Data button
-  showDataButton.setButtonText("RAW DATA");
-  showDataButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
-  showDataButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
-  showDataButton.onClick = [this] {
-    if (rawDataWindow && rawDataWindow->isVisible()) {
-      rawDataWindow->setVisible(false);
-    } else {
-      if (!rawDataWindow) {
-        rawDataWindow = std::make_unique<RawDataWindow>(processor);
-      }
-      rawDataWindow->setVisible(true);
-      rawDataWindow->toFront(true);
-    }
-  };
+  styleButton(showDataButton, "RAW DATA", Palette::ButtonTheme::secondary,
+             [this] {
+               if (rawDataWindow && rawDataWindow->isVisible()) {
+                 rawDataWindow->setVisible(false);
+               } else {
+                 if (!rawDataWindow) {
+                   rawDataWindow = std::make_unique<RawDataWindow>(processor);
+                 }
+                 rawDataWindow->setVisible(true);
+                 rawDataWindow->toFront(true);
+               }
+             }
+  );
   addAndMakeVisible(showDataButton);
 
   // Debug button
-  debugButton.setButtonText("DEBUG");
-  debugButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
-  debugButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
-  debugButton.onClick = [this] {
-    if (debug.isWindowOpen())
-      debug.hide();
-    else
-      debug.show();
-  };
+  styleButton(debugButton, "DEBUG", Palette::ButtonTheme::secondary,
+             [this] {
+               if (debug.isWindowOpen())
+                 debug.hide();
+               else
+                 debug.show();
+             }
+  );
   addAndMakeVisible(debugButton);
 
   // DSP button
-  dspButton.setButtonText("DSP");
-  dspButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
-  dspButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
-  dspButton.onClick = [this] {
-    if (dspWindow && dspWindow->isVisible()) {
-      dspWindow->setVisible(false);
-    } else {
-      if (!dspWindow) dspWindow = std::make_unique<DSPWindow>(processor);
-      dspWindow->setVisible(true);
-      dspWindow->toFront(true);
-    }
-  };
+  styleButton(dspButton, "DSP", Palette::ButtonTheme::secondary,
+             [this] {
+               if (dspWindow && dspWindow->isVisible()) {
+                 dspWindow->setVisible(false);
+               } else {
+                 if (!dspWindow) dspWindow = std::make_unique<DSPWindow>(processor);
+                 dspWindow->setVisible(true);
+                 dspWindow->toFront(true);
+               }
+             }
+  );
   addAndMakeVisible(dspButton);
 
-  calibrateButton.setButtonText("CALIBRATE");
-  calibrateButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
-  calibrateButton.setColour(juce::TextButton::textColourOffId,
-                            Palette::textMid);
-  calibrateButton.onClick = [this] { onCalibrateClicked(); };
+  styleButton(calibrateButton, "CALIBRATE", Palette::ButtonTheme::secondary,
+             [this] { onCalibrateClicked(); }
+  );
   addAndMakeVisible(calibrateButton);
 
   styleLabel(calibHintLabel, "", 10.f, Palette::textLo,

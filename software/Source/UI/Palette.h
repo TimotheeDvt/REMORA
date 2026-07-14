@@ -1,6 +1,8 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <initializer_list>
+#include <utility>
 
 namespace Palette {
   const juce::Colour bg{0xFF2A2A2A};
@@ -14,4 +16,11 @@ namespace Palette {
   const juce::Colour red{0xFFD9534F};
   const juce::Colour yellow{0xFFF0AD4E};
   const juce::Colour green{0xFF5CB85C};
+
+  // Reusable colourId/Colour groups for styleButton()
+  namespace ButtonTheme {
+    inline const std::initializer_list<std::pair<int, juce::Colour>> secondary = {
+        {juce::TextButton::buttonColourId, panel},
+        {juce::TextButton::textColourOffId, textMid}};
+  }
 }

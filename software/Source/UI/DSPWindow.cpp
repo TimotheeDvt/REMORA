@@ -27,25 +27,23 @@ DSPComponent::DSPComponent(NIMEReceiverProcessor& p)
     };
     addAndMakeVisible(mappingCombo);
 
-    prevMapButton.setButtonText("<");
-    prevMapButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
-    prevMapButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
-    prevMapButton.onClick = [this, mappingCount] {
-        int newStrategyIndex = (mappingCombo.getSelectedId() - 2 + mappingCount) % mappingCount;
-        debug.print.cyan(newStrategyIndex);
-        processor.setMappingStrategy(newStrategyIndex);
-        mappingCombo.setSelectedItemIndex(newStrategyIndex);
-    };
+    styleButton(prevMapButton, "<", Palette::ButtonTheme::secondary,
+               [this, mappingCount] {
+                   int newStrategyIndex = (mappingCombo.getSelectedId() - 2 + mappingCount) % mappingCount;
+                   debug.print.cyan(newStrategyIndex);
+                   processor.setMappingStrategy(newStrategyIndex);
+                   mappingCombo.setSelectedItemIndex(newStrategyIndex);
+               }
+    );
     addAndMakeVisible(prevMapButton);
 
-    nextMapButton.setButtonText(">");
-    nextMapButton.setColour(juce::TextButton::buttonColourId, Palette::panel);
-    nextMapButton.setColour(juce::TextButton::textColourOffId, Palette::textMid);
-    nextMapButton.onClick = [this, mappingCount] {
-        int newStrategyIndex = (mappingCombo.getSelectedId()) % mappingCount;
-        processor.setMappingStrategy(newStrategyIndex);
-        mappingCombo.setSelectedItemIndex(newStrategyIndex);
-    };
+    styleButton(nextMapButton, ">", Palette::ButtonTheme::secondary,
+               [this, mappingCount] {
+                   int newStrategyIndex = (mappingCombo.getSelectedId()) % mappingCount;
+                   processor.setMappingStrategy(newStrategyIndex);
+                   mappingCombo.setSelectedItemIndex(newStrategyIndex);
+               }
+    );
     addAndMakeVisible(nextMapButton);
 
     globalVolumeSlider.setSliderStyle(juce::Slider::LinearHorizontal);
