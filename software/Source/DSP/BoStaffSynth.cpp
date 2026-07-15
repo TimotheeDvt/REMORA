@@ -11,6 +11,7 @@
 #include "Mappings/BozendoMapping2.h"
 #include "Mappings/AzimutMapping.h"
 #include "Mappings/AzimutPlusMapping.h"
+#include "Mappings/BensMapping.h"
 
 float BoStaffSynth::semitoneRatio(float semitones) {
     return MathHelpers::semitoneRatio(semitones);
@@ -37,6 +38,7 @@ BoStaffSynth::BoStaffSynth() {
     mappings.push_back(std::make_unique<BozendoMapping2>());
     mappings.push_back(std::make_unique<AzimutMapping>());
     mappings.push_back(std::make_unique<AzimutPlusMapping>());
+    mappings.push_back(std::make_unique<BensMapping>());
 }
 
 BoStaffSynth::~BoStaffSynth() {}
