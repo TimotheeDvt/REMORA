@@ -6,9 +6,12 @@
 class REMORAProcessor;
 class IMappingStrategy;
 
+// If textLabels is non-empty, the knob is replaced by a plain text readout:
+// setValue() rounds to the nearest index and shows that label (e.g. "CW").
 class MonitorKnobComponent : public juce::Component {
 public:
-    MonitorKnobComponent(const juce::String& name, const juce::String& driveInfo, float rangeMin, float rangeMax);
+    MonitorKnobComponent(const juce::String& name, const juce::String& driveInfo, float rangeMin, float rangeMax,
+                          juce::StringArray textLabels = {});
 
     void resized() override;
     void setValue(float newValue);
@@ -16,7 +19,9 @@ public:
 private:
     juce::Label nameLabel;
     juce::Slider knob;
+    juce::Label textValueLabel;
     juce::Label driveInfoLabel;
+    juce::StringArray textLabels;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MonitorKnobComponent)
 };

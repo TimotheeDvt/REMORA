@@ -8,11 +8,13 @@ constexpr float AzimutMapping::kRootSemitoneTable[2][2][2];
 constexpr float AzimutMapping::kChordVoicing[3];
 
 AzimutMapping::AzimutMapping()
-    : laban_weight_monitor_(addMonitorParam("Drive", "Weight (Laban)", 0.0f, 1.0f)),
-      laban_time_monitor_(addMonitorParam("Noise", "Suddenness (Laban Time)", 0.0f, 1.0f)),
+    : laban_weight_monitor_(addMonitorParam("Drive", "Laban Weight", 0.0f, 1.0f)),
+      laban_time_monitor_(addMonitorParam("Noise", "Laban Time", 0.0f, 1.0f)),
       speed_monitor_(addMonitorParam("Gain (Motion Gate)", "Speed", 0.0f, kGyroscopeCeiling)),
-      yaw_angle_monitor_(addMonitorParam("Root Pitch", "Facing (Euler Yaw)", -180.0f, 180.0f)),
-      filter_cutoff_monitor_(addMonitorParam("LPF Cutoff", "Spin count", 20.0f, 20000.0f))
+      filter_cutoff_monitor_(addMonitorParam("LPF Cutoff", "Spin count", 20.0f, 20000.0f)),
+      spin_plane_monitor_(addTextMonitorParam("Root Pitch", "Spin Plane", { "Vertical", "Horizontal" })),
+      spin_direction_monitor_(addTextMonitorParam("Root Pitch", "Spin Direction", { "CW", "CCW" })),
+      facing_monitor_(addTextMonitorParam("Root Pitch", "Facing", { "North", "East" }))
 {
 }
 
@@ -276,6 +278,10 @@ void AzimutMapping::applyPitchAndChordToOutput(MappingOutput& mapping_output, co
     const int facing_index = is_facing_north_ ? 0 : 1;
     target_base_semitones_ = kRootSemitoneTable[plane_index][spin_index][facing_index];
 
+    spin_plane_monitor_.value.store(static_cast<float>(plane_index), std::memory_order_relaxed);
+    spin_direction_monitor_.value.store(static_cast<float>(spin_index), std::memory_order_relaxed);
+    facing_monitor_.value.store(static_cast<float>(facing_index), std::memory_order_relaxed);
+
     // Morph speed scales with how fast the staff is moving
     float morph_speed = juce::jlimit(0.005f, 0.2f, smoothed_gyroscope_magnitude_ / 2000.0f);
     current_base_semitones_ = MathHelpers::applyOnePoleFilter(current_base_semitones_, target_base_semitones_, morph_speed);
@@ -376,11 +382,6 @@ void AzimutMapping::process(const StaffSoundParams& input_parameters, MappingOut
     laban_weight_monitor_.value.store(laban_weight, std::memory_order_relaxed);
     laban_time_monitor_.value.store(laban_time_suddenness_normalized, std::memory_order_relaxed);
     speed_monitor_.value.store(smoothed_gyroscope_magnitude_, std::memory_order_relaxed);
-    {
-        const MathHelpers::Quat orientation_quaternion { input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz };
-        const float yaw_degrees = MathHelpers::toEuler(orientation_quaternion).yaw * (180.0f / juce::MathConstants<float>::pi);
-        yaw_angle_monitor_.value.store(yaw_degrees, std::memory_order_relaxed);
-    }
 
     float laban_flow_bound, laban_flow_free;
     updateLabanFlow(dynamic_accel_magnitude, laban_flow_bound, laban_flow_free);

@@ -6,27 +6,36 @@
 #include "DebugLog.h"
 #include <cmath>
 
-MonitorKnobComponent::MonitorKnobComponent(const juce::String& name, const juce::String& driveInfo, float rangeMin, float rangeMax) {
+MonitorKnobComponent::MonitorKnobComponent(const juce::String& name, const juce::String& driveInfo, float rangeMin, float rangeMax,
+                                            juce::StringArray textLabelsIn)
+    : textLabels(std::move(textLabelsIn))
+{
     styleLabel(nameLabel, name, 11.5f, Palette::textHi, juce::Justification::centred);
     nameLabel.setMinimumHorizontalScale(0.6f);
     addAndMakeVisible(nameLabel);
 
-    knob.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    knob.setTextBoxStyle(juce::Slider::TextBoxBelow, true, 76, 16);
-    knob.setRange(rangeMin, rangeMax, 0.0);
-    // Wide ranges (e.g. a 20Hz-20kHz filter cutoff) read better on a log-ish curve.
-    if (rangeMin > 0.0f && rangeMax / rangeMin > 50.0f)
-        knob.setSkewFactorFromMidPoint(std::sqrt(rangeMin * rangeMax));
-    knob.setInterceptsMouseClicks(false, false); // meter only, not user-editable
-    knob.setColour(juce::Slider::rotarySliderFillColourId, Palette::accent);
-    knob.setColour(juce::Slider::rotarySliderOutlineColourId, Palette::border);
-    knob.setColour(juce::Slider::thumbColourId, Palette::accent);
-    knob.setColour(juce::Slider::textBoxTextColourId, Palette::textHi);
-    knob.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
-    knob.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    addAndMakeVisible(knob);
+    if (textLabels.isEmpty()) {
+        knob.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+        knob.setTextBoxStyle(juce::Slider::TextBoxBelow, true, 76, 16);
+        knob.setRange(rangeMin, rangeMax, 0.0);
+        // Wide ranges (e.g. a 20Hz-20kHz filter cutoff) read better on a log-ish curve.
+        if (rangeMin > 0.0f && rangeMax / rangeMin > 50.0f)
+            knob.setSkewFactorFromMidPoint(std::sqrt(rangeMin * rangeMax));
+        knob.setInterceptsMouseClicks(false, false); // meter only, not user-editable
+        knob.setColour(juce::Slider::rotarySliderFillColourId, Palette::accent);
+        knob.setColour(juce::Slider::rotarySliderOutlineColourId, Palette::border);
+        knob.setColour(juce::Slider::thumbColourId, Palette::accent);
+        knob.setColour(juce::Slider::textBoxTextColourId, Palette::textHi);
+        knob.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+        knob.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+        addAndMakeVisible(knob);
+    } else {
+        styleLabel(textValueLabel, textLabels[0], 16.0f, Palette::accent, juce::Justification::centred);
+        textValueLabel.setColour(juce::Label::outlineColourId, Palette::border);
+        addAndMakeVisible(textValueLabel);
+    }
 
-    styleLabel(driveInfoLabel, driveInfo, 9.0f, Palette::textLo, juce::Justification::centredTop);
+    styleLabel(driveInfoLabel, driveInfo, 11.f, Palette::textMid, juce::Justification::centredTop);
     driveInfoLabel.setMinimumHorizontalScale(0.6f);
     addAndMakeVisible(driveInfoLabel);
 }
@@ -34,12 +43,20 @@ MonitorKnobComponent::MonitorKnobComponent(const juce::String& name, const juce:
 void MonitorKnobComponent::resized() {
     auto bounds = getLocalBounds();
     nameLabel.setBounds(bounds.removeFromTop(16));
-    driveInfoLabel.setBounds(bounds.removeFromBottom(36));
-    knob.setBounds(bounds);
+    driveInfoLabel.setBounds(bounds.removeFromBottom(44));
+    if (textLabels.isEmpty())
+        knob.setBounds(bounds);
+    else
+        textValueLabel.setBounds(bounds.reduced(0, 8));
 }
 
 void MonitorKnobComponent::setValue(float newValue) {
-    knob.setValue(newValue, juce::dontSendNotification);
+    if (textLabels.isEmpty()) {
+        knob.setValue(newValue, juce::dontSendNotification);
+    } else {
+        const int index = juce::jlimit(0, textLabels.size() - 1, juce::roundToInt(newValue));
+        textValueLabel.setText(textLabels[index], juce::dontSendNotification);
+    }
 }
 
 DSPComponent::DSPComponent(REMORAProcessor& p)
@@ -126,13 +143,12 @@ void DSPComponent::rebuildMonitorKnobs() {
     if (monitoredMapping != nullptr) {
         for (int i = 0; i < monitoredMapping->getMonitorParamCount(); ++i) {
             const auto& param = monitoredMapping->getMonitorParam(i);
-            auto* knob = monitorKnobs.add(new MonitorKnobComponent(param.name, param.driveInfo, param.rangeMin, param.rangeMax));
+            auto* knob = monitorKnobs.add(new MonitorKnobComponent(param.name, param.driveInfo, param.rangeMin, param.rangeMax, param.textLabels));
             addAndMakeVisible(knob);
         }
     }
 
-    scopeTopInset = 40 + (monitorKnobs.isEmpty() ? 0 : 148);
-    resized();
+    resized(); // also recomputes scopeTopInset from the new knob count
 }
 
 void DSPComponent::timerCallback() {
@@ -206,17 +222,27 @@ void DSPComponent::resized() {
 
     rootNoteLabel.setBounds(row.removeFromRight(150));
 
-    if (!monitorKnobs.isEmpty()) {
+    if (monitorKnobs.isEmpty()) {
+        scopeTopInset = 40;
+    } else {
+        constexpr int kKnobCellWidth  = 108; // 100 knob + 4px margin either side
+        constexpr int kKnobCellHeight = 152; // 144 knob + 4px margin either side
+
         bounds.removeFromTop(8);
-        auto monitorArea = bounds.removeFromTop(140);
+        const int itemsPerRow = juce::jmax(1, bounds.getWidth() / kKnobCellWidth);
+        const int numRows = (monitorKnobs.size() + itemsPerRow - 1) / itemsPerRow;
+        const int monitorAreaHeight = numRows * kKnobCellHeight;
+        auto monitorArea = bounds.removeFromTop(monitorAreaHeight);
 
         juce::FlexBox monitorFlexBox;
         monitorFlexBox.flexWrap = juce::FlexBox::Wrap::wrap;
         monitorFlexBox.justifyContent = juce::FlexBox::JustifyContent::flexStart;
         monitorFlexBox.alignContent = juce::FlexBox::AlignContent::flexStart;
         for (auto* knob : monitorKnobs)
-            monitorFlexBox.items.add(juce::FlexItem(*knob).withWidth(100.0f).withHeight(136.0f).withMargin(4.0f));
+            monitorFlexBox.items.add(juce::FlexItem(*knob).withWidth(100.0f).withHeight(144.0f).withMargin(4.0f));
         monitorFlexBox.performLayout(monitorArea.toFloat());
+
+        scopeTopInset = 40 + 8 + monitorAreaHeight;
     }
 }
 

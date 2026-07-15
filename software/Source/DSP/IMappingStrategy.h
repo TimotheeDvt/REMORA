@@ -41,6 +41,10 @@ public:
         float rangeMin;
         float rangeMax;
         std::atomic<float> value;
+        // Empty = numeric meter. Non-empty = categorical: `value` (rounded)
+        // is an index into this list, and the DSP window shows the matching
+        // label (e.g. "CW"/"CCW") instead of a numeric knob.
+        juce::StringArray textLabels;
 
         MonitorParam(juce::String paramName, juce::String paramDriveInfo, float paramRangeMin, float paramRangeMax)
             : name(std::move(paramName)), driveInfo(std::move(paramDriveInfo)),
@@ -59,6 +63,16 @@ protected:
     MonitorParam& addMonitorParam(juce::String name, juce::String driveInfo, float rangeMin = 0.0f, float rangeMax = 1.0f) {
         monitorParams.push_back(std::make_unique<MonitorParam>(std::move(name), std::move(driveInfo), rangeMin, rangeMax));
         return *monitorParams.back();
+    }
+
+    // For discrete/categorical states (e.g. "CW"/"CCW", "North"/"East"):
+    // write the label's index (0, 1, ...) to `.value` from process() and the
+    // DSP window will show the matching text instead of a numeric knob.
+    MonitorParam& addTextMonitorParam(juce::String name, juce::String driveInfo, juce::StringArray textLabels) {
+        auto& param = addMonitorParam(std::move(name), std::move(driveInfo), 0.0f,
+                                       static_cast<float>(juce::jmax(1, textLabels.size() - 1)));
+        param.textLabels = std::move(textLabels);
+        return param;
     }
 
 private:
