@@ -391,10 +391,12 @@ void AzimutMapping::process(const StaffSoundParams& input_parameters, MappingOut
 
     if (spin_changed || facing_changed) {
         static constexpr const char* kNoteNames[2][2][2] = {
-            { { "C", "G" },   // Vertical CW:  North, East
-              { "E", "B" } }, // Vertical CCW: North, East
-            { { "G", "D+8ve" },  // Horizontal CW:  North, East
-              { "A", "E+8ve" } } // Horizontal CCW: North, East
+// Vertical
+            { { "C", "G" },   // CW:  North, East
+              { "E", "B" } }, // CCW: North, East
+// Horizontal
+            { { "G", "G" },  // CW:  North, East
+              { "A", "A" } } // CCW: North, East
         };
         const int plane_index = is_rotation_axis_vertical_ ? 0 : 1;
         const int spin_index = (rotation_spin_direction_ < 0.f) ? 0 : 1;
