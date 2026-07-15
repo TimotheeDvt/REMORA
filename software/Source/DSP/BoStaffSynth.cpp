@@ -96,6 +96,12 @@ int BoStaffSynth::getMappingCount() const noexcept {
     return static_cast<int>(mappings.size());
 }
 
+const IMappingStrategy* BoStaffSynth::getMapping(int index) const noexcept {
+    if (index >= 0 && index < static_cast<int>(mappings.size()))
+        return mappings[static_cast<size_t>(index)].get();
+    return nullptr;
+}
+
 void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
                                 const StaffSoundParams& params)
 {

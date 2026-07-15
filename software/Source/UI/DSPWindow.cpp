@@ -1,8 +1,46 @@
 #include "DSPWindow.h"
 #include "../PluginProcessor.h"
+#include "../DSP/IMappingStrategy.h"
 #include "Palette.h"
 #include "StyleHelpers.h"
 #include "DebugLog.h"
+#include <cmath>
+
+MonitorKnobComponent::MonitorKnobComponent(const juce::String& name, const juce::String& driveInfo, float rangeMin, float rangeMax) {
+    styleLabel(nameLabel, name, 11.5f, Palette::textHi, juce::Justification::centred);
+    nameLabel.setMinimumHorizontalScale(0.6f);
+    addAndMakeVisible(nameLabel);
+
+    knob.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    knob.setTextBoxStyle(juce::Slider::TextBoxBelow, true, 76, 16);
+    knob.setRange(rangeMin, rangeMax, 0.0);
+    // Wide ranges (e.g. a 20Hz-20kHz filter cutoff) read better on a log-ish curve.
+    if (rangeMin > 0.0f && rangeMax / rangeMin > 50.0f)
+        knob.setSkewFactorFromMidPoint(std::sqrt(rangeMin * rangeMax));
+    knob.setInterceptsMouseClicks(false, false); // meter only, not user-editable
+    knob.setColour(juce::Slider::rotarySliderFillColourId, Palette::accent);
+    knob.setColour(juce::Slider::rotarySliderOutlineColourId, Palette::border);
+    knob.setColour(juce::Slider::thumbColourId, Palette::accent);
+    knob.setColour(juce::Slider::textBoxTextColourId, Palette::textHi);
+    knob.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+    knob.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+    addAndMakeVisible(knob);
+
+    styleLabel(driveInfoLabel, driveInfo, 9.0f, Palette::textLo, juce::Justification::centredTop);
+    driveInfoLabel.setMinimumHorizontalScale(0.6f);
+    addAndMakeVisible(driveInfoLabel);
+}
+
+void MonitorKnobComponent::resized() {
+    auto bounds = getLocalBounds();
+    nameLabel.setBounds(bounds.removeFromTop(16));
+    driveInfoLabel.setBounds(bounds.removeFromBottom(36));
+    knob.setBounds(bounds);
+}
+
+void MonitorKnobComponent::setValue(float newValue) {
+    knob.setValue(newValue, juce::dontSendNotification);
+}
 
 DSPComponent::DSPComponent(REMORAProcessor& p)
     : processor(p),
@@ -24,6 +62,7 @@ DSPComponent::DSPComponent(REMORAProcessor& p)
         int newStrategyIndex = mappingCombo.getSelectedId() - 1;
         processor.setMappingStrategy(newStrategyIndex);
         debug.print.cyan("Mapping strategy changed to:", processor.getSynth().getMappingName(newStrategyIndex));
+        rebuildMonitorKnobs();
     };
     addAndMakeVisible(mappingCombo);
 
@@ -33,6 +72,7 @@ DSPComponent::DSPComponent(REMORAProcessor& p)
                    debug.print.cyan(newStrategyIndex);
                    processor.setMappingStrategy(newStrategyIndex);
                    mappingCombo.setSelectedItemIndex(newStrategyIndex);
+                   rebuildMonitorKnobs();
                }
     );
     addAndMakeVisible(prevMapButton);
@@ -42,6 +82,7 @@ DSPComponent::DSPComponent(REMORAProcessor& p)
                    int newStrategyIndex = (mappingCombo.getSelectedId()) % mappingCount;
                    processor.setMappingStrategy(newStrategyIndex);
                    mappingCombo.setSelectedItemIndex(newStrategyIndex);
+                   rebuildMonitorKnobs();
                }
     );
     addAndMakeVisible(nextMapButton);
@@ -69,6 +110,8 @@ DSPComponent::DSPComponent(REMORAProcessor& p)
     styleLabel(rootNoteLabel, "Root Freq: -- Hz", 14.f, Palette::textHi, juce::Justification::centredRight);
     addAndMakeVisible(rootNoteLabel);
 
+    rebuildMonitorKnobs();
+
     startTimerHz(30);
 }
 
@@ -76,11 +119,34 @@ DSPComponent::~DSPComponent() {
     stopTimer();
 }
 
+void DSPComponent::rebuildMonitorKnobs() {
+    monitoredMapping = processor.getSynth().getMapping(processor.getMappingStrategy());
+
+    monitorKnobs.clear();
+    if (monitoredMapping != nullptr) {
+        for (int i = 0; i < monitoredMapping->getMonitorParamCount(); ++i) {
+            const auto& param = monitoredMapping->getMonitorParam(i);
+            auto* knob = monitorKnobs.add(new MonitorKnobComponent(param.name, param.driveInfo, param.rangeMin, param.rangeMax));
+            addAndMakeVisible(knob);
+        }
+    }
+
+    scopeTopInset = 40 + (monitorKnobs.isEmpty() ? 0 : 148);
+    resized();
+}
+
 void DSPComponent::timerCallback() {
     auto& synth = processor.getSynth();
 
+    if (processor.getSynth().getMapping(processor.getMappingStrategy()) != monitoredMapping) {
+        rebuildMonitorKnobs();
+    }
+    for (int i = 0; i < monitorKnobs.size(); ++i) {
+        monitorKnobs.getUnchecked(i)->setValue(monitoredMapping->getMonitorParam(i).value.load(std::memory_order_relaxed));
+    }
+
     if (spectrumAnalyser.getLatestMagnitudesDb(spectrumDb)) {
-        auto scopeBounds = getLocalBounds().withTrimmedTop(40).reduced(10).toFloat();
+        auto scopeBounds = getLocalBounds().withTrimmedTop(scopeTopInset).reduced(10).toFloat();
         spectrumPath.clear();
 
         constexpr float minDB = -100.0f;
@@ -107,7 +173,7 @@ void DSPComponent::timerCallback() {
 void DSPComponent::paint(juce::Graphics& g) {
     g.fillAll(Palette::bg);
 
-    auto scopeBounds = getLocalBounds().withTrimmedTop(40).reduced(10);
+    auto scopeBounds = getLocalBounds().withTrimmedTop(scopeTopInset).reduced(10);
     g.setColour(Palette::panel);
     g.fillRect(scopeBounds);
 
@@ -139,6 +205,19 @@ void DSPComponent::resized() {
     globalVolumeSlider.setBounds(row.removeFromLeft(200));
 
     rootNoteLabel.setBounds(row.removeFromRight(150));
+
+    if (!monitorKnobs.isEmpty()) {
+        bounds.removeFromTop(8);
+        auto monitorArea = bounds.removeFromTop(140);
+
+        juce::FlexBox monitorFlexBox;
+        monitorFlexBox.flexWrap = juce::FlexBox::Wrap::wrap;
+        monitorFlexBox.justifyContent = juce::FlexBox::JustifyContent::flexStart;
+        monitorFlexBox.alignContent = juce::FlexBox::AlignContent::flexStart;
+        for (auto* knob : monitorKnobs)
+            monitorFlexBox.items.add(juce::FlexItem(*knob).withWidth(100.0f).withHeight(136.0f).withMargin(4.0f));
+        monitorFlexBox.performLayout(monitorArea.toFloat());
+    }
 }
 
 DSPWindow::DSPWindow(REMORAProcessor& p)
@@ -148,7 +227,7 @@ DSPWindow::DSPWindow(REMORAProcessor& p)
     setContentNonOwned(&dspComponent, true);
     setResizable(true, true);
     setResizeLimits(400, 300, 2000, 2000);
-    setSize(600, 400);
+    setSize(680, 480);
     setUsingNativeTitleBar(true);
 }
 

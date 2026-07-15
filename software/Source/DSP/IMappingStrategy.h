@@ -2,6 +2,9 @@
 
 #include "MathHelpers.h"
 #include <JuceHeader.h>
+#include <atomic>
+#include <memory>
+#include <vector>
 
 struct StaffSoundParams;
 
@@ -32,8 +35,32 @@ struct MappingOutput {
 
 class IMappingStrategy {
 public:
+    struct MonitorParam {
+        juce::String name;
+        juce::String driveInfo;
+        float rangeMin;
+        float rangeMax;
+        std::atomic<float> value;
+
+        MonitorParam(juce::String paramName, juce::String paramDriveInfo, float paramRangeMin, float paramRangeMax)
+            : name(std::move(paramName)), driveInfo(std::move(paramDriveInfo)),
+              rangeMin(paramRangeMin), rangeMax(paramRangeMax), value(paramRangeMin) {}
+    };
+
     virtual ~IMappingStrategy() = default;
     virtual void prepare(double sampleRate) { (void)sampleRate; }
     virtual void process(const StaffSoundParams& in, MappingOutput& out) = 0;
     virtual const char* getName() const = 0;
+
+    int getMonitorParamCount() const noexcept { return static_cast<int>(monitorParams.size()); }
+    const MonitorParam& getMonitorParam(int index) const { return *monitorParams[static_cast<size_t>(index)]; }
+
+protected:
+    MonitorParam& addMonitorParam(juce::String name, juce::String driveInfo, float rangeMin = 0.0f, float rangeMax = 1.0f) {
+        monitorParams.push_back(std::make_unique<MonitorParam>(std::move(name), std::move(driveInfo), rangeMin, rangeMax));
+        return *monitorParams.back();
+    }
+
+private:
+    std::vector<std::unique_ptr<MonitorParam>> monitorParams;
 };

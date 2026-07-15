@@ -14,11 +14,19 @@
 // hardware and stage equipment.
 class AzimutMapping : public IMappingStrategy {
 public:
+    AzimutMapping();
+
     const char* getName() const override { return "Azimut"; }
     void prepare(double sample_rate_hz) override;
     void process(const StaffSoundParams& input_parameters, MappingOutput& mapping_output) override;
 
 private:
+    MonitorParam& laban_weight_monitor_;
+    MonitorParam& laban_time_monitor_;
+    MonitorParam& speed_monitor_;
+    MonitorParam& yaw_angle_monitor_;
+    MonitorParam& filter_cutoff_monitor_;
+
     double sample_rate_hz_ = 44100.0;
     float  delta_time_seconds_ = 1.0f / 100.0f;
     juce::int64 last_timestamp_ticks_ = 0;
@@ -100,10 +108,10 @@ private:
     static constexpr float kRootSemitoneTable[2][2][2] = {
         // Vertical plane
         { { 0.f, 7.f },   // CW:  North=C(0),  East=G(7)
-          { 4.f, 11.f } },// CCW: North=E(4),  East=B(11)
+        { 4.f, 11.f } },// CCW: North=E(4),  East=B(11)
         // Horizontal plane
         { { 7.f, 7.f },  // CW:  North=G(7),  East=G(7)
-          { 9.f, 9.f } } // CCW: North=A(9),  East=A(9)
+        { 9.f, 9.f } } // CCW: North=A(9),  East=A(9)
     };
 
     static constexpr float kChordVoicing[3] = { 7.f, 12.f, 19.f };

@@ -7,6 +7,15 @@
 constexpr float AzimutMapping::kRootSemitoneTable[2][2][2];
 constexpr float AzimutMapping::kChordVoicing[3];
 
+AzimutMapping::AzimutMapping()
+    : laban_weight_monitor_(addMonitorParam("Drive", "Weight (Laban)", 0.0f, 1.0f)),
+      laban_time_monitor_(addMonitorParam("Noise", "Suddenness (Laban Time)", 0.0f, 1.0f)),
+      speed_monitor_(addMonitorParam("Gain (Motion Gate)", "Speed", 0.0f, kGyroscopeCeiling)),
+      yaw_angle_monitor_(addMonitorParam("Root Pitch", "Facing (Euler Yaw)", -180.0f, 180.0f)),
+      filter_cutoff_monitor_(addMonitorParam("LPF Cutoff", "Spin count", 20.0f, 20000.0f))
+{
+}
+
 void AzimutMapping::prepare(double sample_rate_hz) {
     debug.print.green("AzimutMapping prepared at sample rate:", sample_rate_hz);
     sample_rate_hz_ = sample_rate_hz;
@@ -364,6 +373,15 @@ void AzimutMapping::process(const StaffSoundParams& input_parameters, MappingOut
     float laban_time_suddenness_normalized = updateLabanTime(gyroscope_magnitude);
     float laban_space_focus = updateLabanSpace(input_parameters, gyroscope_magnitude);
 
+    laban_weight_monitor_.value.store(laban_weight, std::memory_order_relaxed);
+    laban_time_monitor_.value.store(laban_time_suddenness_normalized, std::memory_order_relaxed);
+    speed_monitor_.value.store(smoothed_gyroscope_magnitude_, std::memory_order_relaxed);
+    {
+        const MathHelpers::Quat orientation_quaternion { input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz };
+        const float yaw_degrees = MathHelpers::toEuler(orientation_quaternion).yaw * (180.0f / juce::MathConstants<float>::pi);
+        yaw_angle_monitor_.value.store(yaw_degrees, std::memory_order_relaxed);
+    }
+
     float laban_flow_bound, laban_flow_free;
     updateLabanFlow(dynamic_accel_magnitude, laban_flow_bound, laban_flow_free);
 
@@ -391,12 +409,12 @@ void AzimutMapping::process(const StaffSoundParams& input_parameters, MappingOut
 
     if (spin_changed || facing_changed) {
         static constexpr const char* kNoteNames[2][2][2] = {
-// Vertical
+            // Vertical
             { { "C", "G" },   // CW:  North, East
-              { "E", "B" } }, // CCW: North, East
-// Horizontal
+            { "E", "B" } }, // CCW: North, East
+            // Horizontal
             { { "G", "G" },  // CW:  North, East
-              { "A", "A" } } // CCW: North, East
+            { "A", "A" } } // CCW: North, East
         };
         const int plane_index = is_rotation_axis_vertical_ ? 0 : 1;
         const int spin_index = (rotation_spin_direction_ < 0.f) ? 0 : 1;
@@ -427,4 +445,5 @@ void AzimutMapping::process(const StaffSoundParams& input_parameters, MappingOut
     smoothed_lpf_cutoff_hz_ = MathHelpers::applyOnePoleFilter(smoothed_lpf_cutoff_hz_, target_lpf_cutoff, 0.03f);
 
     mapping_output.lpfCutoffHz = smoothed_lpf_cutoff_hz_;
+    filter_cutoff_monitor_.value.store(smoothed_lpf_cutoff_hz_, std::memory_order_relaxed);
 }
