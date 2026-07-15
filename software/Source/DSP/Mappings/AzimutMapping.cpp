@@ -44,6 +44,8 @@ void AzimutMapping::prepare(double sample_rate_hz) {
     current_base_semitones_ = 0.f;
     target_base_semitones_ = 0.f;
     last_timestamp_ticks_ = 0;
+    was_moving_ = false;
+    movement_onset_envelope_ = 0.f;
 
     for (int i = 0; i < 3; ++i) {
         tip_position_x_history_[i] = 1.f;
@@ -283,8 +285,10 @@ void AzimutMapping::applyPitchAndChordToOutput(MappingOutput& mapping_output, co
     spin_direction_monitor_.value.store(static_cast<float>(spin_index), std::memory_order_relaxed);
     facing_monitor_.value.store(static_cast<float>(facing_index), std::memory_order_relaxed);
 
-    // Morph speed scales with how fast the staff is moving
+    // Morph speed scales with how fast the staff is moving, boosted right
+    // after leaving rest so the pitch snaps to the new root quickly
     float morph_speed = juce::jlimit(0.005f, 0.2f, smoothed_gyroscope_magnitude_ / 2000.0f);
+    morph_speed = std::max(morph_speed, movement_onset_envelope_ * kMovementOnsetMorphSpeed);
     current_base_semitones_ = MathHelpers::applyOnePoleFilter(current_base_semitones_, target_base_semitones_, morph_speed);
 
     // Instead of a chord, we only play octaves of the root note to maintain the same pitch class.
@@ -389,6 +393,10 @@ void AzimutMapping::process(const StaffSoundParams& input_parameters, MappingOut
     updateLabanFlow(dynamic_accel_magnitude, laban_flow_bound, laban_flow_free);
 
     const bool is_moving = smoothed_gyroscope_magnitude_ > kGyroscopeFloor;
+    const bool just_started_moving = is_moving && !was_moving_;
+    movement_onset_envelope_ = just_started_moving ? 1.f : movement_onset_envelope_ * kMovementOnsetDecayCoefficient;
+    was_moving_ = is_moving;
+
     bool spin_changed = false;
     bool facing_changed = false;
     if (is_moving) {

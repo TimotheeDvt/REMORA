@@ -140,6 +140,11 @@ private:
     float current_base_semitones_ = 0.f;
     float target_base_semitones_ = 0.f;
 
+    bool  was_moving_ = false;
+    float movement_onset_envelope_ = 0.f;
+    static constexpr float kMovementOnsetMorphSpeed = 0.5f;
+    static constexpr float kMovementOnsetDecayCoefficient = 0.90f;
+
     void calculateDeltaTime();
     void updateTipPositionHistory(const StaffSoundParams& input_parameters, float& current_tip_x, float& current_tip_y, float& current_tip_z);
     void calculateRotationAxisAtMidpoint(float& axis_x, float& axis_y, float& axis_z);
