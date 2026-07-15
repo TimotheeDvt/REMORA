@@ -18,6 +18,7 @@ MonitorKnobComponent::MonitorKnobComponent(const juce::String& name, const juce:
         knob.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
         knob.setTextBoxStyle(juce::Slider::TextBoxBelow, true, 76, 16);
         knob.setRange(rangeMin, rangeMax, 0.0);
+        knob.setNumDecimalPlacesToDisplay(2);
         // Wide ranges (e.g. a 20Hz-20kHz filter cutoff) read better on a log-ish curve.
         if (rangeMin > 0.0f && rangeMax / rangeMin > 50.0f)
             knob.setSkewFactorFromMidPoint(std::sqrt(rangeMin * rangeMax));

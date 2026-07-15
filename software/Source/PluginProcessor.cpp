@@ -219,8 +219,8 @@ void REMORAProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   const auto calibratedQ = getCalibratedQuat();
 
-  // Record orientation into the lock-free circular buffer
-  if (isReceivingValidData) {
+  if (isReceivingValidData && lastTicks != lastHistoryPushTicks) {
+    lastHistoryPushTicks = lastTicks;
     auto now = juce::Time::getMillisecondCounter();
     size_t idx = historyWriteIndex.load(std::memory_order_relaxed);
     orientationHistory[idx % orientationHistory.size()] = {calibratedQ, now};

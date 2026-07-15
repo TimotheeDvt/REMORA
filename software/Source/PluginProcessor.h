@@ -172,6 +172,7 @@ private:
 
   std::array<OrientationPoint, 512> orientationHistory;
   std::atomic<size_t> historyWriteIndex{0};
+  int64_t lastHistoryPushTicks = 0;
 
   mutable std::vector<OrientationPoint> recentOrientationsScratch;
 
