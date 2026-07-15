@@ -6,6 +6,17 @@
 #include "DebugLog.h"
 #include <cmath>
 
+namespace {
+    // Spectrum display range: below 20Hz is inaudible, and log(0) is
+    // undefined, so DC/sub-audio bins are clamped up to this floor.
+    constexpr float kSpectrumMinHz = 20.0f;
+
+    float freqToLogX(float hz, float minHz, float maxHz, float left, float right) {
+        hz = juce::jlimit(minHz, maxHz, hz);
+        return juce::jmap(std::log10(hz), std::log10(minHz), std::log10(maxHz), left, right);
+    }
+}
+
 MonitorKnobComponent::MonitorKnobComponent(const juce::String& name, const juce::String& driveInfo, float rangeMin, float rangeMax,
                                             juce::StringArray textLabelsIn)
     : textLabels(std::move(textLabelsIn))
@@ -169,8 +180,13 @@ void DSPComponent::timerCallback() {
         constexpr float minDB = -100.0f;
         constexpr float maxDB = 0.0f;
 
+        const float sampleRate = static_cast<float>(processor.getSynth().getSampleRate());
+        const float maxHz = sampleRate > 0.0f ? sampleRate / 2.0f : 20000.0f;
+        const float binHz = sampleRate / static_cast<float>(SpectrumAnalyserThread::fftSize);
+
         for (size_t i = 0; i < spectrumDb.size(); ++i) {
-            float x = juce::jmap((float)i, 0.0f, (float)spectrumDb.size(), scopeBounds.getX(), scopeBounds.getRight());
+            float hz = static_cast<float>(i) * binHz;
+            float x = freqToLogX(hz, kSpectrumMinHz, maxHz, scopeBounds.getX(), scopeBounds.getRight());
             float y = juce::jmap(spectrumDb[i], minDB, maxDB, scopeBounds.getBottom(), scopeBounds.getY());
 
             if (i == 0) spectrumPath.startNewSubPath(x, y);
@@ -194,13 +210,41 @@ void DSPComponent::paint(juce::Graphics& g) {
     g.setColour(Palette::panel);
     g.fillRect(scopeBounds);
 
+    float maxHz = processor.getSynth().getSampleRate() / 2.0f;
+    if (maxHz > 0.0f) {
+        // Standard analyzer marks, evenly spaced in log space (each decade
+        // gets denser marks near its low end, like a real spectrum analyzer).
+        static constexpr float niceMarks[] = {20.f, 50.f, 100.f, 200.f, 500.f,
+                                               1000.f, 2000.f, 5000.f, 10000.f, 20000.f};
+
+        g.setFont(9.5f);
+        for (float hz : niceMarks) {
+            if (hz < kSpectrumMinHz || hz > maxHz)
+                continue;
+
+            int x = static_cast<int>(freqToLogX(hz, kSpectrumMinHz, maxHz,
+                                                 static_cast<float>(scopeBounds.getX()),
+                                                 static_cast<float>(scopeBounds.getRight())));
+
+            g.setColour(Palette::border.withAlpha(0.35f));
+            g.drawVerticalLine(x, static_cast<float>(scopeBounds.getY()), static_cast<float>(scopeBounds.getBottom()));
+
+            juce::String label = hz >= 1000.0f
+                ? juce::String(hz / 1000.0f, (hz < 10000.0f ? 1 : 0)) + "k"
+                : juce::String(static_cast<int>(hz));
+
+            g.setColour(Palette::textMid.withAlpha(0.8f));
+            g.drawText(label, x - 20, scopeBounds.getBottom() - 14, 40, 12, juce::Justification::centred, false);
+        }
+    }
+
     g.setColour(Palette::accentDim);
     g.strokePath(spectrumPath, juce::PathStrokeType(1.5f));
 
-    float maxHz = processor.getSynth().getSampleRate() / 2.0f;
     if (maxHz > 0.0f) {
         float lpfHz = processor.getSynth().getCurrentLpfCutoff();
-        float lpfX = juce::jmap(lpfHz, 0.0f, maxHz, (float)scopeBounds.getX(), (float)scopeBounds.getRight());
+        float lpfX = freqToLogX(lpfHz, kSpectrumMinHz, maxHz,
+                                 static_cast<float>(scopeBounds.getX()), static_cast<float>(scopeBounds.getRight()));
 
         g.setColour(Palette::yellow.withAlpha(0.8f));
         g.drawVerticalLine(static_cast<int>(lpfX), static_cast<float>(scopeBounds.getY()), static_cast<float>(scopeBounds.getBottom()));
