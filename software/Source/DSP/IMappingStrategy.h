@@ -31,6 +31,9 @@ struct MappingOutput {
     float panR[4] = { 0.15f, 0.45f, 0.55f, 0.85f };
 
     float lpfCutoffHz = 20000.0f;
+
+    bool  useIndependentVoicePitch = false;
+    float voiceHz[4] = { 110.0f, 110.0f, 110.0f, 110.0f };
 };
 
 class IMappingStrategy {

@@ -12,6 +12,7 @@
 #include "Mappings/AzimutMapping.h"
 #include "Mappings/AzimutPlusMapping.h"
 #include "Mappings/BensMapping.h"
+#include "Mappings/SpinVoiceMapping.h"
 
 float BoStaffSynth::semitoneRatio(float semitones) {
     return MathHelpers::semitoneRatio(semitones);
@@ -39,6 +40,7 @@ BoStaffSynth::BoStaffSynth() {
     mappings.push_back(std::make_unique<AzimutMapping>());
     mappings.push_back(std::make_unique<AzimutPlusMapping>());
     mappings.push_back(std::make_unique<BensMapping>());
+    mappings.push_back(std::make_unique<SpinVoiceMapping>());
 }
 
 BoStaffSynth::~BoStaffSynth() {}
@@ -215,9 +217,14 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
             if (chorusPhase[v] >= twoPi) chorusPhase[v] -= twoPi;
             float chorusMod = 1.0f + kChorusDepth * std::sin(chorusPhase[v]);
 
-            float semi = (v == 0) ? 0.0f
-                       : blendFromSemitones[v-1] + (mappingOut.chordSemitones[v-1] - blendFromSemitones[v-1]) * blend;
-            float voiceFreq = rootNow * semitoneRatio(semi) * chorusMod;
+            float voiceFreq;
+            if (mappingOut.useIndependentVoicePitch) {
+                voiceFreq = mappingOut.voiceHz[v] * vibratoMod * chorusMod;
+            } else {
+                float semi = (v == 0) ? 0.0f
+                           : blendFromSemitones[v-1] + (mappingOut.chordSemitones[v-1] - blendFromSemitones[v-1]) * blend;
+                voiceFreq = rootNow * semitoneRatio(semi) * chorusMod;
+            }
 
             voices[v].voiceAmp.setTargetValue((v < numVoices) ? mappingOut.voiceGain[v] : 0.0f);
             float voiceGain = voices[v].voiceAmp.getNextValue();
