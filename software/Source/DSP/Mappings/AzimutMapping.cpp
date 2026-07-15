@@ -10,7 +10,7 @@ constexpr float AzimutMapping::kChordVoicing[3];
 AzimutMapping::AzimutMapping()
     : laban_weight_monitor_(addMonitorParam("Drive", "Laban Weight", 0.0f, 1.0f)),
       laban_time_monitor_(addMonitorParam("Noise", "Laban Time", 0.0f, 1.0f)),
-      speed_monitor_(addMonitorParam("Gain (Motion Gate)", "Speed", 0.0f, kGyroscopeCeiling)),
+      speed_monitor_(addMonitorParam("Gain", "Speed", 0.0f, kGyroscopeCeiling)),
       filter_cutoff_monitor_(addMonitorParam("LPF Cutoff", "Spin count", 20.0f, 20000.0f)),
       spin_plane_monitor_(addTextMonitorParam("Root Pitch", "Spin Plane", { "Vertical", "Horizontal" })),
       spin_direction_monitor_(addTextMonitorParam("Root Pitch", "Spin Direction", { "CW", "CCW" })),

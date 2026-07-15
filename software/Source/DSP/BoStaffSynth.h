@@ -129,6 +129,7 @@ private:
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> masterGain{0.f};
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> bowPressure{0.f};
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> rootFreq{110.f};
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> muteGain{1.f};
 
   float vibratoPhase  = 0.f;
   float tremoloPhase  = 0.f;

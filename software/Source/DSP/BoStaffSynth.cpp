@@ -59,6 +59,9 @@ void BoStaffSynth::prepareToPlay(double sampleRate, int samplesPerBlock) {
     chordBlendSmoother.reset(sampleRate, 0.200);
     chordBlendSmoother.setCurrentAndTargetValue(1.0f);
 
+    muteGain.reset(sampleRate, 0.020);
+    muteGain.setCurrentAndTargetValue(isSoundEnabled() ? 1.0f : 0.0f);
+
     for (int v = 0; v < kNumVoices; ++v) {
         voices[v].prepare(sampleRate);
         chorusPhase[v] = static_cast<float>(v) * 1.57f;
@@ -114,7 +117,9 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
 
     constexpr float twoPi = 6.28318530717958f;
 
-    if (!params.isReceivingValidData || !isSoundEnabled()) {
+    muteGain.setTargetValue(isSoundEnabled() ? 1.0f : 0.0f);
+
+    if (!params.isReceivingValidData) {
         masterGain.setTargetValue(0.0f);
         bowPressure.setTargetValue(0.0f);
         for (int v = 0; v < kNumVoices; ++v)
@@ -130,6 +135,7 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
             }
             left[i] = 0.f;
         }
+        muteGain.skip(numSamples);
         if (right) juce::FloatVectorOperations::copy(right, left, numSamples);
         return;
     }
@@ -234,5 +240,9 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
         left[i] *= vol;
         if (right) right[i] *= vol;
         pushNextSampleIntoFifo(left[i]);
+
+        const float mute = muteGain.getNextValue();
+        left[i] *= mute;
+        if (right) right[i] *= mute;
     }
 }
