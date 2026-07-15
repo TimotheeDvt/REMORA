@@ -28,6 +28,7 @@ private:
     MonitorParam& spin_plane_monitor_;
     MonitorParam& spin_direction_monitor_;
     MonitorParam& facing_monitor_;
+    MonitorParam& thrust_peak_monitor_;
 
     double sample_rate_hz_ = 44100.0;
     float  delta_time_seconds_ = 1.0f / 100.0f;

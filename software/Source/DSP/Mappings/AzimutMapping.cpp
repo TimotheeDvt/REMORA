@@ -14,7 +14,8 @@ AzimutMapping::AzimutMapping()
       filter_cutoff_monitor_(addMonitorParam("LPF Cutoff", "Spin count", 20.0f, 20000.0f)),
       spin_plane_monitor_(addTextMonitorParam("Root Pitch", "Spin Plane", { "Vertical", "Horizontal" })),
       spin_direction_monitor_(addTextMonitorParam("Root Pitch", "Spin Direction", { "CW", "CCW" })),
-      facing_monitor_(addTextMonitorParam("Root Pitch", "Facing", { "North", "East" }))
+      facing_monitor_(addTextMonitorParam("Root Pitch", "Facing", { "North", "East" })),
+      thrust_peak_monitor_(addMonitorParam("Brightness", "Thrust Peak", 0.0f, 1.0f))
 {
 }
 
@@ -382,6 +383,7 @@ void AzimutMapping::process(const StaffSoundParams& input_parameters, MappingOut
     laban_weight_monitor_.value.store(laban_weight, std::memory_order_relaxed);
     laban_time_monitor_.value.store(laban_time_suddenness_normalized, std::memory_order_relaxed);
     speed_monitor_.value.store(smoothed_gyroscope_magnitude_, std::memory_order_relaxed);
+    thrust_peak_monitor_.value.store(axial_thrust_peak_envelope_, std::memory_order_relaxed);
 
     float laban_flow_bound, laban_flow_free;
     updateLabanFlow(dynamic_accel_magnitude, laban_flow_bound, laban_flow_free);
