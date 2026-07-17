@@ -163,7 +163,7 @@ module standard_hole_cuts(draw_button_shere = false) {
 
     translate([esp32_screw_x, esp32_screw_y_1, 13]) cylinder(r = screw_head_d, h = 9);
     translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d, h = 8);
-    translate([mpu_screw_x_2, mpu_screw_y, 13])    cylinder(r = screw_head_d, h = 100);
+    translate([mpu_screw_x_2, mpu_screw_y, 12])    cylinder(r = screw_head_d+1, h = 100);
 
     // button
     translate([button_pos[0]+22.5, 0, 16])    cylinder(r = screw_head_d + 1, h = 15);
@@ -184,13 +184,13 @@ module screw_reinforcements() {
         union() {
             translate([esp32_screw_x, esp32_screw_y_1, 13]) cylinder(r = screw_head_d + 1.5, h = 25);
             translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d + 1.5, h = 8);
-            translate([mpu_screw_x_2, mpu_screw_y, 7])    cylinder(r = screw_head_d + 1.5, h = 25);
+            translate([mpu_screw_x_2, mpu_screw_y, 9])    cylinder(r = screw_head_d + 1.5, h = 25);
         }
     }
 
     translate([esp32_screw_x, esp32_screw_y_1, 9]) cylinder(r = screw_head_d, h = 4);
     translate([esp32_screw_x, esp32_screw_y_2, 9])  cylinder(r = screw_head_d, h = 4);
-    translate([mpu_screw_x_2, mpu_screw_y,7])    cylinder(r = screw_head_d, h = 4);
+    translate([mpu_screw_x_2, mpu_screw_y,9])    cylinder(r = screw_head_d, h = 4);
 }
 
 
