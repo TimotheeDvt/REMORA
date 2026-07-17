@@ -11,6 +11,7 @@
 #include "Mappings/BozendoMapping2.h"
 #include "Mappings/AzimutMapping.h"
 #include "Mappings/AzimutPlusMapping.h"
+#include "Mappings/AzimutReverbMapping.h"
 #include "Mappings/BensMapping.h"
 #include "Mappings/SpinVoiceMapping.h"
 
@@ -39,6 +40,7 @@ BoStaffSynth::BoStaffSynth() {
     mappings.push_back(std::make_unique<BozendoMapping2>());
     mappings.push_back(std::make_unique<AzimutMapping>());
     mappings.push_back(std::make_unique<AzimutPlusMapping>());
+    mappings.push_back(std::make_unique<AzimutReverbMapping>());
     mappings.push_back(std::make_unique<BensMapping>());
     mappings.push_back(std::make_unique<SpinVoiceMapping>());
 }
@@ -82,6 +84,13 @@ void BoStaffSynth::prepareToPlay(double sampleRate, int samplesPerBlock) {
 
     masterLowPassFilter.prepare(spec);
     masterLowPassFilter.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
+
+    reverb.prepare(spec);
+    reverb.reset();
+    reverbWetBuffer.setSize(2, samplesPerBlock);
+
+    reverbWetSmoothed.reset(sampleRate, 0.050);
+    reverbWetSmoothed.setCurrentAndTargetValue(0.0f);
 }
 
 void BoStaffSynth::setSoundEnabled(bool b) { soundEnabled.store(b); }
@@ -142,9 +151,14 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
             left[i] = 0.f;
         }
         muteGain.skip(numSamples);
+        reverbWetSmoothed.skip(numSamples);
         if (right) juce::FloatVectorOperations::copy(right, left, numSamples);
         return;
     }
+
+    // Only AzimutReverbMapping sets this; reset it here so switching away
+    // from it can't leave a stale wet level stuck on for every other mapping.
+    mappingOut.reverbWetLevel = 0.0f;
 
     int activeIndex = activeMappingIndex.load();
     if (activeIndex >= 0 && activeIndex < static_cast<int>(mappings.size())) {
@@ -245,6 +259,31 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
     juce::dsp::AudioBlock<float> audioBlock(buffer);
     juce::dsp::ProcessContextReplacing<float> context(audioBlock);
     masterLowPassFilter.process(context);
+
+    reverbWetSmoothed.setTargetValue(mappingOut.reverbWetLevel);
+    {
+        juce::dsp::Reverb::Parameters reverbParams;
+        reverbParams.roomSize = mappingOut.reverbRoomSize;
+        reverbParams.damping  = mappingOut.reverbDamping;
+        reverbParams.wetLevel = 1.0f;
+        reverbParams.dryLevel = 0.0f;
+        reverbParams.width    = 1.0f;
+        reverb.setParameters(reverbParams);
+
+        reverbWetBuffer.setSize(buffer.getNumChannels(), numSamples, false, false, true);
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            reverbWetBuffer.copyFrom(ch, 0, buffer, ch, 0, numSamples);
+
+        juce::dsp::AudioBlock<float> wetBlock(reverbWetBuffer);
+        juce::dsp::ProcessContextReplacing<float> wetContext(wetBlock);
+        reverb.process(wetContext);
+
+        for (int i = 0; i < numSamples; ++i) {
+            const float wetAmt = reverbWetSmoothed.getNextValue();
+            left[i] = left[i] * (1.0f - wetAmt) + reverbWetBuffer.getSample(0, i) * wetAmt;
+            if (right) right[i] = right[i] * (1.0f - wetAmt) + reverbWetBuffer.getSample(1, i) * wetAmt;
+        }
+    }
 
     float vol = uiGlobalVolume.load();
     for (int i = 0; i < numSamples; ++i) {

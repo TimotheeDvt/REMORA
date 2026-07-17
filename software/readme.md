@@ -14,7 +14,7 @@ A real-time, dynamic **JUCE-based audio plugin** (VST3 and Standalone) engineere
 
 ## Performance Mapping Strategies
 
-This technical section details how physical movements stream into the base `IMappingStrategy` classes and directly manipulate the parameters of the synthesizer engine. Nine strategies are registered in `BoStaffSynth`, in the order below, from the simplest direct mappings up to the full Azimut engine and its variants.
+This technical section details how physical movements stream into the base `IMappingStrategy` classes and directly manipulate the parameters of the synthesizer engine. Ten strategies are registered in `BoStaffSynth`, in the order below, from the simplest direct mappings up to the full Azimut engine and its variants.
 
 ---
 
@@ -113,6 +113,14 @@ The V2 Bozendo mapping shifts the paradigm from scale-quantization to trajectory
 #### Azimut+ Variant
 
 `AzimutPlusMapping` reuses the exact same body-motion engine (Laban weight/time/space/flow, facing, thrust detection) as Azimut, with one change: the Low-Pass Filter cutoff tracks the staff's **instantaneous rotation speed** directly (linearly mapped from the $30^\circ/\text{s}$ floor to the $750^\circ/\text{s}$ ceiling, 400 Hz-20 kHz) instead of the accumulated spin count from section B. This trades the cyclic sweep-per-loop character of Azimut for a filter that opens and closes continuously with how fast the performer is currently moving.
+
+#### Azimut Reverb Variant
+
+`AzimutReverbMapping` reuses the exact same body-motion engine as Azimut (facing, spin-count filter sweep, thrust detection, section A-C above are unchanged), with one change: Laban Flow - computed every block but discarded via `ignoreUnused` in Azimut and Azimut+ - now drives a reverb send.
+
+* **Flow → Reverb Send:** `flow_free` (loose, unrestrained motion; the complement of `flow_bound`, see the Laban Flow definition in section B) sets the wet level, scaled by Laban Weight so a loose but tiny gesture doesn't flood the sound: $\text{wetLevel} = \text{flow\_free} \times (0.25 + \text{weight} \times 0.75)$, clamped to $[0, 1]$.
+* **Flow → Room Size / Damping:** the same `flow_free` also maps linearly to the reverb's room size ($0.25 \rightarrow 0.95$, i.e. decay length / "feedback") and inversely to its damping ($0.80 \rightarrow 0.15$, i.e. high-frequency absorption). Free, loose motion therefore opens a longer, brighter tail; bound, tense motion collapses it back toward a short, damped, near-dry space.
+* **DSP Implementation:** `BoStaffSynth` owns a single shared `juce::dsp::Reverb` instance, gated by `MappingOutput::reverbWetLevel/reverbRoomSize/reverbDamping`. The wet level is smoothed over 50 ms and the wet/dry mix is done manually per sample (rather than via the Reverb's own internal wet/dry parameters) so switching mappings, or Flow itself swinging quickly, never zippers. `BoStaffSynth` resets `reverbWetLevel` to 0 before calling into whichever mapping is active, so only Azimut Reverb ever turns the send on - every other mapping stays untouched and fully dry.
 
 ---
 

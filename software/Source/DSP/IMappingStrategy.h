@@ -34,6 +34,10 @@ struct MappingOutput {
 
     bool  useIndependentVoicePitch = false;
     float voiceHz[4] = { 110.0f, 110.0f, 110.0f, 110.0f };
+
+    float reverbWetLevel = 0.0f;   // 0 = dry/bypassed, 1 = fully wet
+    float reverbRoomSize = 0.5f;   // decay length ("feedback"): 0 = short, 1 = long
+    float reverbDamping  = 0.5f;   // high-frequency absorption: 0 = bright, 1 = dark
 };
 
 class IMappingStrategy {

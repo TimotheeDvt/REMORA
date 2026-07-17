@@ -149,6 +149,10 @@ private:
 
   juce::dsp::StateVariableTPTFilter<float> masterLowPassFilter;
 
+  juce::dsp::Reverb reverb;
+  juce::AudioBuffer<float> reverbWetBuffer;
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> reverbWetSmoothed{0.f};
+
 public:
   std::atomic<float> uiGlobalVolume { 1.0f };
 
