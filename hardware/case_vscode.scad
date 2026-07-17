@@ -1,5 +1,5 @@
 preview_lift_both = 15;
-render_mode = "both"; // ["both", "cap", "base"]
+render_mode = "both"; // ["both", "cap", "base", "none"]
 show_ghosts = true;
 module __Customizer_Limit__ () {}
 staff_diameter  = 30;       // Diameter of the staff in mm
@@ -161,7 +161,7 @@ module screw_reinforcements() {
 // GENERATING THE PIECES
 
 // Base
-if (render_mode == "base" || render_mode == "both") {
+if (render_mode != "none" && (render_mode == "base" || render_mode == "both")) {
     union() {
         difference() {
             intersection() {
@@ -185,7 +185,7 @@ if (render_mode == "base" || render_mode == "both") {
 }
 
 // Cap
-if (render_mode == "cap" || render_mode == "both") {
+if (render_mode != "none" && (render_mode == "cap" || render_mode == "both")) {
     // Slightly lifts the cap in "both" preview mode to see inside
     preview_lift = (render_mode == "both") ? preview_lift_both : 0;
 
@@ -208,6 +208,6 @@ if (render_mode == "cap" || render_mode == "both") {
 
         // USB-C Slot
         translate([-case_length/2 + 0, -strap_width/2 - 3.5, 3])
-            cube([20, strap_width + 7, strap_thickness * 2 + 2]);
+            cube([20, strap_width + 7, 8.5]);
     }
 }
