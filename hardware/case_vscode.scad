@@ -1,4 +1,5 @@
 preview_lift_both = 15;
+preview_cut = 0;
 render_mode = "both"; // ["both", "cap", "base", "none"]
 show_ghosts = true;
 module __Customizer_Limit__ () {}
@@ -38,6 +39,9 @@ battery_screw_y = [2.35, 0, -2.35];
 staff_pos = [20, 0, -case_length/2 - 50];
 staff_rot = [0, 90, 0];
 
+button_pos = [-30-22.5, -8, 13];
+button_rot = [0, 0, 0];
+
 $fn = 100;
 
 // IMPORT GHOSTS
@@ -46,6 +50,7 @@ if (show_ghosts) {
     % color("green", 0.3) translate(mpu_pos)     rotate(mpu_rot)     import(mpu_file);
     % color("green", 0.3) translate(battery_pos) rotate(battery_rot) import(battery_file);
     % color("green", 0.3) rotate(staff_rot) translate(staff_pos) cylinder(r = staff_diameter/2, h = case_length + 100);
+    % color("green", 1) translate(button_pos) rotate(button_rot) button_cap();
 }
 
 // FULL GEOMETRY MODULE
@@ -70,6 +75,56 @@ module raw_uncut_case() {
                 sphere(r = 1 - wall_thickness);
             }
         }
+    }
+}
+
+// BUTTON MODULE
+module button_cap() {
+    difference() {
+        minkowski() {
+            intersection() {
+                translate([1.5, 1.25, 1.5])
+                cube([45 - 3, 16.5 - 3, 13 - 3]);
+
+                translate([22.5, 8, -178])
+                sphere(r = 190 - 1.5);
+            }
+            sphere(r = 1.5);
+        }
+        translate([22.5, 8, 11.5]) cylinder(r = 4.5, h = 3);
+    }
+    translate([22.5, 8, 11.2]) cylinder(r = 4.25, h = 0.8);
+    translate([22.5, 8, 12]) cylinder(r = 2.25, h = 2.5);
+}
+
+module button_cap_boss(margin = 2) {
+    minkowski() {
+        intersection() {
+            translate([1.5, 1.25, 1.5])
+            cube([45 - 3, 16.5 - 3, 13 - 3]);
+
+            translate([22.5, 8, -178])
+            sphere(r = 190 - 1.5);
+        }
+        sphere(r = 1.5 + margin);
+    }
+}
+
+module button_socket(clearance = 0.5, side_relief = 3) {
+    union() {
+        minkowski() {
+            intersection() {
+                translate([1.5, 1.25, 1.5])
+                cube([45 - 3, 16.5 - 3, 13 - 3]);
+
+                translate([22.5, 8, -178])
+                sphere(r = 190 - 1.5);
+            }
+            sphere(r = 1.5 + clearance);
+        }
+
+        translate([-side_relief, -side_relief, -20])
+            cube([45 + 2 * side_relief, 16 + 2 * side_relief, 25]);
     }
 }
 
@@ -111,32 +166,13 @@ module standard_hole_cuts(draw_button_shere = false) {
     translate([mpu_screw_x_2, mpu_screw_y, 13])    cylinder(r = screw_head_d, h = 100);
 
     // button
-    translate([-case_length/4 + 10, 0, 16])    cylinder(r = screw_head_d, h = 15);
+    translate([button_pos[0]+22.5, 0, 16])    cylinder(r = screw_head_d + 1, h = 15);
 
-    color("red") translate([-case_length/4 + 10 - 22.5, -8, 14]) {
-        difference() {
-            intersection() {
-                // main block
-                cube([45, 16, 13]);
+    // Cable pass-through
+    translate([button_pos[0]-3, -3.5, 16]) cube([3, 7, 5]);
+    translate([-8,  -3.5, 16]) cube([3, 7, 5]);
 
-                // curve (creates a subtle dome/arc across the top)
-                translate([22.5, 8, -178]) sphere(r = 190);
-            }
-            translate([22.5, 8, 11.5]) cylinder(r = 4.5, h = 2.5);
-        }
-
-        translate([22.5, 8, 11.5]) cylinder(r = 4.25, h = 0.5);
-        translate([22.5, 8, 12]) cylinder(r = 2.25, h = 2.5);
-    }
-
-    /* Disabled for now, can't print it upside down + diameter too small
-        // Pole
-        // ESP32 Side
-        translate([-case_length/2 + 15, 9, 0]) cylinder(r = pole_d, h = pole_h);
-        translate([-case_length/2 + 15, -9, 0]) cylinder(r = pole_d, h = pole_h);
-        // MPU
-        translate([case_length/2 - 3.5, 0, 0]) cylinder(r = pole_d, h = pole_h);
-    */
+    translate(button_pos) rotate(button_rot) button_socket();
 }
 
 module screw_reinforcements() {
@@ -172,15 +208,6 @@ if (render_mode != "none" && (render_mode == "base" || render_mode == "both")) {
             }
             standard_hole_cuts();
         }
-
-        /* Disabled for now, can't print it upside down + diameter too small
-            // Pole
-            // ESP32 Side
-            translate([-case_length/2 + 15, 9, 0]) cylinder(r = pole_d, h = pole_h);
-            translate([-case_length/2 + 15, -9, 0]) cylinder(r = pole_d, h = pole_h);
-            // MPU
-            translate([case_length/2 - 3.5, 0, 0]) cylinder(r = pole_d, h = pole_h);
-        */
     }
 }
 
@@ -189,25 +216,32 @@ if (render_mode != "none" && (render_mode == "cap" || render_mode == "both")) {
     // Slightly lifts the cap in "both" preview mode to see inside
     preview_lift = (render_mode == "both") ? preview_lift_both : 0;
 
-    translate([0, 0, preview_lift]) difference() {
-        union() {
-            intersection() {
-                raw_uncut_case();
-                // Bounding block to isolate the upper part
-                translate([-case_length/2 - 5, -case_width/2 - 5, strap_thickness + 1])
-                    cube([case_length + 10, case_width + 10, case_height]);
-            }
-            screw_reinforcements();
+    cut_width = (case_length + 10) * (100 - abs(preview_cut)) / 100;
+    cut_x0 = (preview_cut >= 0)
+        ? case_length/2 + 5 - cut_width
+        : -case_length/2 - 5;
+
+    translate([0, 0, preview_lift]) intersection() {
+        difference() {
             union() {
-                translate([-case_length/4 + 10 - 24, -5, 25.8]) cube([50, 10, 1]);
-                translate([-case_length/4 + 10 - 24, -5, 17]) cube([1, 10, 10]);
+                intersection() {
+                    raw_uncut_case();
+                    // Bounding block to isolate the upper part
+                    translate([-case_length/2 - 5, -case_width/2 - 5, strap_thickness + 1])
+                        cube([case_length + 10, case_width + 10, case_height]);
+                }
+                screw_reinforcements();
+                translate(button_pos) rotate(button_rot) button_cap_boss(2);
             }
+
+            standard_hole_cuts(true);
+
+            // USB-C Slot
+            translate([-case_length/2 + 0, -strap_width/2 - 3.5, 3])
+                cube([20, strap_width + 7, 8.5]);
         }
 
-        standard_hole_cuts(true);
-
-        // USB-C Slot
-        translate([-case_length/2 + 0, -strap_width/2 - 3.5, 3])
-            cube([20, strap_width + 7, 8.5]);
+        translate([cut_x0, -case_width/2 - 5, -case_height])
+            cube([cut_width, case_width + 10, case_height * 2]);
     }
 }
