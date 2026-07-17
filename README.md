@@ -1,6 +1,8 @@
-# Bô - A Motion-Controlled Musical Instrument
+# Remora - A Motion-Controlled Musical Instrument
 
-**Bô** is a digital musical instrument built around a martial arts staff (bô) augmented with an IMU sensor. Physical gestures such as spinning, tilting, striking, sweeping are translated in real time into expressive audio synthesis. The name *NIME* in the codebase stands for **New Instrument for Musical Expression**, and reflects the instrument design philosophy.
+**Remora** is a digital musical instrument built around a martial arts staff (bô) augmented with an IMU sensor. Physical gestures such as spinning, tilting, striking, sweeping are translated in real time into expressive audio synthesis. The name *NIME* in the codebase stands for **New Instrument for Musical Expression**, and reflects the instrument design philosophy.
+
+The audio side ships as **REMORA** (*Real-time Expressive Motion to Output Routing Audio*), a JUCE plugin that turns the incoming motion stream into sound.
 
 ---
 
@@ -10,7 +12,7 @@ The instrument consists of two parts:
 
 **Firmware** - An ESP32-S2 microcontroller mounted on the staff reads a 9-DOF IMU (MPU-9250) at 100 Hz and streams orientation data (quaternion, accelerometer, gyroscope, magnetometer) over Wi-Fi as OSC packets.
 
-**Software** - A JUCE-based VST3/Standalone audio plugin receives the OSC stream, applies a user-defined calibration, extracts musical parameters from the motion, and drives an internal additive synthesiser with multiple mapping strategies selectable at runtime.
+**Software** - REMORA, a JUCE-based VST3/Standalone audio plugin, receives the OSC stream, applies a user-defined calibration, extracts musical parameters from the motion, and drives an internal additive synthesiser with multiple mapping strategies selectable at runtime.
 
 The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 
@@ -21,9 +23,9 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
        │  Wi-Fi / UDP / OSC  (port 8000)
        ▼
 [ Host Computer ]
-  └─ JUCE Plugin (VST3 / Standalone)
+  └─ REMORA Plugin (VST3 / Standalone)
        ├─ OscReceiverManager   - receives and parses packets
-       ├─ PluginProcessor      - calibration, quaternion maths
+       ├─ REMORAProcessor      - calibration, quaternion maths
        ├─ BoStaffSynth         - 4-voice additive synthesiser
        └─ IMappingStrategy     - swappable gesture-to-sound mappings
 ```
@@ -34,20 +36,22 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 
 ```
 .
-├── firmware/                       # PlatformIO project for the ESP32-S2
+├── firmware/               # PlatformIO project for the ESP32-S2
 │   ├── platformio.ini          # Board, platform, and library config
 │   └── src/
 │       └── main.cpp            # IMU read loop + OSC transmission
 │
-├── software/                       # JUCE CMake project (VST3 + Standalone)
+├── software/               # JUCE CMake project (VST3 + Standalone)
 │   ├── CMakeLists.txt
 │   ├── Makefile                # Convenience wrapper around CMake
-│   ├── JUCE/                   # JUCE library (not tracked here)
+│   ├── readme.md               # Deep technical dive into every mapping strategy's DSP
+│   ├── IDEAS.md                # Scratchpad of in-progress mapping ideas
+│   ├── JUCE/                   # JUCE library (cloned locally, not tracked here)
 │   ├── Assets/
 │   │   └── logo.png
 │   └── Source/
-│       ├── PluginProcessor.{h,cpp}   # Audio processor, calibration, OSC bridge
-│       ├── PluginEditor.{h,cpp}      # Main UI
+│       ├── PluginProcessor.{h,cpp}   # REMORAProcessor: calibration, OSC bridge
+│       ├── PluginEditor.{h,cpp}      # REMORAEditor: main UI
 │       ├── DATA/
 │       │   ├── IMUData.h             # Lock-free IMU data store (seqlock)
 │       │   └── OrientationPoint.h    # Timestamped quaternion for trail rendering
@@ -55,17 +59,22 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 │       │   ├── MathHelpers.h         # Quaternion / vector maths
 │       │   ├── IMappingStrategy.h    # Abstract mapping interface
 │       │   ├── BoStaffSynth.{h,cpp}  # 4-voice additive synth engine
-│       │   └── Mappings/             # Mappings implementations
+│       │   └── Mappings/             # One class per mapping strategy (see below)
 │       ├── OSC/
 │       │   └── OscReceiverManager.{h,cpp} # JUCE OSCReceiver wrapper
-│       └── UI/                       # UI related utilities and windows
+│       └── UI/                       # Calibration overlay, raw-data/debug/DSP
+│                                     # diagnostic windows, spectrum analyser, styling
 ├── hardware/
-│   ├── Assets/                           # Models for ESP32, MPU chips and battery holder
-│   ├── PRINTABLE/                        # Printable STL for 3D printer
-│   ├── case_vscode.scad                  # Main casing model
-│   └── base_print.scad                   # Utils to export a pdf design pattern
+│   ├── Assets/                           # Reference models for ESP32, MPU chip and battery holder
+│   ├── PRINTABLE/                        # Exported STL/gcode ready to slice and print
+│   ├── case_vscode.scad                  # Parametric casing model (OpenSCAD Customizer)
+│   └── base_print.scad                   # Utility to export a flat cutting/drilling pattern
 │
-└── tests/                                # OSC Receiver test
+└── tests/                   # OSC + gesture-mapping prototyping and test tools
+    ├── testOSCReceiver.py                    # Minimal Python OSC listener on port 8000
+    ├── exploration_tests/                    # PyQt/matplotlib gesture-simulation sandbox
+    ├── PlugData/                             # Pure Data patches + mock-data generator
+    └── PurrData/Karplus-Strong/              # Karplus-Strong string synthesis patches
 ```
 
 ---
@@ -75,22 +84,22 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 ### Prerequisites
 
 - [PlatformIO](https://platformio.org/) (CLI or VS Code extension)
-- A **SparkFun ESP32-S2 Thing+** connected over USB
+- The **SparkFun ESP32-S2 Thing+** connected over USB
 
 ### Steps
 
-1. Edit `firmware/NIME_2026/src/main.cpp` and update the Wi-Fi credentials and target IP to match your network:
+1. Edit `firmware/src/main.cpp` and update the Wi-Fi credentials and target IP to match your network:
 
    ```cpp
    const char *WIFI_SSID     = "YOUR_SSID";
    const char *WIFI_PASSWORD = "YOUR_PASSWORD";
-   const IPAddress outIp(10, 42, 0, 255); // broadcast or host IP
+   const IPAddress outIp(192, 168, 12, 1); // host machine running the REMORA plugin
    ```
 
 2. Flash the firmware:
 
    ```bash
-   cd firmware/NIME_2026
+   cd firmware
    pio run --target upload
    ```
 
@@ -106,7 +115,7 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 
 - Initialises the MPU-9250 over I2C (SDA = GPIO 1, SCL = GPIO 2)
 - Connects to Wi-Fi and sends a `/esp32/connected <ip>` handshake packet
-- Loops at 100 Hz, sending `/esp32/imu ax ay az gx gy gz mx my mz qw qx qy qz <ip>` to the configured broadcast/host address on port 8000
+- Loops at 100 Hz, sending `/esp32/imu ax ay az gx gy gz mx my mz qw qx qy qz <ip>` to the configured host address on port 8000
 
 ---
 
@@ -117,60 +126,55 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 - **CMake 3.22+**
 - **Ninja** build system
 - A C++17-capable compiler (MSVC 2022 on Windows, Clang/GCC on macOS/Linux)
-- JUCE cloned as a subdirectory at `software/NIME_2026_JUCE/JUCE/`
+- JUCE cloned as a subdirectory at `software/JUCE/`
 
   ```bash
-  cd software/NIME_2026_JUCE
+  cd software
   git clone https://github.com/juce-framework/JUCE.git
   ```
 
 ### Steps
 
-```bash
-cd software/NIME_2026_JUCE
-
-# Configure
-cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-
-# Build
-cmake --build build --config Release
-```
-
-Or use the provided `Makefile`:
+Using the provided `Makefile`:
 
 ```bash
+cd software
+make clean    # remove build directory
 make          # configure + build
 make build    # build only
-make clean    # remove build directory
 ```
 
-Build artefacts are written to `build/NIMEReceiver_artefacts/`:
+Build artefacts are written to `build/REMORA_artefacts/`:
 
-- `VST3/NIMEReceiver.vst3` - load in any VST3 host (DAW, Carla, etc.)
-- `Standalone/NIMEReceiver` - run directly without a DAW
+- `VST3/REMORA.vst3` - load in any VST3 host (DAW, Carla, etc.)
+- `Standalone/REMORA` - run directly without a DAW
 
 ### Running
 
-1. Ensure the ESP32 is streaming to your machine (or use `other_tests/testOSCReceiver.py` to verify packets are arriving on port 8000).
+1. Ensure the ESP32 is streaming to your machine (or use `tests/testOSCReceiver.py` to verify packets are arriving on port 8000).
 2. Launch the standalone or load the VST3 in your DAW.
-3. The plugin auto-connects to port 8000 on startup.
-4. Optionally click **CALIBRATE** and follow the three-pose procedure to align the sensor's local frame with musical space.
-5. Select a mapping from the dropdown and move the staff.
+3. Click **CONNECT** to start the OSC receiver on port 8000.
+4. Click **CALIBRATE** and follow the three-pose procedure to align the sensor's local frame with musical space.
+5. Select a mapping from the dropdown and move the staff. Use **RAW DATA**, **DEBUG**, and **DSP** to open the diagnostic windows if needed.
 
 ---
 
 ## Mapping Strategies
 
-All mappings implement the `IMappingStrategy` interface and can be switched at runtime with no audio interruption.
+All mappings implement the `IMappingStrategy` interface and can be switched at runtime with no audio interruption. They are registered in `BoStaffSynth`, in the order below, from the simplest direct mappings up to the full Azimut engine and its variants. See [`software/readme.md`](software/readme.md) for a full technical breakdown of the DSP behind each one.
 
 | Mapping | Core idea |
 |---|---|
-| **Simple (Pitch+Roll)** | Single sine wave. Tilt = frequency, twist = volume. Good for testing. |
-| **Bowed Chord** | Gyroscope speed = bow pressure. Tilt = root note, yaw = chord quality, roll = timbre/vibrato. |
-| **Lead + Drone** | Tilt drives a major-scale melody. Yaw modulates a sustained drone bass underneath. |
-| **Spin Filter** | Rotation speed climbs a pentatonic scale. Roll sweeps a harmonic cutoff filter. |
-| **Bozendo** | Full Laban Effort framework. Weight, Space, Time, and Flow extracted from the motion and mapped to gain, timbre, note selection, and modulation. Classifies spins by axis (horizontal/vertical) and direction. |
-| **Bozendo 2** | Bozendo variant. Plays a single pitch class (C/E/G/A) instead of chords. Tilt selects octave. Bow speed fades in octave doublings. |
+| **Simple** | Single sine wave. Tilt = frequency, absolute roll = a tilt-based volume gate. Good for testing. |
+| **Bowed Chord** | Gyroscope speed = bow pressure. Yaw selects one of 4 chords, roll overrides into a secondary set past a threshold, acceleration transients add a physical-modeling-style noise stroke. |
+| **Lead + Drone** | Tilt drives a major-scale melody. Three drone voices stay harmonically locked below it; yaw crossfades and pans them. |
+| **Spin Filter** | Rotation speed climbs a pentatonic scale (root + fifth). Roll sweeps a movable low-pass "ceiling" over 6 harmonic partials. |
+| **Bozendo (V1)** | Full Laban Effort framework (Weight, Time, Space, Flow) extracted from the motion. Weight opens up to 4 polyphonic voices playing Major/Minor/7th/Diminished chords based on spin plane and direction. |
+| **Bozendo 2 (V2)** | Shifts from scale-quantization to trajectory-driven momentum: spin plane/direction picks a root note, accumulated spin count sweeps a filter, and axial jerk detection triggers percussive thrusts. |
+| **Azimut** | Finishes what Bozendo V2 started with a true world-frame facing direction, combined with spin plane + direction for an 8-way root note table. Keeps V2's filter sweep and thrust detection. |
+| **Azimut+** | Azimut variant where the filter cutoff tracks instantaneous rotation speed directly instead of the accumulated spin-count sweep. |
+| **Ben's Mapping** | Speed-gated crossfade: a simple pentatonic melody below ~120°/s, the full Azimut engine above ~180°/s, linearly interpolated in between. |
+| **Spin Voices** | Builds a sustained chord one note at a time - each of the 4 spin-plane/direction combos permanently owns one voice, which freezes in place until that combo is revisited. |
 
 ---
 
@@ -186,11 +190,18 @@ After recording all three poses the plugin computes an orthonormal rotation matr
 
 ---
 
+## Hardware / Casing
+
+`hardware/case_vscode.scad` is a parametric OpenSCAD model (Customizer variables at the top of the file) of the staff-mounted enclosure for the ESP32-S2, MPU-9250, and a 2xAAA battery holder, with a strap-and-screw closure. `render_mode` switches between rendering the cap, the base, both, or neither for faster iteration; `hardware/base_print.scad` projects the base down to a flat pattern for cutting/drilling references. Ready-to-slice output lives in `hardware/PRINTABLE/` (`BASE.stl`, `CAP.stl`).
+
+---
+
 ## Future Directions
 
 - **Gesture-triggered mode switching** - detect specific motion signatures (e.g. a sharp axial tap while stationary) to cycle between mappings without touching the UI.
+- **Merged rest/motion mapping** - blend Azimut's root-note logic with a pitch/roll-driven mode while the staff is at rest, rather than switching mappings outright.
 - **Two-IMU configuration** - mount sensors at both ends of the staff to independently track each tip and derive bow speed, contact point, and crossing angle.
-- **Laban Effort extensions** - the current Bozendo mappings extract Weight, Time, Space, and Flow. Richer parameterisation (e.g. mapping Flow directly to reverb feedback or filter resonance) remains unexplored.
+- **Laban Effort extensions** - the current Bozendo/Azimut mappings extract Weight, Time, Space, and Flow. Richer parameterisation (e.g. mapping Flow directly to reverb feedback or filter resonance) remains unexplored.
 - **Machine learning gesture recognition** - train a lightweight classifier on recorded gesture sequences to trigger discrete musical events (note attacks, chord changes, FX toggles) alongside the continuous mappings.
 
 ---
