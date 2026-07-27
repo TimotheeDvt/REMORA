@@ -123,8 +123,8 @@ module button_socket(clearance = 0.5, side_relief = 3) {
             sphere(r = 1.5 + clearance);
         }
 
-        translate([-side_relief, -side_relief, -20])
-            cube([45 + 2 * side_relief, 16 + 2 * side_relief, 25]);
+        translate([-side_relief, -side_relief, -4])
+            cube([45 + 2 * side_relief, 16 + 2 * side_relief, 8]);
     }
 }
 
