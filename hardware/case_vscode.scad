@@ -1,6 +1,6 @@
-preview_lift_both = 15;
+preview_lift_cap = 15;
 preview_cut = 0;
-render_mode = "both"; // ["both", "cap", "base", "holder", "none"]
+render_mode = "all"; // ["all", "cap", "base", "holder", "none"]
 show_ghosts = true;
 module __Customizer_Limit__ () {}
 staff_diameter  = 30;       // Diameter of the staff in mm
@@ -285,8 +285,8 @@ module screw_reinforcements() {
 
 
 // GENERATING THE PIECES
-show_base   = (render_mode == "base"   || render_mode == "both");
-show_cap    = (render_mode == "cap"    || render_mode == "both");
+show_base   = (render_mode == "base"   || render_mode == "all");
+show_cap    = (render_mode == "cap"    || render_mode == "all");
 show_holder = (render_mode == "holder");
 
 // Base
@@ -308,8 +308,8 @@ if (show_base) {
 
 // Cap
 if (show_cap) {
-    // Slightly lifts the cap in "both" preview mode to see inside
-    preview_lift = (render_mode == "both") ? preview_lift_both : 0;
+    // Slightly lifts the cap in "all" preview mode to see inside
+    preview_lift = (render_mode == "all") ? preview_lift_cap : 0;
 
     cut_width = (case_length + 10) * (100 - abs(preview_cut)) / 100;
     cut_x0 = (preview_cut >= 0)
