@@ -5,7 +5,7 @@ show_ghosts = true;
 module __Customizer_Limit__ () {}
 staff_diameter  = 30;       // Diameter of the staff in mm
 case_length     = 200;
-case_width      = 50;
+case_width      = 54;
 case_height     = 30;
 wall_thickness  = 0.06;
 strap_width     = 7;        // Width of the strap
