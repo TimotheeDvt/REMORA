@@ -81,8 +81,10 @@ module battery_corner_supports() {
     outer_r = inner_r + battery_support_wall;
     leg = battery_support_leg;
 
-    translate([battery_box_pos[0], battery_box_pos[1], strap_thickness]) {
-        linear_extrude(height = battery_support_height) {
+    floor_overlap = 0.4;
+
+    translate([battery_box_pos[0], battery_box_pos[1], strap_thickness - floor_overlap]) {
+        linear_extrude(height = battery_support_height + floor_overlap) {
             intersection() {
                 difference() {
                     rounded_rect_2d(outer_half_x, outer_half_y, outer_r);
@@ -96,7 +98,7 @@ module battery_corner_supports() {
             }
         }
         translate([outer_half_x - 1.5, -outer_half_y + 6])
-            cube([battery_support_wall, 32, strap_thickness*2]);
+            cube([battery_support_wall, 32, strap_thickness*2 + floor_overlap]);
     }
 }
 
@@ -274,12 +276,11 @@ module screw_reinforcements() {
             translate([esp32_screw_x, esp32_screw_y_1, 13]) cylinder(r = screw_head_d + 1.5, h = 25);
             translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d + 1.5, h = 8);
             translate([mpu_screw_x_2, mpu_screw_y, 9])    cylinder(r = screw_head_d + 1.5, h = 25);
+
+            translate([esp32_screw_x, esp32_screw_y_1, 9]) cylinder(r = screw_head_d + 1.5, h = 4);
+            translate([esp32_screw_x, esp32_screw_y_2, 9])  cylinder(r = screw_head_d + 1.5, h = 4);
         }
     }
-
-    translate([esp32_screw_x, esp32_screw_y_1, 9]) cylinder(r = screw_head_d, h = 4);
-    translate([esp32_screw_x, esp32_screw_y_2, 9])  cylinder(r = screw_head_d, h = 4);
-    translate([mpu_screw_x_2, mpu_screw_y,9])    cylinder(r = screw_head_d, h = 4);
 }
 
 
