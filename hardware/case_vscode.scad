@@ -85,19 +85,22 @@ module battery_corner_supports() {
     outer_r = inner_r + battery_support_wall;
     leg = battery_support_leg;
 
-    translate([battery_box_pos[0], battery_box_pos[1], strap_thickness])
-    linear_extrude(height = battery_support_height)
-    intersection() {
-        difference() {
-            rounded_rect_2d(outer_half_x, outer_half_y, outer_r);
-            rounded_rect_2d(inner_half_x, inner_half_y, inner_r);
+    translate([battery_box_pos[0], battery_box_pos[1], strap_thickness]) {
+        linear_extrude(height = battery_support_height) {
+            intersection() {
+                difference() {
+                    rounded_rect_2d(outer_half_x, outer_half_y, outer_r);
+                    rounded_rect_2d(inner_half_x, inner_half_y, inner_r);
+                }
+                union() {
+                    for (sy = [-1, 1])
+                        translate([-1 * (outer_half_x - leg/2), sy * (outer_half_y - leg/2)])
+                            square([leg, leg], center = true);
+                }
+            }
         }
-        union() {
-            for (sx = [-1, 1])
-                for (sy = [-1, 1])
-                    translate([sx * (outer_half_x - leg/2), sy * (outer_half_y - leg/2)])
-                        square([leg, leg], center = true);
-        }
+        translate([outer_half_x - 1.5, -outer_half_y + 6])
+            cube([battery_support_wall, 32, strap_thickness*2]);
     }
 }
 
