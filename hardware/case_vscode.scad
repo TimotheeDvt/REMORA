@@ -1,6 +1,6 @@
 preview_lift_both = 15;
 preview_cut = 0;
-render_mode = "both"; // ["both", "cap", "base", "none"]
+render_mode = "both"; // ["both", "cap", "base", "holder", "none"]
 show_ghosts = true;
 module __Customizer_Limit__ () {}
 staff_diameter  = 30;       // Diameter of the staff in mm
@@ -129,8 +129,8 @@ module battery_top_holder() {
     difference() {
         battery_top_holder_shape();
         for (x = battery_holder_screw_x)
-            translate([x, battery_holder_screw_y, battery_holder_base_z - 1])
-                cylinder(r = screw_d, h = battery_holder_strap_thickness + 2);
+            translate([x, battery_holder_screw_y, battery_holder_base_z - 3])
+                cylinder(r = screw_d, h = battery_holder_strap_thickness + 5);
     }
 }
 
@@ -141,7 +141,7 @@ if (show_ghosts) {
     % color("green", 0.3) translate(battery_box_pos) lipo_battery_ghost();
     % color("green", 0.3) rotate(staff_rot) translate(staff_pos) cylinder(r = staff_diameter/2, h = case_length + 100);
     % color("green", 0.3) translate(button_pos) rotate(button_rot) button_cap();
-    % color("orange", 0.6) battery_top_holder();
+    % color("purple", 0.6) battery_top_holder();
 }
 
 // FULL GEOMETRY MODULE
@@ -285,9 +285,12 @@ module screw_reinforcements() {
 
 
 // GENERATING THE PIECES
+show_base   = (render_mode == "base"   || render_mode == "both");
+show_cap    = (render_mode == "cap"    || render_mode == "both");
+show_holder = (render_mode == "holder");
 
 // Base
-if (render_mode != "none" && (render_mode == "base" || render_mode == "both")) {
+if (show_base) {
     difference() {
         union() {
             intersection() {
@@ -304,7 +307,7 @@ if (render_mode != "none" && (render_mode == "base" || render_mode == "both")) {
 }
 
 // Cap
-if (render_mode != "none" && (render_mode == "cap" || render_mode == "both")) {
+if (show_cap) {
     // Slightly lifts the cap in "both" preview mode to see inside
     preview_lift = (render_mode == "both") ? preview_lift_both : 0;
 
@@ -336,4 +339,9 @@ if (render_mode != "none" && (render_mode == "cap" || render_mode == "both")) {
         translate([cut_x0, -case_width/2 - 5, -case_height])
             cube([cut_width, case_width + 10, case_height * 2]);
     }
+}
+
+// Battery top holder
+if (show_holder) {
+    battery_top_holder();
 }
