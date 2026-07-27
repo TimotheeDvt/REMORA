@@ -28,10 +28,6 @@ mpu_screw_y = -6;
 mpu_screw_x_1 = 59;
 mpu_screw_x_2 = 80;
 
-battery_file= "Assets/battery holder 3 x AAA.stl";
-battery_pos = [-5, 0, 2];
-battery_rot = [90, 0, 90];
-
 staff_pos = [20, 0, -case_length/2 - 50];
 staff_rot = [0, 90, 0];
 
