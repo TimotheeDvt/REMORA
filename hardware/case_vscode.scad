@@ -1,12 +1,11 @@
 preview_lift_cap = 15;
 preview_cut = 0;
-render_mode = "all"; // ["all", "cap", "base", "holder", "none"]
+render_mode = "all"; // ["all", "cap", "base", "none"]
 show_ghost_esp32          = true;
 show_ghost_mpu            = true;
 show_ghost_battery        = true;
 show_ghost_staff          = true;
 show_ghost_button         = true;
-show_ghost_battery_holder = true;
 module __Customizer_Limit__ () {}
 staff_diameter  = 30;       // Diameter of the staff in mm
 case_length     = 200;
@@ -58,17 +57,13 @@ battery_support_wall      = 1.5;
 battery_support_clearance = 0.3;
 battery_support_height    = 5;
 
-battery_holder_screw_x = [
-    battery_box_pos[0] - battery_box_size[0]/2 - 4,
-    battery_box_pos[0] + battery_box_size[0]/2 + 4
+battery_strap_slot_x_width = 15;
+battery_strap_slot_y_width = 2.5;
+battery_strap_x = battery_box_pos[0] - battery_strap_slot_x_width/2;
+battery_strap_y = [
+    battery_box_pos[1] - battery_box_size[1]/2 - 2.7,
+    battery_box_pos[1] + battery_box_size[1]/2 + 0.3
 ];
-battery_holder_screw_y = battery_box_pos[1];
-battery_holder_strap_width     = 10;
-battery_holder_strap_thickness = 1.7;
-battery_holder_base_z = battery_box_pos[2] + battery_box_size[2]/2;
-battery_holder_top_z  = battery_holder_base_z + battery_holder_strap_thickness;
-battery_holder_leg_r  = screw_head_d + 1 ;
-battery_holder_leg_top_z = 8.5;
 
 module rounded_rect_2d(half_x, half_y, r) {
     hull() {
@@ -114,39 +109,6 @@ module battery_corner_supports() {
     }
 }
 
-module battery_holder_legs() {
-    for (x = battery_holder_screw_x)
-        translate([x, battery_holder_screw_y, strap_thickness])
-            cylinder(r = battery_holder_leg_r - 2, h = battery_holder_leg_top_z - strap_thickness);
-}
-
-module battery_top_holder_shape() {
-    for (x = battery_holder_screw_x)
-        translate([x, battery_holder_screw_y, battery_holder_base_z - 2])
-            cylinder(r = battery_holder_leg_r - 2, h = battery_holder_strap_thickness + 2);
-
-    translate([
-        battery_holder_screw_x[0] - 2,
-        battery_holder_screw_y - battery_holder_strap_width/2,
-        battery_holder_base_z
-    ])
-        cube([
-            battery_holder_screw_x[1] - battery_holder_screw_x[0] + 4,
-            battery_holder_strap_width,
-            battery_holder_strap_thickness
-        ]);
-}
-
-// Printed as a separate part, so it only gets its own 2 screw holes,
-module battery_top_holder() {
-    difference() {
-        battery_top_holder_shape();
-        for (x = battery_holder_screw_x)
-            translate([x, battery_holder_screw_y, battery_holder_base_z - 3])
-                cylinder(r = screw_d, h = battery_holder_strap_thickness + 5);
-    }
-}
-
 // IMPORT GHOSTS
 if (show_ghost_esp32)
     % color("green", 0.3) translate(esp32_pos)   rotate(esp32_rot)   scale(esp32_scale) import(esp32_file);
@@ -158,8 +120,6 @@ if (show_ghost_staff)
     % color("green", 0.3) rotate(staff_rot) translate(staff_pos) cylinder(r = staff_diameter/2, h = case_length + 100);
 if (show_ghost_button)
     % color("green", 0.3) translate(button_pos) rotate(button_rot) button_cap();
-if (show_ghost_battery_holder)
-    % color("purple", 0.6) battery_top_holder();
 
 // FULL GEOMETRY MODULE
 module raw_uncut_case() {
@@ -264,9 +224,10 @@ module standard_hole_cuts(draw_button_shere = false) {
     // MPU
     translate([mpu_screw_x_1, mpu_screw_y, -5])    cylinder(r = screw_d, h = 20);
     translate([mpu_screw_x_2, mpu_screw_y, -5])    cylinder(r = screw_d, h = 30);
-    // Battery holder
-    for (x = battery_holder_screw_x)
-        translate([x, battery_holder_screw_y, -1]) cylinder(r = screw_d, h = 20);
+    // Battery strap slots (through the floor, either side of the battery)
+    for (y = battery_strap_y)
+        translate([battery_strap_x, y, -1])
+            cube([battery_strap_slot_x_width, battery_strap_slot_y_width, 12]);
 
     translate([esp32_screw_x, esp32_screw_y_1, 13]) cylinder(r = screw_head_d, h = 9);
     translate([esp32_screw_x, esp32_screw_y_2, 13])  cylinder(r = screw_head_d, h = 8);
@@ -305,7 +266,6 @@ module screw_reinforcements() {
 // GENERATING THE PIECES
 show_base   = (render_mode == "base"   || render_mode == "all");
 show_cap    = (render_mode == "cap"    || render_mode == "all");
-show_holder = (render_mode == "holder");
 
 // Base
 if (show_base) {
@@ -318,7 +278,6 @@ if (show_base) {
                     cube([case_length + 10, case_width + 10, case_height + strap_thickness + 1]);
             }
             battery_corner_supports();
-            battery_holder_legs();
         }
         standard_hole_cuts();
     }
@@ -357,9 +316,4 @@ if (show_cap) {
         translate([cut_x0, -case_width/2 - 5, -case_height])
             cube([cut_width, case_width + 10, case_height * 2]);
     }
-}
-
-// Battery top holder
-if (show_holder) {
-    battery_top_holder();
 }
