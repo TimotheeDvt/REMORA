@@ -212,7 +212,7 @@ module standard_hole_cuts(draw_button_shere = false) {
     translate([strap_offset_x, -case_width/2, case_height/2])
         cube([strap_width, case_width, strap_thickness]);
 
-    translate([-case_length/4 + 6, -case_width/2, case_height/2])
+    translate([-case_length/4 + 16, -case_width/2, case_height/2])
         cube([strap_width, case_width, strap_thickness]);
 
     translate([-strap_width/2, -case_width/2, case_height/3*2])
