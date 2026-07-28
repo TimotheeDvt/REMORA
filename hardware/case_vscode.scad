@@ -1,7 +1,12 @@
 preview_lift_cap = 15;
 preview_cut = 0;
 render_mode = "all"; // ["all", "cap", "base", "holder", "none"]
-show_ghosts = true;
+show_ghost_esp32          = true;
+show_ghost_mpu            = true;
+show_ghost_battery        = true;
+show_ghost_staff          = true;
+show_ghost_button         = true;
+show_ghost_battery_holder = true;
 module __Customizer_Limit__ () {}
 staff_diameter  = 30;       // Diameter of the staff in mm
 case_length     = 200;
@@ -15,11 +20,18 @@ screw_head_d    = screw_d * 2 + 1;
 
 // STL IMPORT POSITIONS
 esp32_file  = "Assets/Sparkfun Thing Plus v8.stl";
-esp32_pos   = [-80, 11.5, -2];
+esp32_pos   = [-85, 11.5, -2];
 esp32_rot   = [90, 0, 270];
-esp32_screw_x = -76.2;
-esp32_screw_y_1 = -9;
-esp32_screw_y_2 = 8.6;
+// Raw STL bounding box (native axes) is 22.86 x 15.59 x 59.06mm;
+// rescale to the real board size (23.5 x 65mm) without touching the file.
+esp32_target_width  = 23.5;
+esp32_target_length = 65;
+esp32_raw_width     = 22.860000610351562; // native X, becomes case-width axis after rotation
+esp32_raw_length    = 59.06365966796875;  // native Z, becomes case-length axis after rotation
+esp32_scale = [esp32_target_width / esp32_raw_width, 1, esp32_target_length / esp32_raw_length];
+esp32_screw_x = -80.8;
+esp32_screw_y_1 = -9.5;
+esp32_screw_y_2 = 8.8;
 
 mpu_file    = "Assets/MPU-9250.stl";
 mpu_pos     = [57, 7, 3];
@@ -136,14 +148,18 @@ module battery_top_holder() {
 }
 
 // IMPORT GHOSTS
-if (show_ghosts) {
-    % color("green", 0.3) translate(esp32_pos)   rotate(esp32_rot)   import(esp32_file);
+if (show_ghost_esp32)
+    % color("green", 0.3) translate(esp32_pos)   rotate(esp32_rot)   scale(esp32_scale) import(esp32_file);
+if (show_ghost_mpu)
     % color("green", 0.3) translate(mpu_pos)     rotate(mpu_rot)     import(mpu_file);
+if (show_ghost_battery)
     % color("green", 0.3) translate(battery_box_pos) lipo_battery_ghost();
+if (show_ghost_staff)
     % color("green", 0.3) rotate(staff_rot) translate(staff_pos) cylinder(r = staff_diameter/2, h = case_length + 100);
+if (show_ghost_button)
     % color("green", 0.3) translate(button_pos) rotate(button_rot) button_cap();
+if (show_ghost_battery_holder)
     % color("purple", 0.6) battery_top_holder();
-}
 
 // FULL GEOMETRY MODULE
 module raw_uncut_case() {
