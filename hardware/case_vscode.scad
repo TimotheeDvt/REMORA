@@ -7,6 +7,8 @@ show_ghost_mpu            = true;
 show_ghost_battery        = true;
 show_ghost_staff          = true;
 show_ghost_button         = true;
+
+$fn = 100;
 module __Customizer_Limit__ () {}
 staff_diameter  = 30;       // Diameter of the staff in mm
 case_length     = 200;
@@ -45,8 +47,6 @@ staff_rot = [0, 90, 0];
 
 button_pos = [-30-22.5, -8, 13];
 button_rot = [0, 0, 0];
-
-$fn = 100;
 
 // LIPO BATTERY BOX (ghost) + CORNER SUPPORTS
 battery_box_pos      = [18, 0, 7];
