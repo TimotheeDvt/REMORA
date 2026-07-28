@@ -1,6 +1,7 @@
 preview_lift_cap = 15;
 preview_cut = 0;
 render_mode = "all"; // ["all", "cap", "base", "none"]
+show_all_ghosts           = false; // when checked, shows every ghost regardless of the checkboxes below
 show_ghost_esp32          = true;
 show_ghost_mpu            = true;
 show_ghost_battery        = true;
@@ -110,15 +111,15 @@ module battery_corner_supports() {
 }
 
 // IMPORT GHOSTS
-if (show_ghost_esp32)
+if (show_all_ghosts || show_ghost_esp32)
     % color("green", 0.3) translate(esp32_pos)   rotate(esp32_rot)   scale(esp32_scale) import(esp32_file);
-if (show_ghost_mpu)
+if (show_all_ghosts || show_ghost_mpu)
     % color("green", 0.3) translate(mpu_pos)     rotate(mpu_rot)     import(mpu_file);
-if (show_ghost_battery)
+if (show_all_ghosts || show_ghost_battery)
     % color("green", 0.3) translate(battery_box_pos) lipo_battery_ghost();
-if (show_ghost_staff)
+if (show_all_ghosts || show_ghost_staff)
     % color("green", 0.3) rotate(staff_rot) translate(staff_pos) cylinder(r = staff_diameter/2, h = case_length + 100);
-if (show_ghost_button)
+if (show_all_ghosts || show_ghost_button)
     % color("green", 0.3) translate(button_pos) rotate(button_rot) button_cap();
 
 // FULL GEOMETRY MODULE
