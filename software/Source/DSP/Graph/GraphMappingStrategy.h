@@ -20,6 +20,8 @@ public:
     void prepare(double sampleRate) override;
     void process(const StaffSoundParams& in, MappingOutput& out) override;
 
+    NodeGraph& getGraph() noexcept { return *graph_; }
+
 private:
     juce::String name_;
     StaffMotionAnalyzer motion_;

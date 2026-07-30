@@ -3,6 +3,7 @@
 #include "../DSP/Graph/NodeTypeRegistry.h"
 #include "GraphPinComponent.h"
 #include <JuceHeader.h>
+#include <vector>
 
 class GraphEditorComponent;
 
@@ -10,15 +11,18 @@ class GraphNodeComponent : public juce::Component {
 public:
     static constexpr int kWidth = 140;
     static constexpr int kHeaderHeight = 22;
+    static constexpr int kParamsRowHeight = 14;
     static constexpr int kRowHeight = 20;
     static constexpr int kPinSize = 12;
 
-    GraphNodeComponent(GraphEditorComponent& editor, Graph::NodeId nodeId, const Graph::NodeTypeInfo& typeInfo);
+    GraphNodeComponent(GraphEditorComponent& editor, Graph::NodeId nodeId, const Graph::NodeTypeInfo& typeInfo,
+                       std::vector<float> params);
 
     void paint(juce::Graphics& g) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
 
     Graph::NodeId getNodeId() const noexcept { return nodeId; }
     static int preferredHeight(const Graph::NodeTypeInfo& typeInfo);
@@ -30,10 +34,13 @@ private:
     GraphEditorComponent& editor;
     Graph::NodeId nodeId;
     const Graph::NodeTypeInfo& typeInfo;
+    std::vector<float> params;
 
     juce::OwnedArray<GraphPinComponent> inputPins;
     juce::OwnedArray<GraphPinComponent> outputPins;
     juce::Point<int> dragStartPos;
+
+    int portsTop() const noexcept;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GraphNodeComponent)
 };

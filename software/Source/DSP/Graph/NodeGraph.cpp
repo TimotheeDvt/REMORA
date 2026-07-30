@@ -26,12 +26,14 @@ NodeInstance* NodeGraph::addNodeWithId(NodeId id, const juce::String& typeId, st
 }
 
 NodeId NodeGraph::addNode(const juce::String& typeId, std::vector<float> params) {
+    const juce::ScopedLock sl(lock_);
     NodeId id = nextId_++;
     addNodeWithId(id, typeId, std::move(params));
     return id;
 }
 
 bool NodeGraph::removeNode(NodeId id) {
+    const juce::ScopedLock sl(lock_);
     const int idx = indexOf(id);
     if (idx < 0)
         return false;
@@ -52,6 +54,7 @@ bool NodeGraph::removeNode(NodeId id) {
 }
 
 bool NodeGraph::disconnectInput(NodeId dst, int dstPort) {
+    const juce::ScopedLock sl(lock_);
     const int dstIdx = indexOf(dst);
     if (dstIdx < 0)
         return false;
@@ -67,6 +70,7 @@ bool NodeGraph::disconnectInput(NodeId dst, int dstPort) {
 }
 
 void NodeGraph::setNodePosition(NodeId id, float x, float y) {
+    const juce::ScopedLock sl(lock_);
     const int idx = indexOf(id);
     if (idx < 0)
         return;
@@ -75,6 +79,7 @@ void NodeGraph::setNodePosition(NodeId id, float x, float y) {
 }
 
 bool NodeGraph::connect(NodeId src, int srcPort, NodeId dst, int dstPort) {
+    const juce::ScopedLock sl(lock_);
     int srcIdx = indexOf(src);
     int dstIdx = indexOf(dst);
     if (srcIdx < 0 || dstIdx < 0)
@@ -97,6 +102,7 @@ bool NodeGraph::connect(NodeId src, int srcPort, NodeId dst, int dstPort) {
 }
 
 void NodeGraph::setInputDefault(NodeId dst, int dstPort, float value) {
+    const juce::ScopedLock sl(lock_);
     int dstIdx = indexOf(dst);
     if (dstIdx < 0)
         return;
@@ -151,6 +157,7 @@ bool NodeGraph::recomputeTopoOrder() {
 }
 
 void NodeGraph::prepare(double sampleRate) {
+    const juce::ScopedLock sl(lock_);
     for (auto& n : nodes_)
         if (n.state)
             n.state->prepare(sampleRate);
@@ -158,6 +165,7 @@ void NodeGraph::prepare(double sampleRate) {
 }
 
 void NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
+    const juce::ScopedLock sl(lock_);
     const NodeTypeRegistry& registry = NodeTypeRegistry::instance();
 
     for (NodeId id : topoOrder_) {
@@ -200,6 +208,7 @@ void NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
 }
 
 float NodeGraph::outputOf(NodeId id, int port) const {
+    const juce::ScopedLock sl(lock_);
     const int idx = indexOf(id);
     if (idx < 0)
         return 0.0f;

@@ -54,6 +54,8 @@ private:
     std::vector<NodeId> topoOrder_;
     NodeId nextId_ = 0;
 
+    mutable juce::CriticalSection lock_;
+
     NodeInstance* addNodeWithId(NodeId id, const juce::String& typeId, std::vector<float> params);
     int indexOf(NodeId id) const;
     bool recomputeTopoOrder();

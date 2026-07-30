@@ -21,6 +21,7 @@ struct NodeTypeInfo {
     std::vector<float> defaultParams;   // also defines numParams via .size()
 
     int numOutputs = 1;
+    std::vector<juce::String> outputNames; // only meaningful when numOutputs > 1
     bool isStateful = false;
 
     // Sink-only: range used for the MonitorParam auto-registered by

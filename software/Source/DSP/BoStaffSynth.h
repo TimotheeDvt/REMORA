@@ -110,7 +110,7 @@ public:
   const char* getMappingName(int index) const;
   int         getMappingCount() const noexcept;
 
-  const IMappingStrategy* getMapping(int index) const noexcept;
+  IMappingStrategy* getMapping(int index) const noexcept;
 
 private:
   static constexpr int kNumVoices  = 4;

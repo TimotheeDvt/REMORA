@@ -1,8 +1,10 @@
 #pragma once
 
 #include "../DSP/Graph/NodeGraph.h"
+#include "GraphCanvasComponent.h"
 #include "GraphNodeComponent.h"
 #include <JuceHeader.h>
+#include <set>
 #include <unordered_map>
 
 class REMORAProcessor;
@@ -13,18 +15,48 @@ public:
     explicit GraphEditorComponent(REMORAProcessor& p);
 
     void paint(juce::Graphics& g) override;
+    void resized() override;
     void mouseDown(const juce::MouseEvent& e) override;
+    void mouseDrag(const juce::MouseEvent& e) override;
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
+    // Called by DSPWindow whenever the shared mapping selector changes.
+    void onMappingChanged();
+
+    // Called by GraphCanvasComponent - draws in canvas-local (world) space.
+    void paintConnections(juce::Graphics& g);
+
+    // Called by GraphNodeComponent/GraphPinComponent - mouse events arrive
+    // already remapped into this component's coordinate space (screen
+    // space, i.e. pre-zoom/pan - the one conversion to world/canvas space
+    // happens at the point each is used against the model).
     void nodeMoved(Graph::NodeId id, float x, float y);
     void showNodeContextMenu(Graph::NodeId id);
     void showPinContextMenu(GraphPinComponent& pin);
     void handlePinMouseDown(GraphPinComponent& pin, const juce::MouseEvent& e);
     void handlePinMouseDrag(const juce::MouseEvent& e);
     void handlePinMouseUp(const juce::MouseEvent& e);
+    void handleCanvasMouseDown(const juce::MouseEvent& e);
+    void handleCanvasMouseDrag(const juce::MouseEvent& e);
+    void handleCanvasMouseUp();
+
+    void handleBackgroundMouseDown(const juce::MouseEvent& e);
+    void handleBackgroundMouseDrag(const juce::MouseEvent& e);
 
 private:
     REMORAProcessor& processor;
-    std::unique_ptr<Graph::NodeGraph> graph;
+    Graph::NodeGraph* currentGraph = nullptr;
+    bool isEditable = false;
+    std::set<Graph::NodeGraph*> autoLaidOutGraphs;
+
+    juce::Label statusLabel;
+    GraphCanvasComponent canvas { *this };
+
+    float zoom = 1.0f;
+    juce::Point<float> panOffset;
+    bool isPanning = false;
+    juce::Point<float> panDragStartOffset;
+    juce::Point<float> panDragStartMouse;
 
     juce::OwnedArray<GraphNodeComponent> nodeComponents;
     std::unordered_map<Graph::NodeId, GraphNodeComponent*> nodeComponentById;
@@ -39,7 +71,9 @@ private:
     void addNodeAt(const juce::String& typeId, juce::Point<int> position);
     void deleteNode(Graph::NodeId id);
     void syncFromModel();
-    GraphPinComponent* findPinAt(juce::Point<int> posInEditor) const;
+    void autoLayout();
+    void updateTransform();
+    GraphPinComponent* findPinAt(juce::Point<int> posInEditor);
     static void drawConnection(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GraphEditorComponent)

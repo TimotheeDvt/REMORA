@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GraphEditorComponent.h"
+#include "MappingSelectorBar.h"
 #include "SpectrumAnalyserThread.h"
 #include <JuceHeader.h>
 
@@ -39,11 +40,6 @@ public:
 private:
     REMORAProcessor& processor;
 
-    juce::ComboBox mappingCombo;
-    juce::TextButton prevMapButton;
-    juce::TextButton nextMapButton;
-    juce::Slider globalVolumeSlider;
-    juce::Label globalVolumeLabel;
     juce::Label rootNoteLabel;
 
     SpectrumAnalyserThread spectrumAnalyser;
@@ -91,15 +87,37 @@ private:
     }
 };
 
+class DSPRootComponent : public juce::Component {
+public:
+    static constexpr int kSelectorBarHeight = 34;
+
+    DSPRootComponent(MappingSelectorBar& barIn, DSPTabbedComponent& tabsIn) : bar(barIn), tabs(tabsIn) {
+        addAndMakeVisible(bar);
+        addAndMakeVisible(tabs);
+    }
+
+    void resized() override {
+        auto bounds = getLocalBounds();
+        bar.setBounds(bounds.removeFromTop(kSelectorBarHeight));
+        tabs.setBounds(bounds);
+    }
+
+private:
+    MappingSelectorBar& bar;
+    DSPTabbedComponent& tabs;
+};
+
 class DSPWindow : public juce::DocumentWindow {
 public:
     explicit DSPWindow(REMORAProcessor& p);
     void closeButtonPressed() override;
 
 private:
+    MappingSelectorBar selectorBar;
     DSPComponent dspComponent;
     GraphEditorComponent graphEditorComponent;
     DSPTabbedComponent tabs { juce::TabbedButtonBar::Orientation::TabsAtTop };
+    DSPRootComponent root { selectorBar, tabs };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DSPWindow)
 };

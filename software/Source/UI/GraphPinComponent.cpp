@@ -16,18 +16,23 @@ void GraphPinComponent::paint(juce::Graphics& g) {
 }
 
 void GraphPinComponent::mouseDown(const juce::MouseEvent& e) {
-    if (e.mods.isPopupMenu())
+    if (e.mods.isCtrlDown())
+        editor.handleCanvasMouseDown(e.getEventRelativeTo(&editor));
+    else if (e.mods.isPopupMenu())
         editor.showPinContextMenu(*this);
     else
         editor.handlePinMouseDown(*this, e.getEventRelativeTo(&editor));
 }
 
 void GraphPinComponent::mouseDrag(const juce::MouseEvent& e) {
-    if (!e.mods.isPopupMenu())
+    if (e.mods.isCtrlDown())
+        editor.handleCanvasMouseDrag(e.getEventRelativeTo(&editor));
+    else if (!e.mods.isPopupMenu())
         editor.handlePinMouseDrag(e.getEventRelativeTo(&editor));
 }
 
 void GraphPinComponent::mouseUp(const juce::MouseEvent& e) {
-    if (!e.mods.isPopupMenu())
+    editor.handleCanvasMouseUp();
+    if (!e.mods.isCtrlDown() && !e.mods.isPopupMenu())
         editor.handlePinMouseUp(e.getEventRelativeTo(&editor));
 }

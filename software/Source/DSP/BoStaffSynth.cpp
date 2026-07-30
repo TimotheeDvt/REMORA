@@ -39,6 +39,7 @@ BoStaffSynth::BoStaffSynth() {
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutReverb(), "Azimut Reverb"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBens(), "Ben's"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoice(), "Spin Voices"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(std::make_unique<Graph::NodeGraph>(), "Custom"));
 }
 
 BoStaffSynth::~BoStaffSynth() {}
@@ -110,7 +111,7 @@ int BoStaffSynth::getMappingCount() const noexcept {
     return static_cast<int>(mappings.size());
 }
 
-const IMappingStrategy* BoStaffSynth::getMapping(int index) const noexcept {
+IMappingStrategy* BoStaffSynth::getMapping(int index) const noexcept {
     if (index >= 0 && index < static_cast<int>(mappings.size()))
         return mappings[static_cast<size_t>(index)].get();
     return nullptr;
