@@ -3,6 +3,7 @@
 #include "../IMappingStrategy.h"
 #include "AzimutMapping.h"
 #include <JuceHeader.h>
+#include <vector>
 
 // Merges AzimutMapping's full body-motion mapping with a simple
 // pitch/roll/yaw melody. Above the gate speed, Azimut drives the sound;
@@ -21,6 +22,8 @@ private:
 
     MonitorParam& speed_monitor_;
     MonitorParam& azimut_amount_monitor_;
+
+    std::vector<MonitorParam*> azimut_monitor_mirrors_;
 
     float smoothed_gyroscope_magnitude_ = 0.f;
     // Time constant approx 25ms at 100Hz, matches AzimutMapping's own smoothing.

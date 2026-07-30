@@ -8,6 +8,13 @@ BensMapping::BensMapping()
     : speed_monitor_(addMonitorParam("Gain", "Speed", 0.0f, 1000.0f)),
       azimut_amount_monitor_(addMonitorParam("LPF Cutoff", "Azimut Amount", 0.0f, 1.0f))
 {
+    azimut_monitor_mirrors_.reserve(static_cast<size_t>(azimut_.getMonitorParamCount()));
+    for (int i = 0; i < azimut_.getMonitorParamCount(); ++i) {
+        const auto& src = azimut_.getMonitorParam(i);
+        auto& mirror = addMonitorParam(src.name, src.driveInfo, src.rangeMin, src.rangeMax);
+        mirror.textLabels = src.textLabels;
+        azimut_monitor_mirrors_.push_back(&mirror);
+    }
 }
 
 void BensMapping::prepare(double sampleRate) {
@@ -110,6 +117,11 @@ void BensMapping::process(const StaffSoundParams& in, MappingOutput& out) {
 
     MappingOutput azimutOutput;
     azimut_.process(in, azimutOutput);
+
+    for (size_t i = 0; i < azimut_monitor_mirrors_.size(); ++i) {
+        const float value = azimut_.getMonitorParam(static_cast<int>(i)).value.load(std::memory_order_relaxed);
+        azimut_monitor_mirrors_[i]->value.store(value, std::memory_order_relaxed);
+    }
 
     blendMappingOutput(simpleOutput, azimutOutput, azimutAmount, out);
 }
