@@ -1,13 +1,12 @@
 #pragma once
 
+#include "GraphEditorComponent.h"
 #include "SpectrumAnalyserThread.h"
 #include <JuceHeader.h>
 
 class REMORAProcessor;
 class IMappingStrategy;
 
-// If textLabels is non-empty, the knob is replaced by a plain text readout:
-// setValue() rounds to the nearest index and shows that label (e.g. "CW").
 class MonitorKnobComponent : public juce::Component {
 public:
     MonitorKnobComponent(const juce::String& name, const juce::String& driveInfo, float rangeMin, float rangeMax,
@@ -35,6 +34,8 @@ public:
     void resized() override;
     void timerCallback() override;
 
+    void setActive(bool shouldBeActive);
+
 private:
     REMORAProcessor& processor;
 
@@ -58,6 +59,38 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DSPComponent)
 };
 
+class DSPTabbedComponent : public juce::TabbedComponent {
+public:
+    using juce::TabbedComponent::TabbedComponent;
+
+    std::function<void(int newCurrentTabIndex)> onTabChanged;
+
+    void resized() override {
+        juce::TabbedComponent::resized();
+
+        auto& bar = getTabbedButtonBar();
+        const int numTabs = bar.getNumTabs();
+        int totalWidth = 0;
+        for (int i = 0; i < numTabs; ++i)
+            if (auto* button = bar.getTabButton(i))
+                totalWidth += button->getWidth();
+
+        const int offset = (bar.getWidth() - totalWidth) / 2;
+        if (offset <= 0)
+            return; // tabs already fill (or overflow) the bar - leave JUCE's own layout alone
+
+        for (int i = 0; i < numTabs; ++i)
+            if (auto* button = bar.getTabButton(i))
+                button->setTopLeftPosition(button->getX() + offset, button->getY());
+    }
+
+private:
+    void currentTabChanged(int newCurrentTabIndex, const juce::String&) override {
+        if (onTabChanged)
+            onTabChanged(newCurrentTabIndex);
+    }
+};
+
 class DSPWindow : public juce::DocumentWindow {
 public:
     explicit DSPWindow(REMORAProcessor& p);
@@ -65,5 +98,8 @@ public:
 
 private:
     DSPComponent dspComponent;
+    GraphEditorComponent graphEditorComponent;
+    DSPTabbedComponent tabs { juce::TabbedButtonBar::Orientation::TabsAtTop };
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DSPWindow)
 };

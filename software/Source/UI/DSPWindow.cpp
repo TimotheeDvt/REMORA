@@ -148,6 +148,13 @@ DSPComponent::~DSPComponent() {
     stopTimer();
 }
 
+void DSPComponent::setActive(bool shouldBeActive) {
+    if (shouldBeActive)
+        startTimerHz(30);
+    else
+        stopTimer();
+}
+
 void DSPComponent::rebuildMonitorKnobs() {
     monitoredMapping = processor.getSynth().getMapping(processor.getMappingStrategy());
 
@@ -294,9 +301,20 @@ void DSPComponent::resized() {
 
 DSPWindow::DSPWindow(REMORAProcessor& p)
     : juce::DocumentWindow("DSP Panel", Palette::bg, juce::DocumentWindow::allButtons),
-      dspComponent(p)
+      dspComponent(p),
+      graphEditorComponent(p)
 {
-    setContentNonOwned(&dspComponent, true);
+    tabs.setColour(juce::TabbedComponent::backgroundColourId, Palette::bg);
+    tabs.setColour(juce::TabbedButtonBar::tabOutlineColourId, Palette::border);
+    tabs.setOutline(0);
+
+    tabs.onTabChanged = [this](int newCurrentTabIndex) {
+        dspComponent.setActive(newCurrentTabIndex == 0);
+    };
+    tabs.addTab("Knobs + FFT", Palette::bg, &dspComponent, false);
+    tabs.addTab("Graph", Palette::bg, &graphEditorComponent, false);
+
+    setContentNonOwned(&tabs, true);
     setResizable(true, true);
     setResizeLimits(400, 300, 2000, 2000);
     setSize(680, 480);
