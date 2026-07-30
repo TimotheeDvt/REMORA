@@ -14,6 +14,7 @@ struct NodeInstance {
     std::vector<float> params;
     std::unique_ptr<NodeState> state;   // null for stateless nodes
     mutable std::array<float, kMaxNodeOutputs> lastOutputs{};
+    float x = 0.0f, y = 0.0f;            // canvas position, for the graph editor
 };
 
 // A DAG of typed nodes wired together, evaluated once per audio block. See
@@ -23,12 +24,17 @@ class NodeGraph {
 public:
     NodeId addNode(const juce::String& typeId, std::vector<float> params = {});
 
+    bool removeNode(NodeId id);
+
     // Wires src's output port `srcPort` into dst's input port `dstPort`.
     // Returns false (and leaves the graph unchanged) if this would create a
     // cycle or reference an unknown node/port.
     bool connect(NodeId src, int srcPort, NodeId dst, int dstPort);
 
+    bool disconnectInput(NodeId dst, int dstPort);
+
     void setInputDefault(NodeId dst, int dstPort, float value);
+    void setNodePosition(NodeId id, float x, float y);
 
     void prepare(double sampleRate);
     void evaluate(const SourceFrame& sources, MappingOutput& out);

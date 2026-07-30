@@ -31,6 +31,49 @@ NodeId NodeGraph::addNode(const juce::String& typeId, std::vector<float> params)
     return id;
 }
 
+bool NodeGraph::removeNode(NodeId id) {
+    const int idx = indexOf(id);
+    if (idx < 0)
+        return false;
+
+    for (auto& n : nodes_)
+        for (auto& slot : n.inputs)
+            if (slot.sourceNode == id)
+                slot = InputSlot{ kInvalidNodeId, 0, slot.defaultValue };
+
+    nodes_.erase(nodes_.begin() + idx);
+
+    indexById_.clear();
+    for (size_t i = 0; i < nodes_.size(); ++i)
+        indexById_[nodes_[i].id] = i;
+
+    recomputeTopoOrder();
+    return true;
+}
+
+bool NodeGraph::disconnectInput(NodeId dst, int dstPort) {
+    const int dstIdx = indexOf(dst);
+    if (dstIdx < 0)
+        return false;
+    NodeInstance& dstInst = nodes_[static_cast<size_t>(dstIdx)];
+    if (dstPort < 0 || dstPort >= static_cast<int>(dstInst.inputs.size()))
+        return false;
+
+    InputSlot& slot = dstInst.inputs[static_cast<size_t>(dstPort)];
+    slot.sourceNode = kInvalidNodeId;
+    slot.sourceOutputPort = 0;
+    recomputeTopoOrder();
+    return true;
+}
+
+void NodeGraph::setNodePosition(NodeId id, float x, float y) {
+    const int idx = indexOf(id);
+    if (idx < 0)
+        return;
+    nodes_[static_cast<size_t>(idx)].x = x;
+    nodes_[static_cast<size_t>(idx)].y = y;
+}
+
 bool NodeGraph::connect(NodeId src, int srcPort, NodeId dst, int dstPort) {
     int srcIdx = indexOf(src);
     int dstIdx = indexOf(dst);
@@ -172,6 +215,8 @@ std::unique_ptr<juce::XmlElement> NodeGraph::toXml() const {
         auto* nodeXml = root->createNewChildElement("Node");
         nodeXml->setAttribute("id", static_cast<int>(n.id));
         nodeXml->setAttribute("type", n.typeId);
+        nodeXml->setAttribute("x", n.x);
+        nodeXml->setAttribute("y", n.y);
 
         for (size_t i = 0; i < n.params.size(); ++i) {
             auto* paramXml = nodeXml->createNewChildElement("Param");
@@ -211,6 +256,8 @@ std::unique_ptr<NodeGraph> NodeGraph::fromXml(const juce::XmlElement& xml) {
         }
 
         NodeInstance* inst = graph->addNodeWithId(id, typeId, params);
+        inst->x = static_cast<float>(nodeXml->getDoubleAttribute("x"));
+        inst->y = static_cast<float>(nodeXml->getDoubleAttribute("y"));
 
         for (auto* inputXml : nodeXml->getChildWithTagNameIterator("Input")) {
             const size_t port = static_cast<size_t>(inputXml->getIntAttribute("port"));
