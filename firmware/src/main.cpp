@@ -29,7 +29,10 @@ void connectWiFi() {
   Serial.printf("Connecting to: %s\n", WIFI_SSID);
 
   uint8_t attempts = 0;
+  bool ledState = false;
   while (WiFi.status() != WL_CONNECTED) {
+    ledState = !ledState;
+    digitalWrite(LED_PIN, ledState); // Blink while not connected
     delay(500);
     Serial.print('.');
     if (++attempts >= 40) {
@@ -40,6 +43,8 @@ void connectWiFi() {
       attempts = 0;
     }
   }
+
+  digitalWrite(LED_PIN, HIGH);
 
   Serial.println("\n=========================================");
   Serial.println("SUCCESS: CONNECTED");
@@ -128,11 +133,6 @@ void loop() {
     Udp.beginPacket(outIp, outPort);
     msg.send(Udp);
     Udp.endPacket();
-
-    // Toggle the blue LED to show activity
-    static bool ledState = false;
-    ledState = !ledState;
-    digitalWrite(LED_PIN, ledState);
     }
   }
 }
