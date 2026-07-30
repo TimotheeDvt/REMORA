@@ -4,6 +4,43 @@
 #include <algorithm>
 #include <cmath>
 
+StaffMotionAnalyzer::DerivedMotionFrame StaffMotionAnalyzer::computeFrame(const StaffSoundParams& input_parameters) {
+    DerivedMotionFrame frame;
+
+    calculateDeltaTime();
+    frame.deltaTimeSeconds = delta_time_seconds_;
+
+    float tip_x, tip_y, tip_z;
+    updateTipPositionHistory(input_parameters, tip_x, tip_y, tip_z);
+    frame.tipX = tip_x;
+    frame.tipY = tip_y;
+
+    calculateRotationAxisAtMidpoint(frame.rotationAxisX, frame.rotationAxisY, frame.rotationAxisZ);
+
+    updateGravityVector(input_parameters);
+
+    float dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, dynamic_accel_magnitude;
+    calculateDynamicAcceleration(input_parameters, dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, dynamic_accel_magnitude);
+
+    float velocity_magnitude = integrateVelocityForLabanWeight(dynamic_accel_x, dynamic_accel_y, dynamic_accel_z);
+
+    const float gyroscope_magnitude = std::sqrt(input_parameters.gx * input_parameters.gx + input_parameters.gy * input_parameters.gy + input_parameters.gz * input_parameters.gz);
+    frame.gyroscopeMagnitude = gyroscope_magnitude;
+    frame.smoothedGyroscopeMagnitude = updateGyroscopeMagnitude(gyroscope_magnitude);
+
+    detectAxialThrustPeaks(input_parameters, dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, tip_x, tip_y, tip_z, gyroscope_magnitude);
+    frame.axialThrustPeakEnvelope = axialThrustPeakEnvelope();
+
+    frame.labanWeight = updateLabanWeight(velocity_magnitude);
+    frame.labanTimeSuddenness = updateLabanTime(gyroscope_magnitude);
+    frame.labanSpaceFocus = updateLabanSpace(input_parameters, gyroscope_magnitude);
+    updateLabanFlow(dynamic_accel_magnitude, frame.labanFlowBound, frame.labanFlowFree);
+
+    frame.isMoving = frame.smoothedGyroscopeMagnitude > kGyroscopeFloor;
+
+    return frame;
+}
+
 void StaffMotionAnalyzer::prepare() {
     delta_time_seconds_ = 1.0f / 100.0f;
     last_timestamp_ticks_ = 0;

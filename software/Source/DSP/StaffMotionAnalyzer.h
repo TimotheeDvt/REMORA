@@ -15,6 +15,41 @@ public:
     static constexpr float kGyroscopeFloor = 30.0f;
     static constexpr float kGyroscopeCeiling = 750.0f;
 
+    // Which of the two mutually-exclusive spin-classification conventions to
+    // use (see updateSpinClassificationByAbsoluteComponent/ByReferenceAzimuth
+    // above) - both write the same shared state, so only one may run per block.
+    enum class SpinConvention { ByAbsoluteComponent, ByReferenceAzimuth };
+
+    // One-shot-per-block snapshot of every derived signal that doesn't depend
+    // on a per-block choice (spin convention) or on this block's own
+    // change-detection result (continuous spin count, facing). Those two
+    // remain the caller's responsibility - see the Graph "Spin Classification"
+    // node, which is the only place that still calls
+    // updateSpinClassificationBy*/updateFacingClassification/
+    // accumulateContinuousSpins directly, using tipX/tipY/rotationAxis* below.
+    struct DerivedMotionFrame {
+        float deltaTimeSeconds = 1.0f / 100.0f;
+        float gyroscopeMagnitude = 0.f;
+        float smoothedGyroscopeMagnitude = 0.f;
+        float labanWeight = 0.f;
+        float labanTimeSuddenness = 0.f;
+        float labanSpaceFocus = 0.f;
+        float labanFlowBound = 0.f;
+        float labanFlowFree = 0.f;
+        bool  isMoving = false;
+        float axialThrustPeakEnvelope = 0.f;
+        float rotationAxisX = 0.f, rotationAxisY = 0.f, rotationAxisZ = 1.f;
+        float tipX = 1.f, tipY = 0.f;
+    };
+
+    // Runs the imperative analysis pipeline every mapping used to duplicate
+    // (delta-time -> tip position -> rotation axis -> gravity -> dynamic
+    // accel -> velocity/Laban weight -> gyro magnitude -> thrust detection ->
+    // Laban weight/time/space/flow -> moving gate), once, as the single
+    // source of truth. Deliberately stops short of spin classification/
+    // facing/continuous-spin-count - see DerivedMotionFrame comment above.
+    DerivedMotionFrame computeFrame(const StaffSoundParams& input_parameters);
+
     void prepare();
 
     void calculateDeltaTime();

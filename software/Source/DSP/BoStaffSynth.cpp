@@ -3,17 +3,8 @@
 #include <algorithm>
 #include "MathHelpers.h"
 
-#include "Mappings/SimpleMapping.h"
-#include "Mappings/BowedChordMapping.h"
-#include "Mappings/LeadDroneMapping.h"
-#include "Mappings/SpinFilterMapping.h"
-#include "Mappings/BozendoMapping.h"
-#include "Mappings/BozendoMapping2.h"
-#include "Mappings/AzimutMapping.h"
-#include "Mappings/AzimutPlusMapping.h"
-#include "Mappings/AzimutReverbMapping.h"
-#include "Mappings/BensMapping.h"
-#include "Mappings/SpinVoiceMapping.h"
+#include "Graph/GraphMappingStrategy.h"
+#include "Graph/Presets/AllPresets.h"
 
 float BoStaffSynth::semitoneRatio(float semitones) {
     return MathHelpers::semitoneRatio(semitones);
@@ -31,18 +22,23 @@ void BoStaffSynth::pushNextSampleIntoFifo(float sample) noexcept {
 }
 
 BoStaffSynth::BoStaffSynth() {
-    // Register mappings
-    mappings.push_back(std::make_unique<SimpleMapping>());
-    mappings.push_back(std::make_unique<BowedChordMapping>());
-    mappings.push_back(std::make_unique<LeadDroneMapping>());
-    mappings.push_back(std::make_unique<SpinFilterMapping>());
-    mappings.push_back(std::make_unique<BozendoMapping>());
-    mappings.push_back(std::make_unique<BozendoMapping2>());
-    mappings.push_back(std::make_unique<AzimutMapping>());
-    mappings.push_back(std::make_unique<AzimutPlusMapping>());
-    mappings.push_back(std::make_unique<AzimutReverbMapping>());
-    mappings.push_back(std::make_unique<BensMapping>());
-    mappings.push_back(std::make_unique<SpinVoiceMapping>());
+    // Register mappings - each is a node graph (see Source/DSP/Graph/) built
+    // by a Presets::build*() function, wrapped in the one generic
+    // GraphMappingStrategy. These replace what used to be 11 distinct
+    // hand-written IMappingStrategy subclasses under Mappings/ - see
+    // Source/DSP/Graph/Presets/*.cpp for each preset's construction.
+    using Graph::GraphMappingStrategy;
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSimple(), "Simple (Pitch+Roll)"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBowedChord(), "Bowed Chord"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildLeadDrone(), "Lead + Drone"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinFilter(), "Spin Filter"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBozendo(), "Bozendo"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBozendo2(), "Bozendo 2"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimut(), "Azimut"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutPlus(), "Azimut+"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutReverb(), "Azimut Reverb"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBens(), "Ben's"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoice(), "Spin Voices"));
 }
 
 BoStaffSynth::~BoStaffSynth() {}
