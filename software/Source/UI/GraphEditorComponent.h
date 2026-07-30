@@ -23,6 +23,9 @@ public:
     // Called by DSPWindow whenever the shared mapping selector changes.
     void onMappingChanged();
 
+    // Called by GraphNodeComponent on a double-click.
+    void showNodeParamEditor(Graph::NodeId id);
+
     // Called by GraphCanvasComponent - draws in canvas-local (world) space.
     void paintConnections(juce::Graphics& g);
 
@@ -71,9 +74,13 @@ private:
     void addNodeAt(const juce::String& typeId, juce::Point<int> position);
     void deleteNode(Graph::NodeId id);
     void syncFromModel();
+    void refreshNodeComponent(Graph::NodeId id);
     void autoLayout();
     void updateTransform();
     GraphPinComponent* findPinAt(juce::Point<int> posInEditor);
+    bool findConnectionAt(juce::Point<float> posInCanvas, Graph::NodeId& outDstNode, int& outDstPort) const;
+    void showWireContextMenu(Graph::NodeId dstNode, int dstPort);
+    static juce::Path buildConnectionPath(juce::Point<float> from, juce::Point<float> to);
     static void drawConnection(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GraphEditorComponent)

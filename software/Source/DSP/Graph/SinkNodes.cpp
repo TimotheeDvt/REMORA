@@ -16,6 +16,7 @@ void addScalarSink(NodeTypeRegistry& registry, const char* id, const char* name,
     info.id = id;
     info.displayName = name;
     info.category = NodeCategory::Sink;
+    info.subcategory = "Scalar";
     info.numInputs = 1;
     info.inputNames = { "value" };
     info.monitorRangeMin = rangeMin;
@@ -30,6 +31,7 @@ void addArraySink(NodeTypeRegistry& registry, const char* id, const char* name, 
     info.id = id;
     info.displayName = name;
     info.category = NodeCategory::Sink;
+    info.subcategory = "Indexed Array";
     info.numInputs = 1;
     info.inputNames = { "value" };
     info.defaultParams = { 0.0f }; // index

@@ -36,6 +36,8 @@ public:
     void setInputDefault(NodeId dst, int dstPort, float value);
     void setNodePosition(NodeId id, float x, float y);
 
+    void setNodeParams(NodeId id, std::vector<float> params);
+
     void prepare(double sampleRate);
     void evaluate(const SourceFrame& sources, MappingOutput& out);
 

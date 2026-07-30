@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -169,28 +170,83 @@ void GraphEditorComponent::syncFromModel() {
     canvas.repaint();
 }
 
+void GraphEditorComponent::refreshNodeComponent(Graph::NodeId id) {
+    // GraphNodeComponent caches its displayed params at construction, so
+    // after editing them in the model the simplest way to show the new
+    // values is to drop and recreate that one component.
+    auto it = nodeComponentById.find(id);
+    if (it != nodeComponentById.end()) {
+        nodeComponents.removeObject(it->second);
+        nodeComponentById.erase(it);
+    }
+    syncFromModel();
+}
+
+void GraphEditorComponent::showNodeParamEditor(Graph::NodeId id) {
+    if (!isEditable || currentGraph == nullptr)
+        return;
+
+    const Graph::NodeInstance* node = nullptr;
+    for (const auto& n : currentGraph->nodes())
+        if (n.id == id) { node = &n; break; }
+    if (node == nullptr || node->params.empty())
+        return;
+
+    const Graph::NodeTypeInfo* info = Graph::NodeTypeRegistry::instance().find(node->typeId);
+    const juce::String title = info != nullptr ? info->displayName : juce::String("Node");
+
+    auto alert = std::make_shared<juce::AlertWindow>(title, "Edit parameter value(s):", juce::MessageBoxIconType::NoIcon);
+    for (size_t i = 0; i < node->params.size(); ++i)
+        alert->addTextEditor("param" + juce::String(static_cast<int>(i)), juce::String(node->params[i]),
+                              "Param " + juce::String(static_cast<int>(i)));
+    alert->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
+    alert->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+
+    const size_t numParams = node->params.size();
+    alert->enterModalState(true, juce::ModalCallbackFunction::create([this, alert, id, numParams](int result) {
+        if (result != 1 || currentGraph == nullptr)
+            return;
+        std::vector<float> newParams;
+        newParams.reserve(numParams);
+        for (size_t i = 0; i < numParams; ++i) {
+            auto* editor = alert->getTextEditor("param" + juce::String(static_cast<int>(i)));
+            newParams.push_back(editor != nullptr ? editor->getText().getFloatValue() : 0.0f);
+        }
+        currentGraph->setNodeParams(id, newParams);
+        refreshNodeComponent(id);
+    }));
+}
+
 void GraphEditorComponent::showAddNodeMenu(juce::Point<int> position) {
     if (!isEditable || currentGraph == nullptr)
         return;
 
-    juce::PopupMenu sourceMenu, mathMenu, sinkMenu;
     auto typeIdByItemId = std::make_shared<std::vector<juce::String>>();
     typeIdByItemId->push_back({}); // item id 0 is "dismissed", unused
+
+    // category -> subcategory -> leaf items, so e.g. Source splits into
+    // "Raw Sensor"/"Derived Motion" instead of one long flat list.
+    std::map<Graph::NodeCategory, std::map<juce::String, juce::PopupMenu>> menusByCategory;
 
     for (const auto& info : Graph::NodeTypeRegistry::instance().all()) {
         typeIdByItemId->push_back(info.id);
         const int itemId = static_cast<int>(typeIdByItemId->size() - 1);
-        switch (info.category) {
-            case Graph::NodeCategory::Source: sourceMenu.addItem(itemId, info.displayName); break;
-            case Graph::NodeCategory::Math:   mathMenu.addItem(itemId, info.displayName); break;
-            case Graph::NodeCategory::Sink:   sinkMenu.addItem(itemId, info.displayName); break;
-        }
+        menusByCategory[info.category][info.subcategory].addItem(itemId, info.displayName);
     }
 
     juce::PopupMenu root;
-    root.addSubMenu("Source", sourceMenu);
-    root.addSubMenu("Math", mathMenu);
-    root.addSubMenu("Sink", sinkMenu);
+    auto addCategory = [&](Graph::NodeCategory category, const juce::String& label) {
+        auto it = menusByCategory.find(category);
+        if (it == menusByCategory.end())
+            return;
+        juce::PopupMenu categoryMenu;
+        for (auto& [subcategory, leafMenu] : it->second)
+            categoryMenu.addSubMenu(subcategory.isEmpty() ? juce::String("Other") : subcategory, leafMenu);
+        root.addSubMenu(label, categoryMenu);
+    };
+    addCategory(Graph::NodeCategory::Source, "Source");
+    addCategory(Graph::NodeCategory::Math, "Math");
+    addCategory(Graph::NodeCategory::Sink, "Sink");
 
     const auto screenPos = localPointToGlobal(position);
     root.showMenuAsync(juce::PopupMenu::Options{}.withTargetScreenArea({ screenPos.x, screenPos.y, 1, 1 }),
@@ -325,6 +381,51 @@ GraphPinComponent* GraphEditorComponent::findPinAt(juce::Point<int> posInEditor)
     return dynamic_cast<GraphPinComponent*>(canvas.getComponentAt(posInCanvas));
 }
 
+bool GraphEditorComponent::findConnectionAt(juce::Point<float> posInCanvas, Graph::NodeId& outDstNode, int& outDstPort) const {
+    if (currentGraph == nullptr)
+        return false;
+
+    constexpr float kHitTolerance = 8.0f;
+    for (const auto& n : currentGraph->nodes()) {
+        auto dstIt = nodeComponentById.find(n.id);
+        if (dstIt == nodeComponentById.end())
+            continue;
+        for (size_t p = 0; p < n.inputs.size(); ++p) {
+            const auto& slot = n.inputs[p];
+            if (slot.sourceNode == Graph::kInvalidNodeId)
+                continue;
+            auto srcIt = nodeComponentById.find(slot.sourceNode);
+            if (srcIt == nodeComponentById.end())
+                continue;
+
+            const auto path = buildConnectionPath(srcIt->second->getOutputPinCentre(slot.sourceOutputPort).toFloat(),
+                                                  dstIt->second->getInputPinCentre(static_cast<int>(p)).toFloat());
+            juce::Path stroked;
+            juce::PathStrokeType(kHitTolerance).createStrokedPath(stroked, path);
+            if (stroked.contains(posInCanvas)) {
+                outDstNode = n.id;
+                outDstPort = static_cast<int>(p);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void GraphEditorComponent::showWireContextMenu(Graph::NodeId dstNode, int dstPort) {
+    if (!isEditable || currentGraph == nullptr)
+        return;
+
+    juce::PopupMenu menu;
+    menu.addItem(1, "Remove Connection");
+    menu.showMenuAsync(juce::PopupMenu::Options{}, [this, dstNode, dstPort](int result) {
+        if (result == 1 && currentGraph != nullptr) {
+            currentGraph->disconnectInput(dstNode, dstPort);
+            canvas.repaint();
+        }
+    });
+}
+
 void GraphEditorComponent::mouseDown(const juce::MouseEvent& e) {
     handleBackgroundMouseDown(e);
 }
@@ -334,9 +435,19 @@ void GraphEditorComponent::mouseDrag(const juce::MouseEvent& e) {
 }
 
 void GraphEditorComponent::handleBackgroundMouseDown(const juce::MouseEvent& e) {
-    if (e.mods.isCtrlDown())
+    if (e.mods.isCtrlDown()) {
         handleCanvasMouseDown(e);
-    else if (e.mods.isPopupMenu())
+        return;
+    }
+    if (!e.mods.isPopupMenu())
+        return;
+
+    Graph::NodeId dstNode = Graph::kInvalidNodeId;
+    int dstPort = 0;
+    const auto posInCanvas = canvas.getLocalPoint(this, e.getPosition()).toFloat();
+    if (isEditable && findConnectionAt(posInCanvas, dstNode, dstPort))
+        showWireContextMenu(dstNode, dstPort);
+    else
         showAddNodeMenu(e.getPosition());
 }
 
@@ -366,13 +477,17 @@ void GraphEditorComponent::resized() {
     statusLabel.setBounds(getLocalBounds().removeFromTop(20).reduced(8, 2));
 }
 
-void GraphEditorComponent::drawConnection(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to) {
+juce::Path GraphEditorComponent::buildConnectionPath(juce::Point<float> from, juce::Point<float> to) {
     juce::Path path;
     path.startNewSubPath(from);
     const float bend = juce::jmax(30.0f, std::abs(to.x - from.x) * 0.5f);
     path.cubicTo(from.x + bend, from.y, to.x - bend, to.y, to.x, to.y);
+    return path;
+}
+
+void GraphEditorComponent::drawConnection(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to) {
     g.setColour(Palette::accent);
-    g.strokePath(path, juce::PathStrokeType(2.0f));
+    g.strokePath(buildConnectionPath(from, to), juce::PathStrokeType(2.0f));
 }
 
 void GraphEditorComponent::paintConnections(juce::Graphics& g) {

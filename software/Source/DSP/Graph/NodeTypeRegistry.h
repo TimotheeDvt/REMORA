@@ -15,6 +15,7 @@ struct NodeTypeInfo {
     juce::String id;
     juce::String displayName;
     NodeCategory category = NodeCategory::Math;
+    juce::String subcategory;
 
     int numInputs = 0;
     std::vector<juce::String> inputNames;

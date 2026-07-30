@@ -13,64 +13,66 @@
 namespace Graph {
 namespace {
 
-void registerRawSource(NodeTypeRegistry& registry, const char* id, const char* name, NodeTypeInfo::SourceEvalFn eval) {
+void registerRawSource(NodeTypeRegistry& registry, const char* id, const char* name, const char* subcategory, NodeTypeInfo::SourceEvalFn eval) {
     NodeTypeInfo info;
     info.id = id;
     info.displayName = name;
     info.category = NodeCategory::Source;
+    info.subcategory = subcategory;
     info.sourceEval = eval;
     registry.registerType(std::move(info));
 }
 
-#define REMORA_RAW_SOURCE(id, name, expr) \
-    registerRawSource(registry, id, name, [](const SourceFrame& sf, const std::vector<float>&, NodeState*, float* out) { out[0] = (expr); })
+#define REMORA_RAW_SOURCE(id, name, subcategory, expr) \
+    registerRawSource(registry, id, name, subcategory, [](const SourceFrame& sf, const std::vector<float>&, NodeState*, float* out) { out[0] = (expr); })
 
 } // namespace
 
 void registerSourceNodes(NodeTypeRegistry& registry) {
-    REMORA_RAW_SOURCE("source.pitch", "Pitch", sf.raw.pitch);
-    REMORA_RAW_SOURCE("source.roll", "Roll", sf.raw.roll);
-    REMORA_RAW_SOURCE("source.yaw", "Yaw", sf.raw.yaw);
-    REMORA_RAW_SOURCE("source.gyroX", "Gyro X", sf.raw.gx);
-    REMORA_RAW_SOURCE("source.gyroY", "Gyro Y", sf.raw.gy);
-    REMORA_RAW_SOURCE("source.gyroZ", "Gyro Z", sf.raw.gz);
-    REMORA_RAW_SOURCE("source.accelX", "Accel X", sf.raw.ax);
-    REMORA_RAW_SOURCE("source.accelY", "Accel Y", sf.raw.ay);
-    REMORA_RAW_SOURCE("source.accelZ", "Accel Z", sf.raw.az);
-    REMORA_RAW_SOURCE("source.magX", "Mag X", sf.raw.mx);
-    REMORA_RAW_SOURCE("source.magY", "Mag Y", sf.raw.my);
-    REMORA_RAW_SOURCE("source.magZ", "Mag Z", sf.raw.mz);
-    REMORA_RAW_SOURCE("source.quatW", "Quat W", sf.raw.qw);
-    REMORA_RAW_SOURCE("source.quatX", "Quat X", sf.raw.qx);
-    REMORA_RAW_SOURCE("source.quatY", "Quat Y", sf.raw.qy);
-    REMORA_RAW_SOURCE("source.quatZ", "Quat Z", sf.raw.qz);
-    REMORA_RAW_SOURCE("source.isReceivingValidData", "Valid Data", sf.raw.isReceivingValidData ? 1.0f : 0.0f);
+    REMORA_RAW_SOURCE("source.pitch", "Pitch", "Raw Sensor", sf.raw.pitch);
+    REMORA_RAW_SOURCE("source.roll", "Roll", "Raw Sensor", sf.raw.roll);
+    REMORA_RAW_SOURCE("source.yaw", "Yaw", "Raw Sensor", sf.raw.yaw);
+    REMORA_RAW_SOURCE("source.gyroX", "Gyro X", "Raw Sensor", sf.raw.gx);
+    REMORA_RAW_SOURCE("source.gyroY", "Gyro Y", "Raw Sensor", sf.raw.gy);
+    REMORA_RAW_SOURCE("source.gyroZ", "Gyro Z", "Raw Sensor", sf.raw.gz);
+    REMORA_RAW_SOURCE("source.accelX", "Accel X", "Raw Sensor", sf.raw.ax);
+    REMORA_RAW_SOURCE("source.accelY", "Accel Y", "Raw Sensor", sf.raw.ay);
+    REMORA_RAW_SOURCE("source.accelZ", "Accel Z", "Raw Sensor", sf.raw.az);
+    REMORA_RAW_SOURCE("source.magX", "Mag X", "Raw Sensor", sf.raw.mx);
+    REMORA_RAW_SOURCE("source.magY", "Mag Y", "Raw Sensor", sf.raw.my);
+    REMORA_RAW_SOURCE("source.magZ", "Mag Z", "Raw Sensor", sf.raw.mz);
+    REMORA_RAW_SOURCE("source.quatW", "Quat W", "Raw Sensor", sf.raw.qw);
+    REMORA_RAW_SOURCE("source.quatX", "Quat X", "Raw Sensor", sf.raw.qx);
+    REMORA_RAW_SOURCE("source.quatY", "Quat Y", "Raw Sensor", sf.raw.qy);
+    REMORA_RAW_SOURCE("source.quatZ", "Quat Z", "Raw Sensor", sf.raw.qz);
+    REMORA_RAW_SOURCE("source.isReceivingValidData", "Valid Data", "Raw Sensor", sf.raw.isReceivingValidData ? 1.0f : 0.0f);
 
     // Several mappings (LeadDrone, SpinFilter, BowedChord) never touch the
     // shared analyzer at all - they compute instantaneous, unsmoothed
     // magnitude directly off the raw sensor fields every block.
-    REMORA_RAW_SOURCE("source.gyroMagnitudeRaw", "Gyro Magnitude (Raw)",
+    REMORA_RAW_SOURCE("source.gyroMagnitudeRaw", "Gyro Magnitude (Raw)", "Raw Sensor",
         std::sqrt(sf.raw.gx * sf.raw.gx + sf.raw.gy * sf.raw.gy + sf.raw.gz * sf.raw.gz));
-    REMORA_RAW_SOURCE("source.accelMagnitudeRaw", "Accel Magnitude (Raw)",
+    REMORA_RAW_SOURCE("source.accelMagnitudeRaw", "Accel Magnitude (Raw)", "Raw Sensor",
         std::sqrt(sf.raw.ax * sf.raw.ax + sf.raw.ay * sf.raw.ay + sf.raw.az * sf.raw.az));
 
-    REMORA_RAW_SOURCE("source.gyroMagnitude", "Gyro Magnitude", sf.derived.smoothedGyroscopeMagnitude);
-    REMORA_RAW_SOURCE("source.labanWeight", "Laban Weight", sf.derived.labanWeight);
-    REMORA_RAW_SOURCE("source.labanTimeSuddenness", "Laban Time (Suddenness)", sf.derived.labanTimeSuddenness);
-    REMORA_RAW_SOURCE("source.labanSpaceFocus", "Laban Space Focus", sf.derived.labanSpaceFocus);
-    REMORA_RAW_SOURCE("source.labanFlowBound", "Laban Flow Bound", sf.derived.labanFlowBound);
-    REMORA_RAW_SOURCE("source.labanFlowFree", "Laban Flow Free", sf.derived.labanFlowFree);
-    REMORA_RAW_SOURCE("source.thrustPeakEnvelope", "Thrust Peak Envelope", sf.derived.axialThrustPeakEnvelope);
-    REMORA_RAW_SOURCE("source.rotationAxisX", "Rotation Axis X", sf.derived.rotationAxisX);
-    REMORA_RAW_SOURCE("source.rotationAxisY", "Rotation Axis Y", sf.derived.rotationAxisY);
-    REMORA_RAW_SOURCE("source.deltaTime", "Delta Time (s)", sf.derived.deltaTimeSeconds);
-    REMORA_RAW_SOURCE("source.isMoving", "Is Moving", sf.derived.isMoving ? 1.0f : 0.0f);
+    REMORA_RAW_SOURCE("source.gyroMagnitude", "Gyro Magnitude", "Derived Motion", sf.derived.smoothedGyroscopeMagnitude);
+    REMORA_RAW_SOURCE("source.labanWeight", "Laban Weight", "Derived Motion", sf.derived.labanWeight);
+    REMORA_RAW_SOURCE("source.labanTimeSuddenness", "Laban Time (Suddenness)", "Derived Motion", sf.derived.labanTimeSuddenness);
+    REMORA_RAW_SOURCE("source.labanSpaceFocus", "Laban Space Focus", "Derived Motion", sf.derived.labanSpaceFocus);
+    REMORA_RAW_SOURCE("source.labanFlowBound", "Laban Flow Bound", "Derived Motion", sf.derived.labanFlowBound);
+    REMORA_RAW_SOURCE("source.labanFlowFree", "Laban Flow Free", "Derived Motion", sf.derived.labanFlowFree);
+    REMORA_RAW_SOURCE("source.thrustPeakEnvelope", "Thrust Peak Envelope", "Derived Motion", sf.derived.axialThrustPeakEnvelope);
+    REMORA_RAW_SOURCE("source.rotationAxisX", "Rotation Axis X", "Derived Motion", sf.derived.rotationAxisX);
+    REMORA_RAW_SOURCE("source.rotationAxisY", "Rotation Axis Y", "Derived Motion", sf.derived.rotationAxisY);
+    REMORA_RAW_SOURCE("source.deltaTime", "Delta Time (s)", "Derived Motion", sf.derived.deltaTimeSeconds);
+    REMORA_RAW_SOURCE("source.isMoving", "Is Moving", "Derived Motion", sf.derived.isMoving ? 1.0f : 0.0f);
 
     {
         NodeTypeInfo info;
         info.id = "source.spinClassification";
         info.displayName = "Spin Classification";
         info.category = NodeCategory::Source;
+        info.subcategory = "Derived Motion";
         info.numOutputs = 4; // isVertical, spinDirection, continuousSpinCount, isFacingNorth
         info.outputNames = { "vertical", "spin", "count", "facing" };
         info.defaultParams = { 0.0f }; // 0 = ByAbsoluteComponent, 1 = ByReferenceAzimuth

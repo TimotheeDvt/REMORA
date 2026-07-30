@@ -133,3 +133,9 @@ void GraphNodeComponent::mouseDrag(const juce::MouseEvent& e) {
 void GraphNodeComponent::mouseUp(const juce::MouseEvent&) {
     editor.handleCanvasMouseUp();
 }
+
+void GraphNodeComponent::mouseDoubleClick(const juce::MouseEvent& e) {
+    if (e.mods.isPopupMenu() || e.mods.isCtrlDown())
+        return;
+    editor.showNodeParamEditor(nodeId);
+}
