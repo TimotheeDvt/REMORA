@@ -50,7 +50,7 @@ button_rot = [0, 0, 0];
 
 // LIPO BATTERY BOX (ghost) + CORNER SUPPORTS
 battery_box_pos      = [18, 0, 7];
-battery_box_size     = [60, 40, 6.5];
+battery_box_size     = [61.5, 40, 6.5];
 battery_box_corner_r = 3;
 
 battery_support_leg       = 10;
