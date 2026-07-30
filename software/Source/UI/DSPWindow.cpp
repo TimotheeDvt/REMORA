@@ -161,6 +161,7 @@ void DSPComponent::rebuildMonitorKnobs() {
     }
 
     resized(); // also recomputes scopeTopInset from the new knob count
+    repaint();
 }
 
 void DSPComponent::timerCallback() {
