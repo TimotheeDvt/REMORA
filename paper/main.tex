@@ -1,0 +1,100 @@
+\documentclass[10pt, twocolumn]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{abstract}
+
+\renewcommand{\abstractnamefont}{\normalfont\bfseries}
+\renewcommand{\abstracttextfont}{\normalfont\small\itshape}
+
+\title{\textbf{REMORA \\ Real-time Expressive Motion to Output Routing Audio}}
+
+\author{
+    DRAVET Timothée$^{1}$, OVERHOLT Daniel$^{2}$ \\
+    \small Department of Sound and Music Computing, Aalborg University \\
+    \small $^{1}$\texttt{timothee.dravet@etu.univ-amu.fr} \\
+    \small $^{2}$\texttt{dano@create.aau.dk}
+}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{onecolabstract}
+This paper presents a two-column research paper template suitable for IEEE-style journal and conference submissions. The template demonstrates proper formatting for title, authors, abstract, sections, equations, tables, and references in a compact two-column layout commonly used in computer science and engineering publications.
+\end{onecolabstract}
+
+\noindent\textbf{Keywords:} two-column, research paper, LaTeX template, IEEE style
+
+\section{Introduction}
+
+Two-column layouts are standard in many conferences and journals, particularly in computer science, engineering, and physics. This template provides a starting point for such submissions.
+
+The key advantages of two-column layouts include:
+\begin{itemize}
+    \item More efficient use of page space
+    \item Better readability for technical content
+    \item Conformance with venue requirements
+\end{itemize}
+
+\section{Related Work}
+
+Discuss prior work relevant to your research. Cite important papers and explain how your approach differs or improves upon existing methods.
+
+\section{Methodology}
+
+\subsection{Problem Definition}
+
+Given a dataset $\mathcal{D} = \{(\mathbf{x}_i, y_i)\}_{i=1}^{N}$, we aim to learn a function $f_\theta$ that minimizes:
+\begin{equation}
+    \mathcal{L}(\theta) = \frac{1}{N} \sum_{i=1}^{N} \ell(f_\theta(\mathbf{x}_i), y_i) + \lambda \|\theta\|_2^2
+    \label{eq:loss}
+\end{equation}
+
+where $\ell$ is the loss function and $\lambda$ controls regularization.
+
+\subsection{Proposed Approach}
+
+Describe your method in detail. Use equations, algorithms, and diagrams as needed to explain the approach clearly.
+
+\section{Experiments}
+
+\subsection{Setup}
+
+We evaluate on three benchmark datasets. All experiments use the same hyperparameters: learning rate $\eta = 10^{-3}$, batch size 32, and 100 training epochs.
+
+\subsection{Results}
+
+\begin{table}[h]
+    \centering
+    \caption{Comparison with baseline methods.}
+    \label{tab:results}
+    \begin{tabular}{lcc}
+        \toprule
+        Method & Acc. (\%) & F1 \\
+        \midrule
+        Baseline A & 82.1 & 0.79 \\
+        Baseline B & 84.5 & 0.82 \\
+        Baseline C & 86.3 & 0.84 \\
+        \textbf{Ours} & \textbf{91.0} & \textbf{0.89} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Table~\ref{tab:results} shows our method outperforms all baselines. The improvement is statistically significant ($p < 0.01$).
+
+\section{Discussion}
+
+Interpret the results and discuss implications, limitations, and potential future directions.
+
+\section{Conclusion}
+
+Summarize contributions and key findings. Our method achieves state-of-the-art performance on all evaluated benchmarks as shown in Equation~\ref{eq:loss} and Table~\ref{tab:results}.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
