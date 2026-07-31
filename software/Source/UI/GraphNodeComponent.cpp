@@ -82,9 +82,19 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
     g.fillRoundedRectangle(header, 4.0f);
     g.fillRect(header.withTop(header.getBottom() - 4.0f)); // square off the bottom corners of the header
 
+    auto infoArea = header.removeFromRight(static_cast<float>(kHeaderHeight));
+
     g.setColour(Palette::textHi);
     g.setFont(12.0f);
     g.drawText(typeInfo.displayName, header.reduced(6.0f, 0.0f), juce::Justification::centred, true);
+
+    {
+        auto circle = infoArea.withSizeKeepingCentre(13.0f, 13.0f);
+        g.setColour(Palette::textHi.withAlpha(0.85f));
+        g.drawEllipse(circle, 1.2f);
+        g.setFont(juce::Font(juce::FontOptions().withHeight(10.0f).withStyle("Bold")));
+        g.drawText("i", circle, juce::Justification::centred, false);
+    }
 
     g.setColour(Palette::border);
     g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 4.0f, 1.0f);
@@ -106,6 +116,8 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
 }
 
 void GraphNodeComponent::resized() {
+    infoButtonBounds = { kWidth - kHeaderHeight, 0, kHeaderHeight, kHeaderHeight };
+
     for (int i = 0; i < paramEditors.size(); ++i) {
         const int y = kHeaderHeight + i * kParamRowHeight;
         const int nameWidth = kWidth * 2 / 5;
@@ -137,6 +149,10 @@ juce::Point<int> GraphNodeComponent::getOutputPinCentre(int port) const {
 }
 
 void GraphNodeComponent::mouseDown(const juce::MouseEvent& e) {
+    if (!e.mods.isPopupMenu() && !e.mods.isCtrlDown() && infoButtonBounds.contains(e.getPosition())) {
+        showInfoPopup();
+        return;
+    }
     if (e.mods.isCtrlDown()) {
         editor.handleCanvasMouseDown(e.getEventRelativeTo(&editor));
         return;
@@ -162,4 +178,54 @@ void GraphNodeComponent::mouseDrag(const juce::MouseEvent& e) {
 
 void GraphNodeComponent::mouseUp(const juce::MouseEvent&) {
     editor.handleCanvasMouseUp();
+}
+
+void GraphNodeComponent::showInfoPopup() {
+    juce::String text;
+    text << typeInfo.displayName;
+    if (typeInfo.subcategory.isNotEmpty())
+        text << "  (" << typeInfo.subcategory << ")";
+    text << "\n\n";
+
+    if (typeInfo.numInputs > 0) {
+        text << "Inputs:\n";
+        for (int i = 0; i < typeInfo.numInputs; ++i) {
+            const juce::String n = typeInfo.inputNames.size() > static_cast<size_t>(i)
+                ? typeInfo.inputNames[static_cast<size_t>(i)] : ("in" + juce::String(i));
+            text << "  - " << n << "\n";
+        }
+        text << "\n";
+    }
+
+    text << "Outputs:\n";
+    for (int i = 0; i < typeInfo.numOutputs; ++i) {
+        const juce::String n = typeInfo.outputNames.size() > static_cast<size_t>(i)
+            ? typeInfo.outputNames[static_cast<size_t>(i)]
+            : (typeInfo.numOutputs > 1 ? ("out" + juce::String(i)) : juce::String("out"));
+        text << "  - " << n << "\n";
+    }
+
+    if (!params.empty()) {
+        text << "\nParameters:\n";
+        for (size_t i = 0; i < params.size(); ++i)
+            text << "  - " << paramLabelFor(i) << "\n";
+    }
+
+    if (typeInfo.description.isNotEmpty())
+        text << "\n" << typeInfo.description;
+
+    auto content = std::make_unique<juce::TextEditor>();
+    content->setMultiLine(true, true);
+    content->setReadOnly(true);
+    content->setCaretVisible(false);
+    content->setScrollbarsShown(true);
+    content->setColour(juce::TextEditor::backgroundColourId, Palette::panel);
+    content->setColour(juce::TextEditor::textColourId, Palette::textHi);
+    content->setColour(juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
+    content->setColour(juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
+    content->setFont(juce::Font(juce::FontOptions().withHeight(12.5f)));
+    content->setText(text, false);
+    content->setSize(280, 240);
+
+    juce::CallOutBox::launchAsynchronously(std::move(content), localAreaToGlobal(infoButtonBounds), nullptr);
 }

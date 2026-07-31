@@ -42,9 +42,12 @@ private:
     juce::OwnedArray<juce::TextEditor> paramEditors;
     juce::Point<int> dragStartPos;
 
+    juce::Rectangle<int> infoButtonBounds;
+
     int portsTop() const noexcept;
     static int paramsHeight(const Graph::NodeTypeInfo& typeInfo);
     juce::String paramLabelFor(size_t index) const;
+    void showInfoPopup();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GraphNodeComponent)
 };

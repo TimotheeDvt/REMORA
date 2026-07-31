@@ -17,6 +17,8 @@ struct NodeTypeInfo {
     NodeCategory category = NodeCategory::Math;
     juce::String subcategory;
 
+    juce::String description;
+
     int numInputs = 0;
     std::vector<juce::String> inputNames;
     std::vector<float> defaultParams;   // also defines numParams via .size()
