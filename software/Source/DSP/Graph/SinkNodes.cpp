@@ -35,6 +35,7 @@ void addArraySink(NodeTypeRegistry& registry, const char* id, const char* name, 
     info.numInputs = 1;
     info.inputNames = { "value" };
     info.defaultParams = { 0.0f }; // index
+    info.paramNames = { "index" };
     info.monitorRangeMin = rangeMin;
     info.monitorRangeMax = rangeMax;
     info.sinkWrite = write;

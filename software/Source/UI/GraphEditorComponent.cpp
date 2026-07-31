@@ -170,51 +170,10 @@ void GraphEditorComponent::syncFromModel() {
     canvas.repaint();
 }
 
-void GraphEditorComponent::refreshNodeComponent(Graph::NodeId id) {
-    // GraphNodeComponent caches its displayed params at construction, so
-    // after editing them in the model the simplest way to show the new
-    // values is to drop and recreate that one component.
-    auto it = nodeComponentById.find(id);
-    if (it != nodeComponentById.end()) {
-        nodeComponents.removeObject(it->second);
-        nodeComponentById.erase(it);
-    }
-    syncFromModel();
-}
-
-void GraphEditorComponent::showNodeParamEditor(Graph::NodeId id) {
+void GraphEditorComponent::updateNodeParam(Graph::NodeId id, int index, float value) {
     if (!isEditable || currentGraph == nullptr)
         return;
-
-    const Graph::NodeInstance* node = nullptr;
-    for (const auto& n : currentGraph->nodes())
-        if (n.id == id) { node = &n; break; }
-    if (node == nullptr || node->params.empty())
-        return;
-
-    const Graph::NodeTypeInfo* info = Graph::NodeTypeRegistry::instance().find(node->typeId);
-    const juce::String title = info != nullptr ? info->displayName : juce::String("Node");
-
-    auto alert = std::make_shared<juce::AlertWindow>(title, "Edit parameter value(s):", juce::MessageBoxIconType::NoIcon);
-    for (size_t i = 0; i < node->params.size(); ++i)
-        alert->addTextEditor("param" + juce::String(static_cast<int>(i)), juce::String(node->params[i]),
-                              "Param " + juce::String(static_cast<int>(i)));
-    alert->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
-    alert->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
-
-    const size_t numParams = node->params.size();
-    alert->enterModalState(true, juce::ModalCallbackFunction::create([this, alert, id, numParams](int result) {
-        if (result != 1 || currentGraph == nullptr)
-            return;
-        std::vector<float> newParams;
-        newParams.reserve(numParams);
-        for (size_t i = 0; i < numParams; ++i) {
-            auto* editor = alert->getTextEditor("param" + juce::String(static_cast<int>(i)));
-            newParams.push_back(editor != nullptr ? editor->getText().getFloatValue() : 0.0f);
-        }
-        currentGraph->setNodeParams(id, newParams);
-        refreshNodeComponent(id);
-    }));
+    currentGraph->setNodeParam(id, index, value);
 }
 
 void GraphEditorComponent::showAddNodeMenu(juce::Point<int> position) {

@@ -20,6 +20,7 @@ struct NodeTypeInfo {
     int numInputs = 0;
     std::vector<juce::String> inputNames;
     std::vector<float> defaultParams;   // also defines numParams via .size()
+    std::vector<juce::String> paramNames;
 
     int numOutputs = 1;
     std::vector<juce::String> outputNames; // only meaningful when numOutputs > 1

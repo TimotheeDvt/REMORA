@@ -37,6 +37,7 @@ public:
     void setNodePosition(NodeId id, float x, float y);
 
     void setNodeParams(NodeId id, std::vector<float> params);
+    void setNodeParam(NodeId id, int index, float value);
 
     void prepare(double sampleRate);
     void evaluate(const SourceFrame& sources, MappingOutput& out);

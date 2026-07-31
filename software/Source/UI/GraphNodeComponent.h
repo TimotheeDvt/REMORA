@@ -11,7 +11,7 @@ class GraphNodeComponent : public juce::Component {
 public:
     static constexpr int kWidth = 140;
     static constexpr int kHeaderHeight = 22;
-    static constexpr int kParamsRowHeight = 14;
+    static constexpr int kParamRowHeight = 18;
     static constexpr int kRowHeight = 20;
     static constexpr int kPinSize = 12;
 
@@ -23,7 +23,6 @@ public:
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
     void mouseUp(const juce::MouseEvent& e) override;
-    void mouseDoubleClick(const juce::MouseEvent& e) override;
 
     Graph::NodeId getNodeId() const noexcept { return nodeId; }
     static int preferredHeight(const Graph::NodeTypeInfo& typeInfo);
@@ -39,9 +38,13 @@ private:
 
     juce::OwnedArray<GraphPinComponent> inputPins;
     juce::OwnedArray<GraphPinComponent> outputPins;
+    juce::OwnedArray<juce::Label> paramNameLabels;
+    juce::OwnedArray<juce::TextEditor> paramEditors;
     juce::Point<int> dragStartPos;
 
     int portsTop() const noexcept;
+    static int paramsHeight(const Graph::NodeTypeInfo& typeInfo);
+    juce::String paramLabelFor(size_t index) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GraphNodeComponent)
 };

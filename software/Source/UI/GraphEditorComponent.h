@@ -23,8 +23,10 @@ public:
     // Called by DSPWindow whenever the shared mapping selector changes.
     void onMappingChanged();
 
-    // Called by GraphNodeComponent on a double-click.
-    void showNodeParamEditor(Graph::NodeId id);
+    bool isGraphEditable() const noexcept { return isEditable; }
+
+    // Called by GraphNodeComponent's inline param TextEditors as they're edited.
+    void updateNodeParam(Graph::NodeId id, int index, float value);
 
     // Called by GraphCanvasComponent - draws in canvas-local (world) space.
     void paintConnections(juce::Graphics& g);
@@ -74,7 +76,6 @@ private:
     void addNodeAt(const juce::String& typeId, juce::Point<int> position);
     void deleteNode(Graph::NodeId id);
     void syncFromModel();
-    void refreshNodeComponent(Graph::NodeId id);
     void autoLayout();
     void updateTransform();
     GraphPinComponent* findPinAt(juce::Point<int> posInEditor);

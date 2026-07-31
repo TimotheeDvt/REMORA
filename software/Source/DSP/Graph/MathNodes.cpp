@@ -25,7 +25,7 @@ std::unique_ptr<NodeState> makeMathState() { return std::make_unique<MathNodeSta
 
 void addStateless(NodeTypeRegistry& registry, const char* id, const char* name, const char* subcategory, int numInputs,
                    std::vector<float> defaultParams, NodeTypeInfo::MathEvalFn eval,
-                   std::vector<juce::String> inputNames = {}) {
+                   std::vector<juce::String> inputNames = {}, std::vector<juce::String> paramNames = {}) {
     NodeTypeInfo info;
     info.id = id;
     info.displayName = name;
@@ -34,13 +34,14 @@ void addStateless(NodeTypeRegistry& registry, const char* id, const char* name, 
     info.numInputs = numInputs;
     info.inputNames = std::move(inputNames);
     info.defaultParams = std::move(defaultParams);
+    info.paramNames = std::move(paramNames);
     info.mathEval = eval;
     registry.registerType(std::move(info));
 }
 
 void addStateful(NodeTypeRegistry& registry, const char* id, const char* name, const char* subcategory, int numInputs,
                   std::vector<float> defaultParams, NodeTypeInfo::MathEvalFn eval,
-                  std::vector<juce::String> inputNames = {}) {
+                  std::vector<juce::String> inputNames = {}, std::vector<juce::String> paramNames = {}) {
     NodeTypeInfo info;
     info.id = id;
     info.displayName = name;
@@ -49,6 +50,7 @@ void addStateful(NodeTypeRegistry& registry, const char* id, const char* name, c
     info.numInputs = numInputs;
     info.inputNames = std::move(inputNames);
     info.defaultParams = std::move(defaultParams);
+    info.paramNames = std::move(paramNames);
     info.isStateful = true;
     info.makeState = makeMathState;
     info.mathEval = eval;
@@ -59,7 +61,8 @@ void addStateful(NodeTypeRegistry& registry, const char* id, const char* name, c
 
 void registerMathNodes(NodeTypeRegistry& registry) {
     addStateless(registry, "math.constant", "Constant", "Arithmetic", 0, { 0.0f },
-        [](const float*, int, const std::vector<float>& p, NodeState*, float* out) { out[0] = p.empty() ? 0.0f : p[0]; });
+        [](const float*, int, const std::vector<float>& p, NodeState*, float* out) { out[0] = p.empty() ? 0.0f : p[0]; },
+        {}, { "value" });
 
     addStateless(registry, "math.add", "Add", "Arithmetic", 2, {},
         [](const float* in, int, const std::vector<float>&, NodeState*, float* out) { out[0] = in[0] + in[1]; },
@@ -93,21 +96,21 @@ void registerMathNodes(NodeTypeRegistry& registry) {
     addStateless(registry, "math.equals", "Equals", "Arithmetic", 2, { 0.5f },
         [](const float* in, int, const std::vector<float>& p, NodeState*, float* out) {
             out[0] = std::abs(in[0] - in[1]) <= p[0] ? 1.0f : 0.0f;
-        }, { "a", "b" });
+        }, { "a", "b" }, { "epsilon" });
 
     addStateless(registry, "math.mapRange", "Map Range", "Shaping", 1, { 0.0f, 1.0f, 0.0f, 1.0f },
         [](const float* in, int, const std::vector<float>& p, NodeState*, float* out) {
             out[0] = juce::jmap(in[0], p[0], p[1], p[2], p[3]);
-        }, { "value" });
+        }, { "value" }, { "inMin", "inMax", "outMin", "outMax" });
 
     addStateless(registry, "math.clamp", "Clamp", "Shaping", 1, { 0.0f, 1.0f },
         [](const float* in, int, const std::vector<float>& p, NodeState*, float* out) {
             out[0] = juce::jlimit(juce::jmin(p[0], p[1]), juce::jmax(p[0], p[1]), in[0]);
-        }, { "value" });
+        }, { "value" }, { "min", "max" });
 
     addStateless(registry, "math.threshold", "Threshold", "Shaping", 1, { 0.0f },
         [](const float* in, int, const std::vector<float>& p, NodeState*, float* out) { out[0] = in[0] > p[0] ? 1.0f : 0.0f; },
-        { "value" });
+        { "value" }, { "threshold" });
 
     addStateless(registry, "math.crossfade", "Crossfade", "Shaping", 3, {},
         [](const float* in, int, const std::vector<float>&, NodeState*, float* out) {
@@ -119,7 +122,7 @@ void registerMathNodes(NodeTypeRegistry& registry) {
         [](const float* in, int, const std::vector<float>& p, NodeState*, float* out) {
             const float step = p[0];
             out[0] = std::abs(step) > 1e-6f ? std::round(in[0] / step) * step : in[0];
-        }, { "value" });
+        }, { "value" }, { "step" });
 
     // Identity passthrough - used to "tap" a single output port off a
     // multi-output node (e.g. source.spinClassification) into its own node
@@ -139,7 +142,7 @@ void registerMathNodes(NodeTypeRegistry& registry) {
     addStateless(registry, "math.semitonesToHz", "Semitones to Hz", "Shaping", 1, { 110.0f },
         [](const float* in, int, const std::vector<float>& p, NodeState*, float* out) {
             out[0] = MathHelpers::convertSemitonesToHertz(in[0], p[0]);
-        }, { "semitones" });
+        }, { "semitones" }, { "rootHz" });
 
     addStateless(registry, "math.lookupTable", "Lookup Table", "Lookup Tables", 1, {},
         [](const float* in, int, const std::vector<float>& p, NodeState*, float* out) {
@@ -165,7 +168,7 @@ void registerMathNodes(NodeTypeRegistry& registry) {
             auto* s = static_cast<MathNodeState*>(state);
             s->a = MathHelpers::applyOnePoleFilter(s->a, in[0], in[1]);
             out[0] = s->a;
-        }, { "target", "rate" });
+        }, { "target", "rate" }, { "rate" });
 
     addStateful(registry, "math.lfoSine", "LFO (Sine)", "Dynamics", 0, { 5.0f },
         [](const float*, int, const std::vector<float>& p, NodeState* state, float* out) {
@@ -174,14 +177,14 @@ void registerMathNodes(NodeTypeRegistry& registry) {
             s->a += p[0] * kTwoPi / static_cast<float>(s->sampleRate > 0.0 ? s->sampleRate : 44100.0);
             if (s->a >= kTwoPi) s->a -= kTwoPi;
             out[0] = std::sin(s->a);
-        });
+        }, {}, { "rateHz" });
 
     addStateful(registry, "math.leakyIntegrator", "Leaky Integrator", "Dynamics", 1, { 0.99f },
         [](const float* in, int, const std::vector<float>& p, NodeState* state, float* out) {
             auto* s = static_cast<MathNodeState*>(state);
             s->a = juce::jlimit(0.0f, 1.0f, s->a * p[0] + in[0]);
             out[0] = s->a;
-        }, { "add" });
+        }, { "add" }, { "decay" });
 
     addStateful(registry, "math.retriggerEnvelope", "Retrigger Envelope", "Dynamics", 1, { 0.9f },
         [](const float* in, int, const std::vector<float>& p, NodeState* state, float* out) {
@@ -191,7 +194,7 @@ void registerMathNodes(NodeTypeRegistry& registry) {
             else s->a *= p[0];
             s->flag = above;
             out[0] = s->a;
-        }, { "gate" });
+        }, { "gate" }, { "decay" });
 
     addStateful(registry, "math.hysteresisStep", "Hysteresis Step", "Dynamics", 1, { 0.5f },
         [](const float* in, int, const std::vector<float>& p, NodeState* state, float* out) {
@@ -201,7 +204,7 @@ void registerMathNodes(NodeTypeRegistry& registry) {
                 s->flag = true;
             }
             out[0] = s->a;
-        }, { "candidate" });
+        }, { "candidate" }, { "width" });
 
     addStateful(registry, "math.derivative", "Derivative", "Dynamics", 1, {},
         [](const float* in, int, const std::vector<float>&, NodeState* state, float* out) {
@@ -216,7 +219,7 @@ void registerMathNodes(NodeTypeRegistry& registry) {
             auto* s = static_cast<MathNodeState*>(state);
             if (in[1] > 0.5f) s->a = MathHelpers::applyOnePoleFilter(s->a, in[0], p[0]);
             out[0] = s->a;
-        }, { "target", "gate" });
+        }, { "target", "gate" }, { "rate" });
 }
 
 } // namespace Graph

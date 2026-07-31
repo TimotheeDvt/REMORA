@@ -24,17 +24,52 @@ GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::No
         auto* pin = outputPins.add(new GraphPinComponent(editor, nodeId, i, true));
         addAndMakeVisible(pin);
     }
+
+    const bool editable = editor.isGraphEditable();
+    for (size_t i = 0; i < params.size(); ++i) {
+        auto* label = paramNameLabels.add(new juce::Label({}, paramLabelFor(i)));
+        label->setFont(juce::Font(juce::FontOptions().withHeight(9.5f)));
+        label->setColour(juce::Label::textColourId, Palette::textMid);
+        label->setJustificationType(juce::Justification::centredLeft);
+        label->setInterceptsMouseClicks(false, false);
+        addAndMakeVisible(label);
+
+        auto* box = paramEditors.add(new juce::TextEditor());
+        box->setFont(juce::Font(juce::FontOptions().withHeight(10.5f)));
+        box->setJustification(juce::Justification::centredRight);
+        box->setText(juce::String(params[i], 3), false);
+        box->setReadOnly(!editable);
+        box->setSelectAllWhenFocused(true);
+        const int index = static_cast<int>(i);
+        box->onFocusLost = [this, index, box] {
+            const float value = box->getText().getFloatValue();
+            params[static_cast<size_t>(index)] = value;
+            editor.updateNodeParam(nodeId, index, value);
+        };
+        box->onReturnKey = [box] { box->giveAwayKeyboardFocus(); };
+        addAndMakeVisible(box);
+    }
+
     setSize(kWidth, preferredHeight(typeInfo));
+}
+
+juce::String GraphNodeComponent::paramLabelFor(size_t index) const {
+    if (index < typeInfo.paramNames.size())
+        return typeInfo.paramNames[index];
+    return "v" + juce::String(static_cast<int>(index));
+}
+
+int GraphNodeComponent::paramsHeight(const Graph::NodeTypeInfo& typeInfo) {
+    return static_cast<int>(typeInfo.defaultParams.size()) * kParamRowHeight;
 }
 
 int GraphNodeComponent::preferredHeight(const Graph::NodeTypeInfo& typeInfo) {
     const int rows = juce::jmax(1, typeInfo.numInputs, typeInfo.numOutputs);
-    const int paramsHeight = typeInfo.defaultParams.empty() ? 0 : kParamsRowHeight;
-    return kHeaderHeight + paramsHeight + rows * kRowHeight + 6;
+    return kHeaderHeight + paramsHeight(typeInfo) + rows * kRowHeight + 6;
 }
 
 int GraphNodeComponent::portsTop() const noexcept {
-    return kHeaderHeight + (params.empty() ? 0 : kParamsRowHeight);
+    return kHeaderHeight + static_cast<int>(params.size()) * kParamRowHeight;
 }
 
 void GraphNodeComponent::paint(juce::Graphics& g) {
@@ -50,18 +85,6 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
     g.setColour(Palette::textHi);
     g.setFont(12.0f);
     g.drawText(typeInfo.displayName, header.reduced(6.0f, 0.0f), juce::Justification::centred, true);
-
-    if (!params.empty()) {
-        auto paramsRow = bounds.removeFromTop(static_cast<float>(kParamsRowHeight));
-        juce::String text;
-        for (size_t i = 0; i < params.size(); ++i) {
-            if (i > 0) text << ", ";
-            text << juce::String(params[i], 2);
-        }
-        g.setColour(Palette::accent);
-        g.setFont(10.0f);
-        g.drawText(text, paramsRow.reduced(4.0f, 0.0f), juce::Justification::centred, true);
-    }
 
     g.setColour(Palette::border);
     g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 4.0f, 1.0f);
@@ -83,6 +106,13 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
 }
 
 void GraphNodeComponent::resized() {
+    for (int i = 0; i < paramEditors.size(); ++i) {
+        const int y = kHeaderHeight + i * kParamRowHeight;
+        const int nameWidth = kWidth * 2 / 5;
+        paramNameLabels.getUnchecked(i)->setBounds(4, y, nameWidth - 4, kParamRowHeight);
+        paramEditors.getUnchecked(i)->setBounds(nameWidth, y, kWidth - nameWidth - 4, kParamRowHeight - 2);
+    }
+
     const int top = portsTop();
     for (int i = 0; i < inputPins.size(); ++i) {
         const int y = top + i * kRowHeight + kRowHeight / 2 - kPinSize / 2;
@@ -132,10 +162,4 @@ void GraphNodeComponent::mouseDrag(const juce::MouseEvent& e) {
 
 void GraphNodeComponent::mouseUp(const juce::MouseEvent&) {
     editor.handleCanvasMouseUp();
-}
-
-void GraphNodeComponent::mouseDoubleClick(const juce::MouseEvent& e) {
-    if (e.mods.isPopupMenu() || e.mods.isCtrlDown())
-        return;
-    editor.showNodeParamEditor(nodeId);
 }

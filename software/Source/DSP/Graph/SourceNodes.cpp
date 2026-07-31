@@ -76,6 +76,7 @@ void registerSourceNodes(NodeTypeRegistry& registry) {
         info.numOutputs = 4; // isVertical, spinDirection, continuousSpinCount, isFacingNorth
         info.outputNames = { "vertical", "spin", "count", "facing" };
         info.defaultParams = { 0.0f }; // 0 = ByAbsoluteComponent, 1 = ByReferenceAzimuth
+        info.paramNames = { "convention" };
         info.sourceEval = [](const SourceFrame& sf, const std::vector<float>& params, NodeState*, float* out) {
             const auto& d = sf.derived;
             bool spinChanged = false;

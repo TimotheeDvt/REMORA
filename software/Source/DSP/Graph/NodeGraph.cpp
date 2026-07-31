@@ -86,6 +86,17 @@ void NodeGraph::setNodeParams(NodeId id, std::vector<float> params) {
     nodes_[static_cast<size_t>(idx)].params = std::move(params);
 }
 
+void NodeGraph::setNodeParam(NodeId id, int index, float value) {
+    const juce::ScopedLock sl(lock_);
+    const int idx = indexOf(id);
+    if (idx < 0)
+        return;
+    auto& params = nodes_[static_cast<size_t>(idx)].params;
+    if (index < 0 || index >= static_cast<int>(params.size()))
+        return;
+    params[static_cast<size_t>(index)] = value;
+}
+
 bool NodeGraph::connect(NodeId src, int srcPort, NodeId dst, int dstPort) {
     const juce::ScopedLock sl(lock_);
     int srcIdx = indexOf(src);
