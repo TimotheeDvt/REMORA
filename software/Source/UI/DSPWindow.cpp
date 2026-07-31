@@ -241,6 +241,8 @@ DSPWindow::DSPWindow(REMORAProcessor& p)
     tabs.addTab("Graph", Palette::bg, &graphEditorComponent, false);
 
     selectorBar.onMappingChanged = [this] { graphEditorComponent.onMappingChanged(); };
+    selectorBar.onResetRequested = [this] { graphEditorComponent.resetCurrentGraphToOriginal(); };
+    graphEditorComponent.onDirtyStateChanged = [this](bool dirty) { selectorBar.setResetButtonVisible(dirty); };
     graphEditorComponent.onMappingChanged();
 
     setContentNonOwned(&root, true);
