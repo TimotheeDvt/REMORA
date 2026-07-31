@@ -51,7 +51,8 @@ NodeTypeInfo math(const char* id, const char* name, const char* subcategory, con
 
 NodeTypeInfo source(const char* id, const char* name, const char* subcategory, const char* description,
                      NodeTypeInfo::SourceEvalFn eval, std::vector<float> defaultParams = {},
-                     std::vector<juce::String> paramNames = {}, std::vector<juce::String> outputNames = {}) {
+                     std::vector<juce::String> paramNames = {}, std::vector<juce::String> outputNames = {},
+                     bool stateful = false) {
     NodeTypeInfo info;
     info.id = id;
     info.displayName = name;
@@ -63,6 +64,10 @@ NodeTypeInfo source(const char* id, const char* name, const char* subcategory, c
     info.outputNames = std::move(outputNames);
     info.numOutputs = info.outputNames.empty() ? 1 : static_cast<int>(info.outputNames.size());
     info.sourceEval = eval;
+    if (stateful) {
+        info.isStateful = true;
+        info.makeState = makeMathState;
+    }
     return info;
 }
 
@@ -214,10 +219,12 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         },
         { 0.0f }, { "convention" }, { "vertical", "spin", "count", "facing" }));
 
-    nodes.push_back(math("math.constant", "Constant", "Arithmetic",
+    // Generator - takes no graph input, so it behaves like a source rather than a math operation.
+    nodes.push_back(source("math.constant", "Constant", "Generator",
         "Outputs its 'value' parameter every block, unchanged. Use to feed a fixed number into another node's input.",
-        {}, { 0.0f }, { "value" },
-        [](const float*, int, const std::vector<float>& p, NodeState*, float* out) { out[0] = p.empty() ? 0.0f : p[0]; }));
+        [](const SourceFrame&, const std::vector<float>& p, NodeState*, float* out) { out[0] = p.empty() ? 0.0f : p[0]; },
+        { 0.0f }, { "value" }));
+
     nodes.push_back(math("math.add", "Add", "Arithmetic", "out = a + b.", { "a", "b" }, {}, {},
         [](const float* in, int, const std::vector<float>&, NodeState*, float* out) { out[0] = in[0] + in[1]; }));
     nodes.push_back(math("math.subtract", "Subtract", "Arithmetic", "out = a - b.", { "a", "b" }, {}, {},
@@ -316,16 +323,18 @@ std::vector<NodeTypeInfo> buildAllNodes() {
             s->a = MathHelpers::applyOnePoleFilter(s->a, in[0], in[1]);
             out[0] = s->a;
         }, true));
-    nodes.push_back(math("math.lfoSine", "LFO (Sine)", "Dynamics",
+    // Also a generator (no graph input) - lives with math.constant under the Source category.
+    nodes.push_back(source("math.lfoSine", "LFO (Sine)", "Generator",
         "Free-running sine oscillator at 'rateHz' Hz, output range -1.0..1.0. No input - its phase just keeps "
-        "advancing every block.", {}, { 5.0f }, { "rateHz" },
-        [](const float*, int, const std::vector<float>& p, NodeState* state, float* out) {
+        "advancing every block.",
+        [](const SourceFrame&, const std::vector<float>& p, NodeState* state, float* out) {
             auto* s = static_cast<MathNodeState*>(state);
             constexpr float kTwoPi = 6.28318530717958f;
             s->a += p[0] * kTwoPi / static_cast<float>(s->sampleRate > 0.0 ? s->sampleRate : 44100.0);
             if (s->a >= kTwoPi) s->a -= kTwoPi;
             out[0] = std::sin(s->a);
-        }, true));
+        },
+        { 5.0f }, { "rateHz" }, {}, true));
     nodes.push_back(math("math.leakyIntegrator", "Leaky Integrator", "Dynamics",
         "Accumulates 'add' each block, decaying the running total by 'decay' (0..1) first. Output is clamped to [0, 1].",
         { "add" }, { 0.99f }, { "decay" },
