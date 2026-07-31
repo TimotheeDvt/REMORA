@@ -263,17 +263,15 @@ std::unique_ptr<juce::XmlElement> NodeGraph::toXml() const {
     return root;
 }
 
-std::unique_ptr<NodeGraph> NodeGraph::fromXml(const juce::XmlElement& xml) {
+bool NodeGraph::populateFromXml(const juce::XmlElement& xml) {
     if (!xml.hasTagName("NodeGraph"))
-        return nullptr;
-
-    auto graph = std::make_unique<NodeGraph>();
+        return false;
 
     for (auto* nodeXml : xml.getChildWithTagNameIterator("Node")) {
         const NodeId id = static_cast<NodeId>(nodeXml->getIntAttribute("id"));
         const juce::String typeId = nodeXml->getStringAttribute("type");
         if (NodeTypeRegistry::instance().find(typeId) == nullptr)
-            return nullptr; // malformed/unknown type
+            return false; // malformed/unknown type
 
         std::vector<float> params;
         for (auto* paramXml : nodeXml->getChildWithTagNameIterator("Param")) {
@@ -283,14 +281,14 @@ std::unique_ptr<NodeGraph> NodeGraph::fromXml(const juce::XmlElement& xml) {
             params[index] = static_cast<float>(paramXml->getDoubleAttribute("value"));
         }
 
-        NodeInstance* inst = graph->addNodeWithId(id, typeId, params);
+        NodeInstance* inst = addNodeWithId(id, typeId, params);
         inst->x = static_cast<float>(nodeXml->getDoubleAttribute("x"));
         inst->y = static_cast<float>(nodeXml->getDoubleAttribute("y"));
 
         for (auto* inputXml : nodeXml->getChildWithTagNameIterator("Input")) {
             const size_t port = static_cast<size_t>(inputXml->getIntAttribute("port"));
             if (port >= inst->inputs.size())
-                return nullptr;
+                return false;
             InputSlot& slot = inst->inputs[port];
             slot.sourceNode = static_cast<NodeId>(inputXml->getIntAttribute("sourceNode", static_cast<int>(kInvalidNodeId)));
             slot.sourceOutputPort = inputXml->getIntAttribute("sourceOutputPort");
@@ -298,11 +296,26 @@ std::unique_ptr<NodeGraph> NodeGraph::fromXml(const juce::XmlElement& xml) {
         }
     }
 
-    graph->nextId_ = static_cast<NodeId>(xml.getIntAttribute("nextId", static_cast<int>(graph->nextId_)));
-    if (!graph->recomputeTopoOrder())
-        return nullptr; // malformed - contains a cycle
+    nextId_ = static_cast<NodeId>(xml.getIntAttribute("nextId", static_cast<int>(nextId_)));
+    return recomputeTopoOrder(); // fails (returns false) if the xml describes a cycle
+}
 
+std::unique_ptr<NodeGraph> NodeGraph::fromXml(const juce::XmlElement& xml) {
+    auto graph = std::make_unique<NodeGraph>();
+    if (!graph->populateFromXml(xml))
+        return nullptr;
     return graph;
+}
+
+bool NodeGraph::resetFromXml(const juce::XmlElement& xml) {
+    const juce::ScopedLock sl(lock_);
+    nodes_.clear();
+    indexById_.clear();
+    topoOrder_.clear();
+    nextId_ = 0;
+    const bool ok = populateFromXml(xml);
+    jassert(ok); // xml is expected to be a snapshot this same graph produced earlier via toXml()
+    return ok;
 }
 
 } // namespace Graph

@@ -65,7 +65,18 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
     styleLabel(globalVolumeLabel, "Global Volume", 14.f, Palette::textMid, juce::Justification::centredRight);
     addAndMakeVisible(globalVolumeLabel);
 
+    styleButton(resetButton, "Reset Changes", Palette::ButtonTheme::warning, [this] {
+        if (onResetRequested)
+            onResetRequested();
+    });
+    resetButton.setVisible(false);
+    addAndMakeVisible(resetButton);
+
     startTimerHz(10);
+}
+
+void MappingSelectorBar::setResetButtonVisible(bool shouldBeVisible) {
+    resetButton.setVisible(shouldBeVisible);
 }
 
 MappingSelectorBar::~MappingSelectorBar() {
@@ -86,6 +97,8 @@ void MappingSelectorBar::timerCallback() {
 
 void MappingSelectorBar::resized() {
     auto bounds = getLocalBounds().reduced(10, 4);
+    resetButton.setBounds(bounds.removeFromRight(110));
+    bounds.removeFromRight(10);
     mappingCombo.setBounds(bounds.removeFromLeft(100));
     bounds.removeFromLeft(5);
     prevMapButton.setBounds(bounds.removeFromLeft(25));

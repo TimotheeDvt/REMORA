@@ -33,18 +33,55 @@ void GraphEditorComponent::onMappingChanged() {
     currentGraph = graphMapping != nullptr ? &graphMapping->getGraph() : nullptr;
 
     const juce::String name = mapping != nullptr ? mapping->getName() : juce::String();
-    isEditable = graphMapping != nullptr && name == "Custom";
+    isEditable = graphMapping != nullptr;
 
-    statusLabel.setText(isEditable ? "Editing: Custom"
-                                    : "Viewing: " + name + " (read-only - select Custom to edit)",
-                         juce::dontSendNotification);
+    statusLabel.setText(isEditable ? "Editing: " + name : "Viewing: " + name, juce::dontSendNotification);
 
-    if (currentGraph != nullptr && autoLaidOutGraphs.insert(currentGraph).second)
+    if (currentGraph != nullptr && autoLaidOutGraphs.insert(currentGraph).second) {
         autoLayout();
+        originalSnapshots[currentGraph] = currentGraph->toXml()->toString();
+    }
+
+    isDirty = currentGraph != nullptr && dirtyByGraph.count(currentGraph) > 0 && dirtyByGraph[currentGraph];
+    if (onDirtyStateChanged)
+        onDirtyStateChanged(isDirty);
 
     nodeComponents.clear();
     nodeComponentById.clear();
     syncFromModel();
+}
+
+void GraphEditorComponent::markDirty() {
+    if (currentGraph == nullptr)
+        return;
+    dirtyByGraph[currentGraph] = true;
+    if (!isDirty) {
+        isDirty = true;
+        if (onDirtyStateChanged)
+            onDirtyStateChanged(true);
+    }
+}
+
+void GraphEditorComponent::resetCurrentGraphToOriginal() {
+    if (currentGraph == nullptr)
+        return;
+    auto it = originalSnapshots.find(currentGraph);
+    if (it == originalSnapshots.end())
+        return;
+
+    auto xml = juce::parseXML(it->second);
+    if (xml == nullptr || !currentGraph->resetFromXml(*xml))
+        return;
+
+    dirtyByGraph[currentGraph] = false;
+    isDirty = false;
+    if (onDirtyStateChanged)
+        onDirtyStateChanged(false);
+
+    nodeComponents.clear();
+    nodeComponentById.clear();
+    syncFromModel();
+    canvas.repaint();
 }
 
 void GraphEditorComponent::autoLayout() {
@@ -70,75 +107,103 @@ void GraphEditorComponent::autoLayout() {
         return depth;
     };
 
-    std::unordered_map<Graph::NodeId, int> rowById;
-    int nextRow = 0;
-    std::function<int(Graph::NodeId)> rowOf = [&](Graph::NodeId id) -> int {
-        auto it = rowById.find(id);
-        if (it != rowById.end())
+    std::unordered_map<Graph::NodeId, int> laneById;
+    int nextLane = 0;
+    std::function<int(Graph::NodeId)> laneOf = [&](Graph::NodeId id) -> int {
+        auto it = laneById.find(id);
+        if (it != laneById.end())
             return it->second;
-        rowById[id] = -1; // breaks any (unexpected) recursive lookup before it can loop forever
-        int row = -1;
+        laneById[id] = -1;
+        int lane = -1;
         for (const auto& n : currentGraph->nodes()) {
             if (n.id != id)
                 continue;
             for (const auto& slot : n.inputs) {
                 if (slot.sourceNode != Graph::kInvalidNodeId) {
-                    row = rowOf(slot.sourceNode);
+                    lane = laneOf(slot.sourceNode);
                     break;
                 }
             }
             break;
         }
-        if (row < 0)
-            row = nextRow++;
-        rowById[id] = row;
-        return row;
+        if (lane < 0)
+            lane = nextLane++;
+        laneById[id] = lane;
+        return lane;
     };
 
-    for (const auto& n : currentGraph->nodes())
-        rowOf(n.id);
-
-    std::vector<std::vector<int>> rowAdjacency(static_cast<size_t>(nextRow));
+    std::vector<Graph::NodeId> order;
+    order.reserve(currentGraph->nodes().size());
     for (const auto& n : currentGraph->nodes()) {
-        const int nodeRow = rowOf(n.id);
-        for (const auto& slot : n.inputs) {
-            if (slot.sourceNode == Graph::kInvalidNodeId)
-                continue;
-            const int otherRow = rowOf(slot.sourceNode);
-            if (otherRow != nodeRow) {
-                rowAdjacency[static_cast<size_t>(nodeRow)].push_back(otherRow);
-                rowAdjacency[static_cast<size_t>(otherRow)].push_back(nodeRow);
-            }
-        }
+        depthOf(n.id);
+        laneOf(n.id);
+        order.push_back(n.id);
     }
-
-    std::vector<int> finalRowPosition(static_cast<size_t>(nextRow), -1);
-    int nextPosition = 0;
-    for (int startRow = 0; startRow < nextRow; ++startRow) {
-        if (finalRowPosition[static_cast<size_t>(startRow)] >= 0)
-            continue;
-        std::vector<int> queue{ startRow };
-        finalRowPosition[static_cast<size_t>(startRow)] = nextPosition++;
-        for (size_t qi = 0; qi < queue.size(); ++qi) {
-            for (int neighbour : rowAdjacency[static_cast<size_t>(queue[qi])]) {
-                if (finalRowPosition[static_cast<size_t>(neighbour)] < 0) {
-                    finalRowPosition[static_cast<size_t>(neighbour)] = nextPosition++;
-                    queue.push_back(neighbour);
-                }
-            }
-        }
-    }
+    std::stable_sort(order.begin(), order.end(), [&](Graph::NodeId a, Graph::NodeId b) {
+        if (laneById[a] != laneById[b])
+            return laneById[a] < laneById[b];
+        return depthById[a] < depthById[b];
+    });
 
     constexpr int columnWidth = 160, rowHeight = 130, marginX = 20, marginY = 20;
-    std::unordered_map<int, int> nextFreeColumnInRow;
-    for (const auto& n : currentGraph->nodes()) {
-        const int row = rowOf(n.id);
-        const int column = juce::jmax(depthOf(n.id), nextFreeColumnInRow[row]);
-        nextFreeColumnInRow[row] = column + 1;
-
-        currentGraph->setNodePosition(n.id, static_cast<float>(marginX + column * columnWidth),
-                                      static_cast<float>(marginY + finalRowPosition[static_cast<size_t>(row)] * rowHeight));
+    std::unordered_map<int, int> nextFreeRowInColumn;
+    for (Graph::NodeId id : order) {
+        const int column = depthById[id];
+        const int row = nextFreeRowInColumn[column]++;
+        currentGraph->setNodePosition(id, static_cast<float>(marginX + column * columnWidth),
+                                      static_cast<float>(marginY + row * rowHeight));
     }
+}
+
+const Graph::NodeInstance* GraphEditorComponent::findNode(Graph::NodeId id) const {
+    if (currentGraph == nullptr)
+        return nullptr;
+    for (const auto& n : currentGraph->nodes())
+        if (n.id == id)
+            return &n;
+    return nullptr;
+}
+
+void GraphEditorComponent::pushNodeAndDownstream(Graph::NodeId id, float minX,
+        const std::unordered_map<Graph::NodeId, std::vector<Graph::NodeId>>& children) {
+    const Graph::NodeInstance* node = findNode(id);
+    if (node == nullptr || node->x >= minX)
+        return;
+
+    currentGraph->setNodePosition(id, minX, node->y);
+
+    constexpr float columnGap = static_cast<float>(GraphNodeComponent::kWidth) + 40.0f;
+    auto it = children.find(id);
+    if (it != children.end())
+        for (Graph::NodeId child : it->second)
+            pushNodeAndDownstream(child, minX + columnGap, children);
+}
+
+void GraphEditorComponent::fixupOrderingAround(Graph::NodeId movedId) {
+    if (currentGraph == nullptr)
+        return;
+
+    std::unordered_map<Graph::NodeId, std::vector<Graph::NodeId>> children;
+    for (const auto& n : currentGraph->nodes())
+        for (const auto& slot : n.inputs)
+            if (slot.sourceNode != Graph::kInvalidNodeId)
+                children[slot.sourceNode].push_back(n.id);
+
+    constexpr float columnGap = static_cast<float>(GraphNodeComponent::kWidth) + 40.0f;
+
+    // If movedId now sits at or left of one of its own sources, push it (and everything downstream of it) right.
+    if (const Graph::NodeInstance* moved = findNode(movedId))
+        for (const auto& slot : moved->inputs)
+            if (slot.sourceNode != Graph::kInvalidNodeId)
+                if (const Graph::NodeInstance* source = findNode(slot.sourceNode))
+                    pushNodeAndDownstream(movedId, source->x + columnGap, children);
+
+    // If movedId now sits at or right of one of the nodes it feeds, push that node (and its own downstream) right.
+    auto it = children.find(movedId);
+    if (it != children.end())
+        if (const Graph::NodeInstance* moved = findNode(movedId))
+            for (Graph::NodeId child : it->second)
+                pushNodeAndDownstream(child, moved->x + columnGap, children);
 }
 
 void GraphEditorComponent::syncFromModel() {
@@ -174,6 +239,7 @@ void GraphEditorComponent::updateNodeParam(Graph::NodeId id, int index, float va
     if (!isEditable || currentGraph == nullptr)
         return;
     currentGraph->setNodeParam(id, index, value);
+    markDirty();
 }
 
 void GraphEditorComponent::showAddNodeMenu(juce::Point<int> position) {
@@ -220,6 +286,7 @@ void GraphEditorComponent::addNodeAt(const juce::String& typeId, juce::Point<int
     const auto worldPos = canvas.getLocalPoint(this, position);
     const Graph::NodeId id = currentGraph->addNode(typeId);
     currentGraph->setNodePosition(id, static_cast<float>(worldPos.x), static_cast<float>(worldPos.y));
+    markDirty();
     syncFromModel();
 }
 
@@ -227,6 +294,7 @@ void GraphEditorComponent::deleteNode(Graph::NodeId id) {
     if (currentGraph == nullptr)
         return;
     currentGraph->removeNode(id);
+    markDirty();
     syncFromModel();
 }
 
@@ -234,6 +302,8 @@ void GraphEditorComponent::nodeMoved(Graph::NodeId id, float x, float y) {
     if (currentGraph == nullptr)
         return;
     currentGraph->setNodePosition(id, x, y);
+    fixupOrderingAround(id);
+    markDirty();
     canvas.repaint();
 }
 
@@ -270,6 +340,7 @@ void GraphEditorComponent::showPinContextMenu(GraphPinComponent& pin) {
     menu.showMenuAsync(juce::PopupMenu::Options{}, [this, nodeId, port](int result) {
         if (result == 1 && currentGraph != nullptr) {
             currentGraph->disconnectInput(nodeId, port);
+            markDirty();
             canvas.repaint();
         }
     });
@@ -301,10 +372,14 @@ void GraphEditorComponent::handlePinMouseUp(const juce::MouseEvent& e) {
     if (currentGraph != nullptr) {
         if (auto* targetPin = findPinAt(e.getPosition())) {
             if (targetPin->getNodeId() != dragSourceNode && targetPin->isOutputPin() != dragSourceIsOutput) {
-                if (dragSourceIsOutput)
-                    currentGraph->connect(dragSourceNode, dragSourcePort, targetPin->getNodeId(), targetPin->getPort());
-                else
-                    currentGraph->connect(targetPin->getNodeId(), targetPin->getPort(), dragSourceNode, dragSourcePort);
+                const Graph::NodeId dstNode = dragSourceIsOutput ? targetPin->getNodeId() : dragSourceNode;
+                const bool connected = dragSourceIsOutput
+                    ? currentGraph->connect(dragSourceNode, dragSourcePort, targetPin->getNodeId(), targetPin->getPort())
+                    : currentGraph->connect(targetPin->getNodeId(), targetPin->getPort(), dragSourceNode, dragSourcePort);
+                if (connected) {
+                    fixupOrderingAround(dstNode);
+                    markDirty();
+                }
             }
         }
     }
@@ -379,6 +454,7 @@ void GraphEditorComponent::showWireContextMenu(Graph::NodeId dstNode, int dstPor
     menu.showMenuAsync(juce::PopupMenu::Options{}, [this, dstNode, dstPort](int result) {
         if (result == 1 && currentGraph != nullptr) {
             currentGraph->disconnectInput(dstNode, dstPort);
+            markDirty();
             canvas.repaint();
         }
     });

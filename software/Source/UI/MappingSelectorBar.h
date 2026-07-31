@@ -13,6 +13,8 @@ public:
     void resized() override;
 
     std::function<void()> onMappingChanged;
+    std::function<void()> onResetRequested;
+    void setResetButtonVisible(bool shouldBeVisible);
 
 private:
     REMORAProcessor& processor;
@@ -20,6 +22,7 @@ private:
     juce::ComboBox mappingCombo;
     juce::TextButton prevMapButton;
     juce::TextButton nextMapButton;
+    juce::TextButton resetButton;
     juce::Slider globalVolumeSlider;
     juce::Label globalVolumeLabel;
 

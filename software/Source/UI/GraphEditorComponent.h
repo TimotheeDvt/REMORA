@@ -4,8 +4,10 @@
 #include "GraphCanvasComponent.h"
 #include "GraphNodeComponent.h"
 #include <JuceHeader.h>
+#include <functional>
 #include <set>
 #include <unordered_map>
+#include <vector>
 
 class REMORAProcessor;
 class GraphPinComponent;
@@ -24,6 +26,10 @@ public:
     void onMappingChanged();
 
     bool isGraphEditable() const noexcept { return isEditable; }
+
+    std::function<void(bool)> onDirtyStateChanged;
+    bool isCurrentGraphDirty() const noexcept { return isDirty; }
+    void resetCurrentGraphToOriginal();
 
     // Called by GraphNodeComponent's inline param TextEditors as they're edited.
     void updateNodeParam(Graph::NodeId id, int index, float value);
@@ -51,6 +57,10 @@ private:
     bool isEditable = false;
     std::set<Graph::NodeGraph*> autoLaidOutGraphs;
 
+    std::unordered_map<Graph::NodeGraph*, juce::String> originalSnapshots;
+    std::unordered_map<Graph::NodeGraph*, bool> dirtyByGraph;
+    bool isDirty = false;
+
     juce::Label statusLabel;
     GraphCanvasComponent canvas { *this };
 
@@ -75,6 +85,12 @@ private:
     void syncFromModel();
     void autoLayout();
     void updateTransform();
+    void markDirty();
+
+    void fixupOrderingAround(Graph::NodeId movedId);
+    void pushNodeAndDownstream(Graph::NodeId id, float minX,
+                               const std::unordered_map<Graph::NodeId, std::vector<Graph::NodeId>>& children);
+    const Graph::NodeInstance* findNode(Graph::NodeId id) const;
     GraphPinComponent* findPinAt(juce::Point<int> posInEditor);
     bool findConnectionAt(juce::Point<float> posInCanvas, Graph::NodeId& outDstNode, int& outDstPort) const;
     void showWireContextMenu(Graph::NodeId dstNode, int dstPort);

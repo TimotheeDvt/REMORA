@@ -22,5 +22,8 @@ namespace Palette {
     inline const std::initializer_list<std::pair<int, juce::Colour>> secondary = {
         {juce::TextButton::buttonColourId, panel},
         {juce::TextButton::textColourOffId, textMid}};
+    inline const std::initializer_list<std::pair<int, juce::Colour>> warning = {
+        {juce::TextButton::buttonColourId, yellow},
+        {juce::TextButton::textColourOffId, bg}};
   }
 }

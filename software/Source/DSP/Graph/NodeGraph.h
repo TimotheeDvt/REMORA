@@ -44,6 +44,8 @@ public:
     std::unique_ptr<juce::XmlElement> toXml() const;
     static std::unique_ptr<NodeGraph> fromXml(const juce::XmlElement& xml);
 
+    bool resetFromXml(const juce::XmlElement& xml);
+
     const std::vector<NodeInstance>& nodes() const { return nodes_; }
 
 private:
@@ -56,6 +58,7 @@ private:
 
     NodeInstance* addNodeWithId(NodeId id, const juce::String& typeId, std::vector<float> params);
     int indexOf(NodeId id) const;
+    bool populateFromXml(const juce::XmlElement& xml);
     bool recomputeTopoOrder();
 };
 
