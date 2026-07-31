@@ -93,7 +93,7 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
         g.setColour(Palette::textHi.withAlpha(0.85f));
         g.drawEllipse(circle, 1.2f);
         g.setFont(juce::Font(juce::FontOptions().withHeight(10.0f).withStyle("Bold")));
-        g.drawText("i", circle, juce::Justification::centred, false);
+        g.drawText("?", circle, juce::Justification::centred, false);
     }
 
     g.setColour(Palette::border);
