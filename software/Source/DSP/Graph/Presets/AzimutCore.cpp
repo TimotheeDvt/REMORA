@@ -5,11 +5,7 @@ namespace Graph::Presets {
 
 namespace {
 
-// lut3 selector bits here are [isVertical][isCCW][isEast] (1 = true), which
-// is NOT the same bit order as the original kRootSemitoneTable
-// [plane_index][spin_index][facing_index] (0 = vertical/CW/north). This
-// remaps the original 2x2x2 constant table into an 8-entry flat table
-// addressed by our bit convention, once, at graph-build time.
+// Remaps kRootSemitoneTable's [plane][spin][facing] (0=vertical/CW/north) into our lut3 bit order [isVertical][isCCW][isEast].
 std::vector<float> buildRootLut(const float table[2][2][2]) {
     std::vector<float> lut(8, 0.0f);
     for (int v = 0; v <= 1; ++v) {
@@ -37,8 +33,7 @@ AzimutCoreOutputs buildAzimutCore(GraphBuilder& b) {
 
     AzimutCoreOutputs core{};
 
-    // Spin/facing classification (ByAbsoluteComponent - matches the majority
-    // of the Azimut/Bens family).
+    // ByAbsoluteComponent - matches the majority of the Azimut/Bens family.
     NodeId spinClass = b.add("source.spinClassification", { 0.0f });
     NodeId isVertical = tapPort(b, spinClass, 0);
     NodeId spinDirection = tapPort(b, spinClass, 1);
@@ -58,9 +53,7 @@ AzimutCoreOutputs buildAzimutCore(GraphBuilder& b) {
     NodeId gyroMag = b.add("source.gyroMagnitude");
     core.gyroMagnitude = gyroMag;
 
-    // Movement-onset envelope boosts the pitch morph speed right after
-    // leaving rest, so the root snaps to the new target quickly instead of
-    // crawling there at the (slow) resting morph rate.
+    // Boosts morph speed right after leaving rest, so the root snaps to target instead of crawling there.
     NodeId onsetEnv = b.add("math.retriggerEnvelope", { 0.90f });
     b.wire(isMoving, onsetEnv);
 

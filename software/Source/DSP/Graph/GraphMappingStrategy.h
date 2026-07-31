@@ -8,10 +8,7 @@
 
 namespace Graph {
 
-// The one IMappingStrategy implementation left once every preset is a
-// NodeGraph: owns an analyzer + a graph, runs computeFrame() then
-// graph->evaluate() every block, and auto-registers a MonitorParam per sink
-// node so the existing DSP window shows live values with no UI changes.
+// The one IMappingStrategy left once every preset is a NodeGraph - auto-registers a MonitorParam per sink node.
 class GraphMappingStrategy : public IMappingStrategy {
 public:
     GraphMappingStrategy(std::unique_ptr<NodeGraph> graph, juce::String displayName);

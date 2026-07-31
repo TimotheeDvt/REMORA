@@ -2,12 +2,7 @@
 #include "PresetHelpers.h"
 #include <vector>
 
-// Reproduces the retired BowedChordMapping: root from a quantized MIDI note
-// (pitch), one of 6 chords selected by yaw-quantized band (or, at high
-// roll, a 2-way "sul tasto" pair), and a gyro-magnitude "bow pressure" gate
-// driving nearly everything else. The noise envelope is a genuine
-// strike/onset detector (frame derivative of accel magnitude), which is why
-// this is the first preset to use math.derivative + math.leakyIntegrator.
+// Quantized-pitch root, yaw-banded chord, gyro-magnitude "bow pressure" gate.
 namespace Graph::Presets {
 
 std::unique_ptr<NodeGraph> buildBowedChord() {
@@ -55,8 +50,7 @@ std::unique_ptr<NodeGraph> buildBowedChord() {
     toSink(b, [&] { NodeId n = b.add("math.lookupTable", std::vector<float>(kChordCol2, kChordCol2 + 6)); b.wire(chordIdx, n); return n; }(), "sink.chordSemitone", { 2.0f });
     toSink(b, constantNode(b, 4.0f), "sink.numVoices");
 
-    // bow = clamp(mapRange(gyroMag, 12, 150, 0, 1), 0, 1) - handles the
-    // "0 below threshold" case for free since mapRange goes negative there.
+    // bow = clamp(mapRange(gyroMag, 12, 150, 0, 1), 0, 1) - below-threshold goes negative, clamped to 0 for free.
     NodeId gyroMag = b.add("source.gyroMagnitudeRaw");
     NodeId bowRaw = b.add("math.mapRange", { 12.0f, 150.0f, 0.0f, 1.0f });
     b.wire(gyroMag, bowRaw);
@@ -76,8 +70,7 @@ std::unique_ptr<NodeGraph> buildBowedChord() {
     toSink(b, scale(b, bow, 0.35f), "sink.partialAmp", { 2.0f });
     toSink(b, mulNodes(b, bow, clampNode(b, scale(b, accelMag, 0.15f), 0.0f, 0.5f)), "sink.partialAmp", { 3.0f });
 
-    // noiseEnvelope: leaky integrator charged only on an upward strike (frame
-    // derivative of accel magnitude crossing kStrikeThresh).
+    // noiseEnvelope charges only on an upward strike - a frame derivative of accel magnitude.
     NodeId accelDelta = b.add("math.derivative");
     b.wire(accelMag, accelDelta);
     NodeId excess = clampNode(b, subNodes(b, accelDelta, constantNode(b, 3.0f)), 0.0f, 1000.0f);

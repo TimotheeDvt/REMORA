@@ -2,8 +2,7 @@
 
 #include <JuceHeader.h>
 
-// Big, unmissable calibration panel shown in place of the staff visualizer
-// until calibration is complete. The whole panel acts as the button.
+// Shown in place of the staff visualizer until calibration is complete; the whole panel acts as the button.
 class CalibrationOverlay : public juce::Component {
 public:
   CalibrationOverlay();

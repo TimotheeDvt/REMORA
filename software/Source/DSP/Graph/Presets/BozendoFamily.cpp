@@ -2,13 +2,7 @@
 #include "PresetHelpers.h"
 #include <vector>
 
-// BozendoMapping and BozendoMapping2 both use the ByReferenceAzimuth spin
-// convention, but otherwise differ enough (pitch/chord logic, voice gain,
-// modulation, pan) that they don't share a "core" the way the Azimut family
-// does - each is built independently here, mirroring how the original C++
-// files duplicated the shared formulas (masterGain, noise envelope,
-// peak-boosted timbre - factored into PresetHelpers.h) rather than sharing
-// a base class.
+// Bozendo and Bozendo2 differ too much (pitch/chord/pan logic) to share a "core" like the Azimut family does
 namespace Graph::Presets {
 
 namespace {
@@ -47,8 +41,7 @@ std::unique_ptr<NodeGraph> buildBozendo() {
 
     NodeId gyroMag = b.add("source.gyroMagnitude");
 
-    // Schmitt-trigger scale-step selector: candidateStep in [0,9], only
-    // moves once it drifts more than 0.6 steps from the currently-held step.
+    // Schmitt-trigger step selector: only moves once it drifts more than 0.6 steps from the held step.
     NodeId gyroClamped = clampNode(b, gyroMag, kGyroscopeFloor, kGyroscopeCeiling);
     NodeId candidateStep = b.add("math.mapRange", { kGyroscopeFloor, kGyroscopeCeiling, 0.0f, 9.0f });
     b.wire(gyroClamped, candidateStep);
@@ -116,8 +109,7 @@ std::unique_ptr<NodeGraph> buildBozendo() {
     toSink(b, scale(b, mulNodes(b, flowBound, labanWeight), 0.30f), "sink.tremoloDepth");
     toSink(b, addConst(b, scale(b, flowBound, 4.0f), 3.0f), "sink.tremoloRateHz");
 
-    // pan_bias = |axis| > 1e-3 ? clamp(atan2(axisY,axisX)/pi * 0.2, -0.2, 0.2) : 0
-    // (gated via magnitude-squared > 1e-6 instead of sqrt-then-compare).
+    // pan_bias = clamp(atan2(axisY,axisX)/pi * 0.2, -0.2, 0.2), gated by magnitude-squared instead of sqrt-then-compare.
     NodeId axisX = b.add("source.rotationAxisX");
     NodeId axisY = b.add("source.rotationAxisY");
     NodeId magSqGate = threshold(b, addNodes(b, mulNodes(b, axisX, axisX), mulNodes(b, axisY, axisY)), 1e-6f);
@@ -149,8 +141,7 @@ std::unique_ptr<NodeGraph> buildBozendo2() {
     NodeId continuousSpinCount = tapPort(b, spinClass, 2);
     NodeId isCCW = threshold(b, spinDirection, 0.0f);
 
-    // lut3 index = isVertical*4 + isCCW*2: idx0=horiz+CW=G(7), idx2=horiz+CCW=A(9),
-    // idx4=vert+CW=C(0), idx6=vert+CCW=E(4) - matches the original's if/else exactly.
+    // idx0=horiz+CW=G, idx2=horiz+CCW=A, idx4=vert+CW=C, idx6=vert+CCW=E - matches the original if/else.
     NodeId targetSemitones = lut3Node(b, isVertical, isCCW, constantNode(b, 0.0f),
         { 7.0f, 0.0f, 9.0f, 0.0f, 0.0f, 0.0f, 4.0f, 0.0f });
 

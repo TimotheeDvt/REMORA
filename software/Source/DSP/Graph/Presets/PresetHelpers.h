@@ -2,19 +2,14 @@
 
 #include "../GraphBuilder.h"
 
-// Small conveniences shared by every Presets/*.cpp builder - each existing
-// mapping's process() leaned heavily on "scale by a constant", "add a
-// constant", "multiply two signals", etc., so these read the same way the
-// original C++ did instead of forcing every preset to hand-build a
-// math.constant + math.multiply pair inline each time.
+// Mirrors the "scale by a constant"/"add a constant" patterns the original hand-written mappings used.
 namespace Graph::Presets {
 
 inline NodeId constantNode(GraphBuilder& b, float value) {
     return b.add("math.constant", { value });
 }
 
-// out = src * factor (implemented as a mapRange 0..1 -> 0..factor, so it's a
-// single node rather than a constant+multiply pair).
+// out = src * factor, as a single mapRange node rather than a constant+multiply pair.
 inline NodeId scale(GraphBuilder& b, NodeId src, float factor) {
     NodeId n = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, factor });
     b.wire(src, n);
@@ -28,9 +23,8 @@ inline NodeId addConst(GraphBuilder& b, NodeId src, float value) {
     return n;
 }
 
+// value - src, matching the many "X - semitones" patterns in the original code.
 inline NodeId subConst(GraphBuilder& b, NodeId src, float value) {
-    // value - src (matches the many "X - semitones" patterns in the
-    // original code, where `src` is the thing being subtracted).
     NodeId n = b.add("math.subtract");
     b.wire(constantNode(b, value), n, 0);
     b.wire(src, n, 1);
@@ -43,8 +37,7 @@ inline NodeId clampNode(GraphBuilder& b, NodeId src, float lo, float hi) {
     return n;
 }
 
-// Reads a specific output port of a multi-output node (e.g.
-// source.spinClassification) as its own single-output node id.
+// Reads one output port of a multi-output node (e.g. spinClassification) as its own single-output node.
 inline NodeId tapPort(GraphBuilder& b, NodeId src, int port) {
     NodeId n = b.add("math.passthrough");
     b.wire(src, port, n, 0);
@@ -78,8 +71,7 @@ inline NodeId subNodes(GraphBuilder& b, NodeId a, NodeId c) {
     return n;
 }
 
-// math.onePoleSmoother at a fixed rate (its 2nd input, coeff, is left
-// unconnected and defaults to `coeff`).
+// Fixed rate - the 2nd input (coeff) is left unconnected and defaults to `coeff`.
 inline NodeId onePole(GraphBuilder& b, NodeId target, float coeff) {
     NodeId n = b.add("math.onePoleSmoother", { coeff });
     b.wire(target, n, 0);
@@ -87,8 +79,7 @@ inline NodeId onePole(GraphBuilder& b, NodeId target, float coeff) {
     return n;
 }
 
-// math.onePoleSmoother with a per-block-computed rate wired into its 2nd
-// input (e.g. Azimut's movement-onset-boosted morph speed).
+// Per-block-computed rate wired into the 2nd input (e.g. Azimut's movement-onset-boosted morph speed).
 inline NodeId onePoleVariableRate(GraphBuilder& b, NodeId target, NodeId coeffSrc) {
     NodeId n = b.add("math.onePoleSmoother", { 0.1f });
     b.wire(target, n, 0);
@@ -102,10 +93,7 @@ inline NodeId threshold(GraphBuilder& b, NodeId src, float t) {
     return n;
 }
 
-// Shared by the Azimut family and Bozendo (the original C++ duplicated these
-// exact formulas across mapping files too - see AzimutMapping.cpp and
-// BozendoMapping.cpp's near-identical applyMasterGainToOutput/
-// applyNoiseToOutput).
+// Shared by the Azimut and Bozendo families, which duplicated these exact formulas in the original C++.
 
 // motionGate = clamp(mapRange(gyroMag, floor*0.5, floor*2, 0, 1), 0, 1)
 inline NodeId standardMotionGate(GraphBuilder& b, NodeId gyroMag, float gyroscopeFloor) {
@@ -120,8 +108,7 @@ inline NodeId standardMasterGain(GraphBuilder& b, NodeId motionGate, NodeId laba
     return clampNode(b, addNodes(b, gated, scale(b, thrustPeak, 0.6f)), 0.0f, 1.0f);
 }
 
-// noiseEnvelope: leaky integrator charged by max(0, suddenness-0.3)*1.5 plus
-// thrustPeak*0.5, decaying at `decay` per block.
+// noiseEnvelope = leaky integrator charged by max(0, suddenness-0.3)*1.5 + thrustPeak*0.5, decaying at `decay`/block.
 inline NodeId standardNoiseEnvelope(GraphBuilder& b, NodeId suddenness, NodeId thrustPeak, float decay) {
     NodeId gate = threshold(b, suddenness, 0.3f);
     NodeId excess = subNodes(b, suddenness, constantNode(b, 0.3f));

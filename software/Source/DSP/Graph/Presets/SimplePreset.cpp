@@ -1,8 +1,7 @@
 #include "../GraphBuilder.h"
 #include "AllPresets.h"
 
-// Reproduces the retired SimpleMapping: one voice, root pitch from staff
-// pitch angle, gain from |roll|, static center pan, no timbre/modulation.
+// One voice, root pitch from staff pitch angle, gain from |roll|.
 namespace Graph::Presets {
 
 std::unique_ptr<NodeGraph> buildSimple() {

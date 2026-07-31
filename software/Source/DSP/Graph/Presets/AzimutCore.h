@@ -2,11 +2,7 @@
 
 #include "../GraphBuilder.h"
 
-// Shared body-motion mapping logic behind Azimut / Azimut+ / Azimut Reverb
-// (and reused, via node ids rather than sinks, by Ben's - see BensPreset.cpp).
-// Returns node ids rather than attaching sinks itself, so callers can either
-// wire them straight to sinks (the 3 Azimut variants) or crossfade them
-// against another branch first (Ben's).
+// Shared by Azimut/Azimut+/Azimut Reverb/Ben's - returns node ids so callers can wire to sinks or crossfade first.
 namespace Graph::Presets {
 
 struct AzimutCoreOutputs {
@@ -22,8 +18,7 @@ struct AzimutCoreOutputs {
     NodeId panL[4];
     NodeId panR[4];
 
-    // Exposed so variant builders can each derive their own LPF
-    // cutoff/modulation/reverb logic (the one place the 3 variants differ).
+    // Exposed so variant builders can derive their own LPF/modulation/reverb logic - the one place they differ.
     NodeId labanWeight;
     NodeId flowBound;
     NodeId flowFree;
@@ -33,9 +28,7 @@ struct AzimutCoreOutputs {
 
 AzimutCoreOutputs buildAzimutCore(GraphBuilder& b);
 
-// sin(continuousSpinCount * 1.5) -> 400..20000 Hz, smoothed at a fixed 0.03
-// one-pole rate. Shared by plain Azimut, Azimut Reverb, and Ben's (which
-// blends it against its own "simple melody" lpfCutoffHz).
+// sin(continuousSpinCount * 1.5) -> 400..20000 Hz, smoothed at a fixed 0.03 one-pole rate.
 NodeId buildSpinCountLpfHz(GraphBuilder& b, const AzimutCoreOutputs& core);
 
 } // namespace Graph::Presets

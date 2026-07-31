@@ -5,28 +5,16 @@
 
 struct StaffSoundParams;
 
-// Shared body-motion analysis engine used by every staff mapping. Owns the per-block gesture
-// state - delta time, tip-position/rotation-axis tracking, gravity removal,
-// Laban weight/time/space/flow, and axial thrust-peak detection. Each mapping composes one of
-// these and keeps only the logic that actually differs between them: how
-// spin/facing/thrust feed pitch, timbre, gain and modulation.
+// Shared engine every mapping composes, so only the signal-to-sound logic differs between mappings.
 class StaffMotionAnalyzer {
 public:
     static constexpr float kGyroscopeFloor = 30.0f;
     static constexpr float kGyroscopeCeiling = 750.0f;
 
-    // Which of the two mutually-exclusive spin-classification conventions to
-    // use (see updateSpinClassificationByAbsoluteComponent/ByReferenceAzimuth
-    // above) - both write the same shared state, so only one may run per block.
+    // Only one of these may run per block - both write the same shared state.
     enum class SpinConvention { ByAbsoluteComponent, ByReferenceAzimuth };
 
-    // One-shot-per-block snapshot of every derived signal that doesn't depend
-    // on a per-block choice (spin convention) or on this block's own
-    // change-detection result (continuous spin count, facing). Those two
-    // remain the caller's responsibility - see the Graph "Spin Classification"
-    // node, which is the only place that still calls
-    // updateSpinClassificationBy*/updateFacingClassification/
-    // accumulateContinuousSpins directly, using tipX/tipY/rotationAxis* below.
+    // Excludes spin classification/facing/continuous-spin-count - the Graph Spin Classification node calls those directly.
     struct DerivedMotionFrame {
         float deltaTimeSeconds = 1.0f / 100.0f;
         float gyroscopeMagnitude = 0.f;
@@ -42,12 +30,7 @@ public:
         float tipX = 1.f, tipY = 0.f;
     };
 
-    // Runs the imperative analysis pipeline every mapping used to duplicate
-    // (delta-time -> tip position -> rotation axis -> gravity -> dynamic
-    // accel -> velocity/Laban weight -> gyro magnitude -> thrust detection ->
-    // Laban weight/time/space/flow -> moving gate), once, as the single
-    // source of truth. Deliberately stops short of spin classification/
-    // facing/continuous-spin-count - see DerivedMotionFrame comment above.
+    // Single source of truth for the pipeline every mapping used to duplicate.
     DerivedMotionFrame computeFrame(const StaffSoundParams& input_parameters);
 
     void prepare();
@@ -55,10 +38,7 @@ public:
     void calculateDeltaTime();
     float deltaTimeSeconds() const noexcept { return delta_time_seconds_; }
 
-    // Rotates the staff's long axis (+X in sensor frame) into world frame and
-    // pushes it into the 3-frame ring buffer used for the rotation-axis
-    // estimate below. Also doubles as the staff's "facing" vector when the
-    // spin plane is horizontal.
+    // Also doubles as the staff's facing vector during horizontal-plane spins.
     void updateTipPositionHistory(const StaffSoundParams &input_parameters,
                                    float &current_tip_x, float &current_tip_y,
                                    float &current_tip_z);
@@ -96,15 +76,7 @@ public:
     void updateLabanFlow(float dynamic_acceleration_magnitude,
                           float &flow_bound, float &flow_free);
 
-    // Spin classification: is the rotation axis closer to vertical (world Z)
-    // or horizontal, and which way is it spinning. Two interchangeable
-    // direction conventions exist across the mapping family:
-    //  - ByAbsoluteComponent: direction = sign of whichever horizontal axis
-    //    component currently dominates (Azimut / Azimut+ / Azimut Reverb).
-    //  - ByReferenceAzimuth: direction = sign of the dot product against the
-    //    horizontal azimuth captured the first time a vertical spin is seen
-    //    (Bozendo / Bozendo 2).
-    // Both return true on the block where the plane or direction changes.
+    // Two interchangeable direction conventions: ByAbsoluteComponent (Azimut family) vs ByReferenceAzimuth (Bozendo family).
     bool updateSpinClassificationByAbsoluteComponent(float axis_x,
                                                        float axis_y,
                                                        float axis_z);
@@ -124,17 +96,11 @@ public:
         return smoothed_rotation_axis_y_;
     }
 
-    // Facing (Azimut family): which horizontal half-plane the staff's long
-    // axis points into, relative to the calibration gesture's "forward"
-    // pose. Uses whichever smoothed axis is relevant to the current spin
-    // plane, with hysteresis to avoid chatter at the boundary. Returns true
-    // on the block where the facing changes.
+    // Hysteresis avoids chatter at the boundary; returns true on the block where facing changes.
     bool updateFacingClassification(float tip_x, float tip_y);
     bool isFacingNorth() const noexcept { return is_facing_north_; }
 
-    // Counts full 360-degree rotations since the current spin plane/
-    // direction was entered; resets whenever spin classification changes.
-    // Used by mappings that sweep a parameter with continuous spinning.
+    // Resets whenever spin classification changes; used by mappings that sweep a parameter via continuous spinning.
     int accumulateContinuousSpins(bool spin_classification_changed,
                                    float gyroscope_magnitude);
     int continuousSpinCount() const noexcept { return continuous_spin_count_; }
@@ -176,21 +142,18 @@ private:
     // Time Constant approx 25ms at 100Hz
     static constexpr float kGyroscopeSmoothingCoefficient = 0.35f;
 
-    // Tip position history - 3 frames, ring buffer
-    // tip_position_i = rotate({1,0,0}, quaternion_i) in world frame
+    // Ring buffer: tip_position_i = rotate({1,0,0}, quaternion_i) in world frame.
     float tip_position_x_history_[3] = {1.f, 1.f, 1.f};
     float tip_position_y_history_[3] = {0.f, 0.f, 0.f};
     float tip_position_z_history_[3] = {0.f, 0.f, 0.f};
 
-    // Smoothed rotation axis (faster than before)
     float smoothed_rotation_axis_x_ = 0.f;
     float smoothed_rotation_axis_y_ = 0.f;
     float smoothed_rotation_axis_z_ = 1.f;
     // Time Constant approx 25ms at 100Hz
     static constexpr float kRotationAxisSmoothingCoefficient = 0.35f;
 
-    // Smoothed staff long-axis (world frame), used for facing detection
-    // during horizontal-plane spins.
+    // Smoothed staff long-axis (world frame), used for facing detection during horizontal-plane spins.
     float smoothed_forward_axis_x_ = 1.f;
     float smoothed_forward_axis_y_ = 0.f;
     static constexpr float kForwardAxisSmoothingCoefficient = 0.20f;
@@ -214,11 +177,7 @@ private:
     float accumulated_spin_degrees_ = 0.f;
     int continuous_spin_count_ = 0;
 
-    // Peak / thrust detection
-    // A peak = linear acceleration along the staff long axis in world frame
-    // with simultaneously low rotation.
-    // rotation_gate: gyroscope_magnitude must be below kPeakMaximumGyroscope
-    // to qualify as a thrust
+    // Peak = axial linear acceleration in world frame with simultaneously low rotation (gated by kPeakMaximumGyroscope).
     float axial_thrust_peak_envelope_ = 0.f;
     float previous_axial_acceleration_ = 0.f;
     float previous_axial_jerk_ = 0.f;

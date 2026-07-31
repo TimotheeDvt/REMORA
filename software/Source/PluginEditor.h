@@ -30,7 +30,6 @@ private:
 
   REMORAProcessor &processor;
 
-  // Connection bar
   juce::Label titleLabel;
   juce::TextButton connectButton;
   juce::TextButton soundButton;
@@ -42,7 +41,6 @@ private:
   juce::Label latencyLabel;
   juce::Label latencyValueLabel;
 
-  // State
   bool connected = false;
   int udpPort = 8000;
   juce::uint32 lastLatencyUpdateMs = 0;

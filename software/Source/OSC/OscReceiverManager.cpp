@@ -70,7 +70,6 @@ void OscReceiverManager::oscMessageReceived(const juce::OSCMessage &message) {
       }
       imuData.seq.fetch_add(1, std::memory_order_release);
 
-      // Check for the IP address string
       if (message.size() >= 14 && message[13].isString()) {
         const juce::String ip = message[13].getString();
 

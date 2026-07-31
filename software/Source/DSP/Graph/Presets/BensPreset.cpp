@@ -2,12 +2,7 @@
 #include "AzimutCore.h"
 #include "PresetHelpers.h"
 
-// Reproduces the retired BensMapping: a simple pentatonic-melody branch
-// cross-faded against a full copy of the Azimut branch (via buildAzimutCore(),
-// the same shared logic plain Azimut/Azimut+/Azimut Reverb use), gated by the
-// staff's own independently-smoothed speed. Below the gate, the simple
-// melody plays; above it, Azimut takes over; a speed band around the
-// threshold cross-fades between them so crossing it never clicks.
+// A pentatonic melody cross-faded against buildAzimutCore() by speed, clickless via a gate band.
 namespace Graph::Presets {
 
 std::unique_ptr<NodeGraph> buildBens() {
@@ -20,10 +15,7 @@ std::unique_ptr<NodeGraph> buildBens() {
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
 
-    // --- azimutAmount: Ben's own smoothing of raw gyro magnitude, gated
-    // across a band around the speed threshold (distinct from Azimut's own
-    // internal analyzer-smoothed gyro magnitude - a second, independent
-    // smoother, exactly as the original kept its own `smoothed_gyroscope_magnitude_`).
+    // azimutAmount: Ben's own gyro smoother, independent of Azimut's internal analyzer-smoothed magnitude.
     NodeId gyroRaw = b.add("source.gyroMagnitudeRaw");
     NodeId bensSmoothedGyro = onePole(b, gyroRaw, 0.35f);
     constexpr float kBandStart = kGateSpeedThresholdDegPerSec - kGateSpeedBandDegPerSec * 0.5f;
@@ -56,8 +48,7 @@ std::unique_ptr<NodeGraph> buildBens() {
     AzimutCoreOutputs azimut = buildAzimutCore(b);
     NodeId azimutLpf = buildSpinCountLpfHz(b, azimut);
 
-    // --- cross-fade every field the original blended (numVoices is NOT
-    // blended - it's taken from azimut directly, same as the original) ---
+    // numVoices is NOT cross-faded - taken from azimut directly
     toSink(b, crossfadeNodes(b, simpleRootHz, azimut.rootHz, azimutAmount), "sink.rootHz");
     for (int i = 0; i < 3; ++i)
         toSink(b, crossfadeNodes(b, simpleChord[i], azimut.chordSemitone[i], azimutAmount), "sink.chordSemitone", { static_cast<float>(i) });

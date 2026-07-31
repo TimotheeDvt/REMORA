@@ -29,13 +29,11 @@ public:
   REMORAProcessor();
   ~REMORAProcessor() override;
 
-  // OSC control
   bool startOSCReceiver(int port) { return oscManager.startOSCReceiver(port); }
   void stopOSCReceiver() { oscManager.stopOSCReceiver(); }
   bool isOSCConnected() const noexcept { return oscManager.isOSCConnected(); }
   int getCurrentPort() const noexcept { return oscManager.getCurrentPort(); }
 
-  // Stats
   float getMessagesPerSecond() const noexcept {
     return oscManager.getMessagesPerSecond();
   }
@@ -51,16 +49,13 @@ public:
 
   BoStaffSynth& getSynth() { return synth; }
 
-  // Last known IP of connected device
   int getIPVersion() const { return oscManager.getIPVersion(); }
   juce::String getLastConnectedIP() const {
     return oscManager.getLastConnectedIP();
   }
 
-  // IMU data access
   const IMUData &getIMUData() const noexcept { return oscManager.getIMUData(); }
 
-  // Calibration
   enum class CalibState { Idle, WaitingPoseA, WaitingPoseB, WaitingPoseC, Done };
   void startCalibration();
   void recordPoseA();
@@ -70,7 +65,6 @@ public:
   int getCalibState() const { return calibState.load(); }
   MathHelpers::Quat getCalibratedQuat() const;
 
-  // Sound toggle
   void setSoundEnabled(bool shouldBeEnabled) {
     synth.setSoundEnabled(shouldBeEnabled);
   }
@@ -83,7 +77,6 @@ public:
   juce::Rectangle<int> dspBounds;
   juce::Rectangle<int> debugBounds;
 
-  // Standard AudioProcessor overrides
   void prepareToPlay(double sampleRate, int samplesPerBlock) override;
   void releaseResources() override {}
   using juce::AudioProcessor::processBlock;
@@ -123,12 +116,9 @@ public:
   void setStateInformation(const void *data, int sizeInBytes) override;
 
 private:
-  // Timer callback - computes msg/sec every second
   void timerCallback() override;
 
   OscReceiverManager oscManager;
-
-  // DSP Engine
   BoStaffSynth synth;
 
   std::atomic<int> calibState{(int)CalibState::Idle};

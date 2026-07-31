@@ -183,8 +183,7 @@ void GraphEditorComponent::showAddNodeMenu(juce::Point<int> position) {
     auto typeIdByItemId = std::make_shared<std::vector<juce::String>>();
     typeIdByItemId->push_back({}); // item id 0 is "dismissed", unused
 
-    // category -> subcategory -> leaf items, so e.g. Source splits into
-    // "Raw Sensor"/"Derived Motion" instead of one long flat list.
+    // category -> subcategory -> leaf items, so e.g. Source splits into "Raw Sensor"/"Derived Motion".
     std::map<Graph::NodeCategory, std::map<juce::String, juce::PopupMenu>> menusByCategory;
 
     for (const auto& info : Graph::NodeTypeRegistry::instance().all()) {
@@ -421,8 +420,7 @@ void GraphEditorComponent::mouseWheelMove(const juce::MouseEvent& e, const juce:
     if (std::abs(newZoom - oldZoom) < 1.0e-6f)
         return;
 
-    // Keep the world point currently under the cursor fixed on screen,
-    // rather than always zooming toward the canvas origin.
+    // Keeps the world point under the cursor fixed on screen, rather than zooming toward the canvas origin.
     const auto mousePos = e.position;
     const auto worldUnderMouse = (mousePos - panOffset) / oldZoom;
     panOffset = mousePos - worldUnderMouse * newZoom;
@@ -472,9 +470,7 @@ void GraphEditorComponent::paintConnections(juce::Graphics& g) {
     if (isDraggingConnector) {
         auto it = nodeComponentById.find(dragSourceNode);
         if (it != nodeComponentById.end()) {
-            // dragCurrentPos is tracked in editor/screen space (see the
-            // header comment); paintConnections runs in canvas/world space,
-            // so it's converted here, at the point the two meet.
+            // dragCurrentPos is screen space; paintConnections runs in canvas/world space - converted here.
             const auto dragCurrentInCanvas = canvas.getLocalPoint(this, dragCurrentPos.toInt()).toFloat();
             const auto fixedEnd = (dragSourceIsOutput ? it->second->getOutputPinCentre(dragSourcePort)
                                                         : it->second->getInputPinCentre(dragSourcePort))

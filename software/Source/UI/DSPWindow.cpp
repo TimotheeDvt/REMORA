@@ -7,8 +7,7 @@
 #include <cmath>
 
 namespace {
-    // Spectrum display range: below 20Hz is inaudible, and log(0) is
-    // undefined, so DC/sub-audio bins are clamped up to this floor.
+    // DC/sub-audio bins are clamped up to this floor - log(0) is undefined and below 20Hz is inaudible anyway.
     constexpr float kSpectrumMinHz = 20.0f;
 
     float freqToLogX(float hz, float minHz, float maxHz, float left, float right) {
@@ -155,8 +154,7 @@ void DSPComponent::paint(juce::Graphics& g) {
 
     float maxHz = processor.getSynth().getSampleRate() / 2.0f;
     if (maxHz > 0.0f) {
-        // Standard analyzer marks, evenly spaced in log space (each decade
-        // gets denser marks near its low end, like a real spectrum analyzer).
+        // Evenly spaced in log space - each decade gets denser marks near its low end, like a real spectrum analyzer.
         static constexpr float niceMarks[] = {20.f, 50.f, 100.f, 200.f, 500.f,
                                                1000.f, 2000.f, 5000.f, 10000.f, 20000.f};
 

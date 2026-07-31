@@ -6,7 +6,6 @@
 RawDataComponent::RawDataComponent(REMORAProcessor &p) : processor(p) {
   setSize(500, 350);
 
-  // Rate display
   styleLabel(rateValueLabel, "0", 52.f, Palette::textHi,
              juce::Justification::centredRight);
   styleLabel(rateUnitLabel, "msg / sec", 11.f, Palette::textMid,
@@ -14,7 +13,6 @@ RawDataComponent::RawDataComponent(REMORAProcessor &p) : processor(p) {
   addAndMakeVisible(rateValueLabel);
   addAndMakeVisible(rateUnitLabel);
 
-  // Totals / IP
   styleLabel(totalLabel, "TOTAL", 9.f, Palette::textLo);
   styleLabel(totalValueLabel, "0", 12.f, Palette::textMid);
   styleLabel(ipLabel, "DEVICE IP", 9.f, Palette::textLo);
@@ -207,7 +205,6 @@ void RawDataComponent::timerCallback() {
     updateIfChanged(mzVal, prevMz, snap.mz);
   }
 
-  // Convert raw quaternion to Euler angles & update sliders 
   auto q = processor.getCalibratedQuat();
   auto euler = MathHelpers::toEuler(q);
   pitchSlider.setValue(euler.pitch, juce::dontSendNotification);

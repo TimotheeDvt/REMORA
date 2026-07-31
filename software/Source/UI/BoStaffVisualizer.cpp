@@ -53,7 +53,6 @@ void BoStaffVisualizer::paint(juce::Graphics &g) {
   const float cx = w / 2.f;
   const float cy = h / 2.f;
 
-  // 1. Draw Axis Reference
   auto pOrigin = project({0.f, 0.f, 0.f}, cx, cy, scale);
   auto pX = project({1.f, 0.f, 0.f}, cx, cy, scale);
   auto pY = project({0.f, 1.f, 0.f}, cx, cy, scale);
@@ -74,7 +73,6 @@ void BoStaffVisualizer::paint(juce::Graphics &g) {
   g.drawText("Z", juce::Rectangle<float>(pZ.x - 10.f, pZ.y - 10.f, 20.f, 20.f),
              juce::Justification::centred);
 
-  // 2. Draw the Trails
   auto now = juce::Time::getMillisecondCounter();
 
   tip1Points.clear();
@@ -94,7 +92,6 @@ void BoStaffVisualizer::paint(juce::Graphics &g) {
     drawTrail(g, tip2Points, paintTimestamps, now, Palette::red);
   }
 
-  // 3. Draw the active Staff over the trails
   MathHelpers::Vec3 top = {1.f, 0.f, 0.f};
   MathHelpers::Vec3 bottom = {-1.f, 0.f, 0.f};
 

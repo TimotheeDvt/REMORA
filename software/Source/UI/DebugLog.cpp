@@ -1,7 +1,6 @@
 #include "DebugLog.h"
 #include "DebugConsole.h"
 
-// Define the global accessor
 DebugLog& debug = DebugLog::getInstance();
 
 DebugLog& DebugLog::getInstance()

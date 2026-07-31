@@ -1,10 +1,7 @@
 #include "AllPresets.h"
 #include "PresetHelpers.h"
 
-// Reproduces the retired SpinVoiceMapping: spin plane+direction select 1-of-4
-// "voices"; only the active voice's pitch/gain morphs toward its target each
-// block (math.latchedSmoother), the other 3 hold their last value exactly,
-// which is how switching combos "freezes" a voice and builds up a chord.
+// Spin plane+direction selects 1 of 4 voices; the other 3 freeze in place.
 namespace Graph::Presets {
 
 std::unique_ptr<NodeGraph> buildSpinVoice() {
@@ -42,10 +39,7 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
 
         NodeId pitchGate = mulNodes(b, voiceGate, isMoving);
         NodeId pitchTarget = addConst(b, scale(b, speedNorm, 12.0f), kVoiceBaseSemitones[v]);
-        // Starts at 0 semitones rather than kVoiceBaseSemitones[v] (the
-        // original's exact initial value) - each voice's first activation
-        // will glide up from 0 instead of starting near its base tone, a
-        // minor one-time transient rather than a persistent difference.
+        // Starts at 0 semitones, not kVoiceBaseSemitones[v] - a minor one-time glide-up transient, not a persistent bug.
         NodeId pitchNode = b.add("math.latchedSmoother", { 0.08f });
         b.wire(pitchTarget, pitchNode, 0);
         b.wire(pitchGate, pitchNode, 1);

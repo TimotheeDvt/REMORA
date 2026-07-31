@@ -17,18 +17,14 @@ struct NodeInstance {
     float x = 0.0f, y = 0.0f;            // canvas position, for the graph editor
 };
 
-// A DAG of typed nodes wired together, evaluated once per audio block. See
-// Source/DSP/Graph/NodeTypeRegistry.h for the node catalog and
-// /home/kadora/.claude/plans/vectorized-mapping-kahan.md for the design.
+// A DAG of typed nodes wired together, evaluated once per audio block
 class NodeGraph {
 public:
     NodeId addNode(const juce::String& typeId, std::vector<float> params = {});
 
     bool removeNode(NodeId id);
 
-    // Wires src's output port `srcPort` into dst's input port `dstPort`.
-    // Returns false (and leaves the graph unchanged) if this would create a
-    // cycle or reference an unknown node/port.
+    // Returns false, leaving the graph unchanged, if this would create a cycle or reference an unknown node/port.
     bool connect(NodeId src, int srcPort, NodeId dst, int dstPort);
 
     bool disconnectInput(NodeId dst, int dstPort);
@@ -42,8 +38,7 @@ public:
     void prepare(double sampleRate);
     void evaluate(const SourceFrame& sources, MappingOutput& out);
 
-    // Last block's value at a given node's output port - used by
-    // GraphMappingStrategy to feed the auto-registered MonitorParams.
+    // Used by GraphMappingStrategy to feed the auto-registered MonitorParams.
     float outputOf(NodeId id, int port = 0) const;
 
     std::unique_ptr<juce::XmlElement> toXml() const;

@@ -13,13 +13,11 @@ REMORAEditor::REMORAEditor(REMORAProcessor &p)
   setResizeLimits(780, 450, 4096, 4096);
   setSize(780, 780);
 
-  // Title
   styleLabel(titleLabel,
              "REMORA - Real-time Expressive Motion to Output Routing Audio",
              13.f, Palette::textMid, juce::Justification::centredLeft);
   addAndMakeVisible(titleLabel);
 
-  // Connect button
   styleButton(connectButton, "CONNECT",
              {{juce::TextButton::buttonColourId, Palette::accentDim},
               {juce::TextButton::buttonOnColourId, Palette::red},
@@ -29,7 +27,6 @@ REMORAEditor::REMORAEditor(REMORAProcessor &p)
   );
   addAndMakeVisible(connectButton);
 
-  // Sound toggle button
   soundButton.setClickingTogglesState(true);
   soundButton.setToggleState(processor.isSoundEnabled(),
                              juce::dontSendNotification);
@@ -50,7 +47,6 @@ REMORAEditor::REMORAEditor(REMORAProcessor &p)
   soundButton.addShortcut(juce::KeyPress(juce::KeyPress::spaceKey, 0, 0));
   addAndMakeVisible(soundButton);
 
-  // Show Data button
   styleButton(showDataButton, "RAW DATA", Palette::ButtonTheme::secondary,
              [this] {
                if (rawDataWindow && rawDataWindow->isVisible()) {
@@ -66,7 +62,6 @@ REMORAEditor::REMORAEditor(REMORAProcessor &p)
   );
   addAndMakeVisible(showDataButton);
 
-  // Debug button
   styleButton(debugButton, "DEBUG", Palette::ButtonTheme::secondary,
              [this] {
                if (debug.isWindowOpen())
@@ -77,7 +72,6 @@ REMORAEditor::REMORAEditor(REMORAProcessor &p)
   );
   addAndMakeVisible(debugButton);
 
-  // DSP button
   styleButton(dspButton, "DSP", Palette::ButtonTheme::secondary,
              [this] {
                if (dspWindow && dspWindow->isVisible()) {
@@ -115,32 +109,15 @@ REMORAEditor::REMORAEditor(REMORAProcessor &p)
   boStaffVisualizer.setTrailLifetime(0.6f);
   addAndMakeVisible(boStaffVisualizer);
 
-  // 60 Hz UI refresh timer
   startTimerHz(60);
 
-  // Sync UI state with the processor's initial connection
   connected = processor.isOSCConnected();
   updateConnectionUI();
 
   debug.addChangeListener(this);
 
-  // Show the big calibration overlay in place of the staff view until
-  // calibration has been completed at least once for this session.
+  // Shows the calibration overlay instead of the staff view until calibration completes once this session.
   updateCalibrationVisibility();
-
-  // Auto-open all auxiliary windows on launch
-  // if (!rawDataWindow) {
-  //   showDataButton.onClick();
-  //   if (!processor.rawDataBounds.isEmpty()) rawDataWindow->setBounds(processor.rawDataBounds);
-  // }
-  // if (!dspWindow) {
-  //   dspButton.onClick();
-  //   if (!processor.dspBounds.isEmpty()) dspWindow->setBounds(processor.dspBounds);
-  // }
-  // if (!debug.isWindowOpen()) {
-  //   debug.show();
-  //   if (!processor.debugBounds.isEmpty()) debug.setBounds(processor.debugBounds);
-  // }
 }
 
 void REMORAEditor::saveWindowBoundsToProcessor() {
@@ -162,7 +139,6 @@ REMORAEditor::~REMORAEditor() {
 }
 
 void REMORAEditor::paint(juce::Graphics &g) {
-  // Background
   g.fillAll(Palette::bg);
 
   const auto w = getWidth();
@@ -174,7 +150,6 @@ void REMORAEditor::paint(juce::Graphics &g) {
   const int numRows = 4;
   const int itemH = (topSpace - padding * (numRows + 1)) / numRows;
 
-  // Draw the logo at the top right (next to the status dot)
   juce::Image logo = juce::ImageCache::getFromMemory(BinaryData::logo_png,
                                                      BinaryData::logo_pngSize);
   if (logo.isValid()) {
@@ -182,19 +157,16 @@ void REMORAEditor::paint(juce::Graphics &g) {
                       juce::RectanglePlacement::centred);
   }
 
-  // Top divider
   g.setColour(Palette::border);
   float div1Y = padding * 1.5f + itemH;
   g.drawHorizontalLine(static_cast<int>(div1Y), static_cast<float>(padding),
                        static_cast<float>(w - padding));
 
-  // Status dot
   const bool isReceivingData = processor.getMessagesPerSecond() > 0.f;
   g.setColour(isReceivingData ? Palette::green : Palette::red);
   g.fillEllipse(static_cast<float>(w - padding - 40 - padding - 8),
                 padding + itemH / 2.0f - 4.0f, 8.f, 8.f);
 
-  // Draw 3D Staff separation
   g.setColour(Palette::border);
   float div2Y = topSpace - padding / 2.0f;
   g.drawHorizontalLine(static_cast<int>(div2Y), static_cast<float>(padding),
@@ -226,24 +198,19 @@ void REMORAEditor::resized() {
     }
   };
 
-  // Row 0: Title
   layoutRow(currentY, {&titleLabel});
   currentY += itemH + padding;
 
-  // Row 1: Connect, Sound, Latency Value
   layoutRow(currentY, {&connectButton, &soundButton, &latencyValueLabel});
   currentY += itemH + padding;
 
-  // Row 2: Raw Data, DSP, Debug, Latency Label
   layoutRow(currentY, {&showDataButton, &dspButton, &debugButton, &latencyLabel});
   currentY += itemH + padding;
 
-  // Row 3: Calibrate
   layoutRow(currentY, {&calibrateButton});
   currentY += itemH + padding;
 
-  // Bottom 2/3 space: the staff visualizer once calibrated, or the big
-  // calibration overlay until then.
+  // Staff visualizer once calibrated, else the calibration overlay - both occupy this same area.
   const juce::Rectangle<int> bottomArea(padding, topSpace, w - 2 * padding,
                                         visualizerH - padding);
   boStaffVisualizer.setBounds(bottomArea);
@@ -296,8 +263,7 @@ void REMORAEditor::refreshMainStats() {
                           : 0.0;
     const double totalLatencyMs = audioBufferMs + oscLatencyMs;
 
-    // Only show valid latency if we're actively receiving (e.g. less than 1
-    // second ago)
+    // Only valid if actively receiving - i.e. data younger than 1 second.
     if (dataAgeMs < 1000.0) {
       lastLatencyUpdateMs = now;
       latencyValueLabel.setText(juce::String(totalLatencyMs, 1),

@@ -3,10 +3,7 @@
 #include "../NodeGraph.h"
 #include <memory>
 
-// One build*Graph() function per retired hand-written mapping strategy (see
-// Source/DSP/Mappings/*, now removed) - each returns a NodeGraph that
-// reproduces that mapping's behavior, fed into a GraphMappingStrategy from
-// BoStaffSynth.cpp. See /home/kadora/.claude/plans/vectorized-mapping-kahan.md.
+// One function per mapping strategy, each reproducing its behavior as a NodeGraph.
 namespace Graph::Presets {
 
 std::unique_ptr<NodeGraph> buildSimple();

@@ -3,20 +3,12 @@
 #include <cmath>
 #include <vector>
 
-// Reproduces the retired LeadDroneMapping: a lead voice on a major scale
-// (quantized from pitch) plus 3 fixed-interval drone voices transposed to
-// track it, evolving timbre/gain from raw accel/gyro magnitude and yaw.
-// Doesn't touch the shared StaffMotionAnalyzer at all - matches the original,
-// which computed everything from raw StaffSoundParams fields directly.
+// Reads raw StaffSoundParams directly, bypassing StaffMotionAnalyzer.
 namespace Graph::Presets {
 
 namespace {
 
-// scaleStep -> semitones via octave*12 + majorScale[degree], with the
-// floor-division correction the original applied for negative scaleStep.
-// Baked into a constant lookup table at graph-build time (not as graph
-// nodes) since it's pure data, identical to how the original's array
-// literals were pure data.
+// scaleStep -> semitones via octave*12 + majorScale[degree], baked into a table at build time since it's pure data.
 std::vector<float> buildScaleTable(const int* scaleDegrees, int scaleLength, int minStep, int maxStep) {
     std::vector<float> table;
     for (int step = minStep; step <= maxStep; ++step) {
@@ -59,9 +51,7 @@ std::unique_ptr<NodeGraph> buildLeadDrone() {
     NodeId accelMag = b.add("source.accelMagnitudeRaw");
     NodeId yaw = b.add("source.yaw");
 
-    // yawNorm = clamp((yaw + 180) / 360, 0, 1) - the original mixes degrees
-    // here even though pitch/roll elsewhere in this codebase are radians;
-    // ported faithfully, not "corrected".
+    // Mixes degrees (yaw) despite pitch/roll being radians elsewhere - ported faithfully, not "corrected".
     NodeId yawNorm = clampNode(b, scale(b, addConst(b, yaw, 180.0f), 1.0f / 360.0f), 0.0f, 1.0f);
 
     toSink(b, addConst(b, clampNode(b, scale(b, gyroMag, 0.01f), 0.0f, 0.2f), 0.8f), "sink.masterGain");

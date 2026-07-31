@@ -4,14 +4,7 @@
 #include <JuceHeader.h>
 #include <array>
 
-// Runs the spectrum-display FFT on its own background thread.
-//
-// The audio thread (BoStaffSynth::processBlock) only fills a lock-free
-// fifo and flips `nextFFTBlockReady`. Everything CPU-heavy - windowing,
-// the forward FFT, and the dB conversion - used to run inline on the
-// message thread from DSPComponent's 30Hz Timer, competing with GUI
-// painting/event handling. It now runs here instead, so the message
-// thread only ever copies out an already-computed result.
+// Runs the spectrum FFT here instead of inline on the message thread, where it used to compete with GUI painting.
 class SpectrumAnalyserThread : public juce::Thread {
 public:
   static constexpr int fftSize = BoStaffSynth::fftSize;
@@ -22,10 +15,7 @@ public:
 
   void run() override;
 
-  // Called from the message thread. Copies the latest computed spectrum
-  // (in dB) into outDb. Returns false if no new block has been analysed
-  // since the last call (so callers don't redo path-building/repaint work
-  // for a result they've already consumed).
+  // Returns false if no new block was analysed since the last call, so callers can skip redoing repaint work.
   bool getLatestMagnitudesDb(std::array<float, numBins> &outDb);
 
 private:

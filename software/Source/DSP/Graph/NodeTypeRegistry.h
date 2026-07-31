@@ -28,8 +28,7 @@ struct NodeTypeInfo {
     std::vector<juce::String> outputNames; // only meaningful when numOutputs > 1
     bool isStateful = false;
 
-    // Sink-only: range used for the MonitorParam auto-registered by
-    // GraphMappingStrategy so the existing DSP window can show it.
+    // Sink-only: range for the MonitorParam GraphMappingStrategy auto-registers.
     float monitorRangeMin = 0.0f;
     float monitorRangeMax = 1.0f;
 
@@ -44,9 +43,7 @@ struct NodeTypeInfo {
     std::function<std::unique_ptr<NodeState>()> makeState; // set only if isStateful
 };
 
-// Lazily-populated singleton catalog of every node type. Populated once, on
-// first use, by registerBuiltinSourceNodes/MathNodes/SinkNodes (see
-// SourceNodes.cpp/MathNodes.cpp/SinkNodes.cpp).
+// Lazily-populated singleton catalog of every node type - see NodeMetadata.cpp.
 class NodeTypeRegistry {
 public:
     static NodeTypeRegistry& instance();

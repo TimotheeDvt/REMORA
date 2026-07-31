@@ -2,16 +2,12 @@
 #include "PresetHelpers.h"
 #include <vector>
 
-// Reproduces the retired SpinFilterMapping: root+5th on a pentatonic scale
-// quantized from raw gyro magnitude, with a harmonic-count "brick wall with
-// a 1-partial linear taper" low-pass driven by roll. Like LeadDrone, never
-// touches the shared StaffMotionAnalyzer - everything comes from raw fields.
+// Pentatonic root+5th quantized from raw gyro magnitude, roll-driven LPF taper.
 namespace Graph::Presets {
 
 std::unique_ptr<NodeGraph> buildSpinFilter() {
     static const int kPentatonic[5] = { 0, 3, 5, 7, 10 };
-    // scaleStep = clamp(gyroMag/50, 0, 10); table indexed 0..10 directly, no
-    // negative-step correction needed (the original clamps to >= 0 itself).
+    // scaleStep = clamp(gyroMag/50, 0, 10), indexed 0..10 directly - no negative-step correction needed.
     std::vector<float> scaleTable;
     for (int step = 0; step <= 10; ++step) {
         const int octave = step / 5;
@@ -58,10 +54,8 @@ std::unique_ptr<NodeGraph> buildSpinFilter() {
     NodeId rollNorm = clampNode(b, scale(b, addConst(b, roll, 3.14f), 1.0f / 6.28f), 0.0f, 1.0f);
     NodeId maxActivePartial = addConst(b, scale(b, rollNorm, 5.0f), 1.0f);
 
-    // Per-partial gain: 1/p below the cutoff, a 1-wide linear taper through
-    // it, 0 above - taper = clamp(maxActivePartial - p + 1, 0, 1) * (1/p).
+    // Per-partial gain = 1/p below the cutoff, a 1-wide linear taper through it, 0 above.
     for (int p = 1; p <= 6; ++p) {
-        // taper = clamp(maxActivePartial - p + 1, 0, 1)
         NodeId taper = clampNode(b, addConst(b, subNodes(b, maxActivePartial, constantNode(b, static_cast<float>(p))), 1.0f), 0.0f, 1.0f);
         toSink(b, scale(b, taper, 1.0f / static_cast<float>(p)), "sink.partialAmp", { static_cast<float>(p - 1) });
     }

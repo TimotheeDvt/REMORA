@@ -2,9 +2,7 @@
 #include "AzimutCore.h"
 #include "PresetHelpers.h"
 
-// The 3 Azimut variants share every field via buildAzimutCore() and differ
-// only in LPF-cutoff drive and modulation/reverb - see AzimutCore.cpp for
-// the shared body-motion mapping logic.
+// The 3 Azimut variants share every field via buildAzimutCore() and differ only in LPF-cutoff drive and reverb.
 namespace Graph::Presets {
 
 namespace {
@@ -71,10 +69,7 @@ std::unique_ptr<NodeGraph> buildAzimutReverb() {
     wireCoreToSinks(b, core);
     toSink(b, buildSpinCountLpfHz(b, core), "sink.lpfCutoffHz");
 
-    // Laban Flow (free = loose/unrestrained motion) drives a reverb send
-    // instead of being discarded: free motion opens a longer, brighter
-    // tail; bound motion collapses it back toward a short, dry space.
-    // Weight scales how far the tail can open.
+    // Free motion opens a longer, brighter reverb tail; bound motion collapses it back toward dry.
     NodeId wetInner = addConst(b, scale(b, core.labanWeight, 0.75f), 0.25f);
     toSink(b, clampNode(b, mulNodes(b, core.flowFree, wetInner), 0.0f, 1.0f), "sink.reverbWetLevel");
     NodeId roomSize = b.add("math.mapRange", { 0.0f, 1.0f, 0.25f, 0.95f });

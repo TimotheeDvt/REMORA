@@ -31,10 +31,7 @@ public:
     // Called by GraphCanvasComponent - draws in canvas-local (world) space.
     void paintConnections(juce::Graphics& g);
 
-    // Called by GraphNodeComponent/GraphPinComponent - mouse events arrive
-    // already remapped into this component's coordinate space (screen
-    // space, i.e. pre-zoom/pan - the one conversion to world/canvas space
-    // happens at the point each is used against the model).
+    // Mouse events arrive in screen space (pre-zoom/pan); conversion to world space happens where each is used.
     void nodeMoved(Graph::NodeId id, float x, float y);
     void showNodeContextMenu(Graph::NodeId id);
     void showPinContextMenu(GraphPinComponent& pin);

@@ -4,19 +4,12 @@
 #include "NodeMetadata.h"
 #include <cmath>
 
-// The single list of every node type. Each entry below is one complete,
-// self-contained node definition - its id, name, description, input/param/
-// output names, default params, monitor range, AND its eval/write function,
-// built via the math()/source()/sink() helper matching its shape. To add a
-// new node: add one call to buildAllNodes() below. Nothing else changes -
-// registerAllNodes() creates every node in the list generically.
+// Every node's full definition lives here; add a node by adding one call to buildAllNodes() below.
 
 namespace Graph {
 namespace {
 
-// ---- Math: shared stateful scratch state ----
-// Stateless math nodes ignore the NodeState* argument; stateful ones share
-// one generic scratch struct rather than one bespoke struct per node type.
+// Stateful math nodes share this one scratch struct instead of a bespoke one each.
 struct MathNodeState : NodeState {
     float a = 0.0f;
     float b = 0.0f;
@@ -29,14 +22,11 @@ struct MathNodeState : NodeState {
 
 std::unique_ptr<NodeState> makeMathState() { return std::make_unique<MathNodeState>(); }
 
-// ---- Sink: shared indexed-array helper ----
 template <int N>
 int arrayIndex(const std::vector<float>& params) {
     const float raw = params.empty() ? 0.0f : params[0];
     return juce::jlimit(0, N - 1, static_cast<int>(std::lround(raw)));
 }
-
-// ---- Per-category builders: each returns one complete NodeTypeInfo ----
 
 NodeTypeInfo math(const char* id, const char* name, const char* subcategory, const char* description,
                    std::vector<juce::String> inputNames, std::vector<float> defaultParams,
@@ -101,7 +91,7 @@ NodeTypeInfo sink(const char* id, const char* name, const char* subcategory, con
 std::vector<NodeTypeInfo> buildAllNodes() {
     std::vector<NodeTypeInfo> nodes;
 
-    // ================= Source: Raw Sensor =================
+    // Raw sensor
     nodes.push_back(source("source.pitch", "Pitch", "Raw Sensor",
         "Calibrated pitch angle of the staff, in degrees. Sign/zero-point depend on the calibration pose captured at startup.",
         REMORA_RAW_EVAL(sf.raw.pitch)));
@@ -151,9 +141,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         "1.0 while the staff sensor is sending valid data; 0.0 if the connection is stale or lost.",
         REMORA_RAW_EVAL(sf.raw.isReceivingValidData ? 1.0f : 0.0f)));
 
-    // Several mappings (LeadDrone, SpinFilter, BowedChord) never touch the
-    // shared analyzer at all - they compute instantaneous, unsmoothed
-    // magnitude directly off the raw sensor fields every block.
+    // Bypasses the shared analyzer - LeadDrone/SpinFilter/BowedChord want instantaneous raw magnitude, not smoothed.
     nodes.push_back(source("source.gyroMagnitudeRaw", "Gyro Magnitude (Raw)", "Raw Sensor",
         "Instantaneous magnitude of the raw gyro vector, in degrees/second (sqrt(gx^2+gy^2+gz^2)). Unsmoothed - jitters block to block.",
         REMORA_RAW_EVAL(std::sqrt(sf.raw.gx * sf.raw.gx + sf.raw.gy * sf.raw.gy + sf.raw.gz * sf.raw.gz))));
@@ -161,7 +149,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         "Instantaneous magnitude of the raw accel vector, in g (sqrt(ax^2+ay^2+az^2)). Includes gravity; unsmoothed - jitters block to block.",
         REMORA_RAW_EVAL(std::sqrt(sf.raw.ax * sf.raw.ax + sf.raw.ay * sf.raw.ay + sf.raw.az * sf.raw.az))));
 
-    // ================= Source: Derived Motion =================
+    // Derived motion
     nodes.push_back(source("source.gyroMagnitude", "Gyro Magnitude", "Derived Motion",
         "Smoothed gyroscope magnitude, in degrees/second. Roughly 0-750+; also feeds the isMoving gate (moving once above 30 deg/s).",
         REMORA_RAW_EVAL(sf.derived.smoothedGyroscopeMagnitude)));
@@ -196,11 +184,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         "1.0 if the smoothed gyro magnitude is above the moving threshold (30 deg/s), 0.0 if the staff is considered still. Not true/false text - a float 1.0/0.0.",
         REMORA_RAW_EVAL(sf.derived.isMoving ? 1.0f : 0.0f)));
 
-    // spinClassification has side effects (it calls back into the live
-    // analyzer) because its behavior depends on a per-node "which
-    // convention" parameter that computeFrame() can't bake in - see
-    // StaffMotionAnalyzer.h's DerivedMotionFrame comment. Its eval still has
-    // the same SourceEvalFn signature as every other source node above.
+    // Has side effects (calls back into the live analyzer) since its behavior needs a per-node convention param.
     nodes.push_back(source("source.spinClassification", "Spin Classification", "Derived Motion",
         "Classifies the current spin plane/direction. Only updates while isMoving is true - holds its "
         "last classification while the staff is still.\n"
@@ -230,7 +214,6 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         },
         { 0.0f }, { "convention" }, { "vertical", "spin", "count", "facing" }));
 
-    // ================= Math: Arithmetic =================
     nodes.push_back(math("math.constant", "Constant", "Arithmetic",
         "Outputs its 'value' parameter every block, unchanged. Use to feed a fixed number into another node's input.",
         {}, { 0.0f }, { "value" },
@@ -258,7 +241,6 @@ std::vector<NodeTypeInfo> buildAllNodes() {
             out[0] = std::abs(in[0] - in[1]) <= p[0] ? 1.0f : 0.0f;
         }));
 
-    // ================= Math: Shaping =================
     nodes.push_back(math("math.mapRange", "Map Range", "Shaping",
         "Linearly remaps value from [inMin, inMax] to [outMin, outMax]. Not clamped - it extrapolates outside "
         "the input range, so add a Clamp node after it if you need hard limits.",
@@ -289,9 +271,6 @@ std::vector<NodeTypeInfo> buildAllNodes() {
             const float step = p[0];
             out[0] = std::abs(step) > 1e-6f ? std::round(in[0] / step) * step : in[0];
         }));
-    // Identity passthrough - used to "tap" a single output port off a
-    // multi-output node (e.g. source.spinClassification) into its own node
-    // id, so it can be wired anywhere a single-output value is expected.
     nodes.push_back(math("math.passthrough", "Passthrough", "Shaping",
         "out = value, unchanged. Useful for tapping one output port of a multi-output node (e.g. Spin "
         "Classification) so it can be wired anywhere a single-output value is expected.",
@@ -309,7 +288,6 @@ std::vector<NodeTypeInfo> buildAllNodes() {
             out[0] = MathHelpers::convertSemitonesToHertz(in[0], p[0]);
         }));
 
-    // ================= Math: Lookup Tables =================
     nodes.push_back(math("math.lookupTable", "Lookup Table", "Lookup Tables",
         "Reads the params table at round(index), clamped to the table's bounds, and outputs that value. "
         "Params are freeform - edit each slot's value directly.", { "index" }, {}, {},
@@ -328,11 +306,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
             out[0] = p[static_cast<size_t>(idx)];
         }));
 
-    // ================= Math: Dynamics (stateful) =================
-    // Input 1 (coeff) is optional: leave it unconnected (its default falls
-    // back to params[0]) for a fixed rate, or wire a computed value into it
-    // for a per-block-varying rate (e.g. Azimut's movement-onset-boosted
-    // pitch morph speed).
+    // Input 1 (rate) is optional - unconnected, it falls back to the rate param instead of a fixed value.
     nodes.push_back(math("math.onePoleSmoother", "One-Pole Smoother", "Dynamics",
         "Exponentially smooths 'target' toward its new value each block at 'rate' (0..1, higher = faster). "
         "The 'rate' input overrides the rate param when connected; leave it unconnected to use a fixed rate.",
@@ -400,7 +374,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
             out[0] = s->a;
         }, true));
 
-    // ================= Sink: Scalar =================
+    // Output Scalar
     nodes.push_back(sink("sink.rootHz", "Root Hz", "Scalar",
         "Sets the synth's root/fundamental frequency, in Hz. All voices and chord semitones are computed relative to this.",
         20.0f, 2000.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.rootHz = in[0]; }));
@@ -440,7 +414,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
     nodes.push_back(sink("sink.reverbDamping", "Reverb Damping", "Scalar", "Reverb high-frequency absorption: 0.0 = bright, 1.0 = dark.",
         0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.reverbDamping = in[0]; }));
 
-    // ================= Sink: Indexed Array =================
+    // Output Indexed Array
     nodes.push_back(sink("sink.chordSemitone", "Chord Semitone[i]", "Indexed Array",
         "Semitone offset from Root Hz for chord voice 'index' (0-2), signed. index is rounded and clamped to [0, 2].",
         -24.0f, 24.0f, [](const float* in, const std::vector<float>& p, MappingOutput& out) { out.chordSemitones[arrayIndex<3>(p)] = in[0]; },

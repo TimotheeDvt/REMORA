@@ -2,9 +2,7 @@
 
 #include "NodeGraph.h"
 
-// Thin fluent helper for constructing a NodeGraph in C++. Stands in for the
-// future visual editor - every Presets/*.cpp file uses this to build a graph
-// equivalent to what a user would eventually wire up by hand.
+// Thin helper for constructing a NodeGraph in C++, used by every Presets/*.cpp file.
 namespace Graph {
 
 class GraphBuilder {
@@ -21,8 +19,7 @@ public:
         return *this;
     }
 
-    // Wires a specific output port of `src` (for multi-output nodes like
-    // source.spinClassification) into `dst`'s input port `dstPort`.
+    // For multi-output nodes like source.spinClassification.
     GraphBuilder& wire(NodeId src, int srcPort, NodeId dst, int dstPort) {
         graph_.connect(src, srcPort, dst, dstPort);
         return *this;

@@ -7,7 +7,6 @@ REMORAProcessor::REMORAProcessor()
   recentOrientationsScratch.reserve(512);
   startTimer(1000);
 
-  // Automatically attempt to connect to port 8000 on startup
   startOSCReceiver(8000);
 
   // Make Azimut the default mapping on launch
@@ -126,10 +125,7 @@ void REMORAProcessor::computeCorrection() {
   MathHelpers::Vec3 r1{0.f, 0.f, 1.f}; // virtual +Z (up)
   MathHelpers::Vec3 r2{0.f, 1.f, 0.f}; // virtual +Y (right)
 
-  // Build the cross-covariance matrix H = sum(r_i * b_i^T)
-  // H is 3x3, stored as columns c0, c1, c2
-  // H = r0*b0^T + r1*b1^T + r2*b2^T
-  // Column j of H = sum_i(r_i * b_i[j])
+  // Cross-covariance H = sum(r_i * b_i^T), 3x3 stored as columns.
   float H[3][3] = {};
   auto addOuter = [&](MathHelpers::Vec3 r, MathHelpers::Vec3 b) {
     float rv[3] = {r.x, r.y, r.z};
@@ -142,27 +138,18 @@ void REMORAProcessor::computeCorrection() {
   addOuter(r1, b1);
   addOuter(r2, b2);
 
-  // For a 3x3 rotation matrix the best-fit solution is R = U * V^T from SVD.
-  // Since we have exactly 3 non-degenerate vectors we can extract it directly:
-  // Build the best rotation matrix using the explicit polar decomposition
-  // shortcut. We compute R such that R * b_i ≈ r_i for all i. The closed-form
-  // for 3 vectors: build R directly from the two frames.
+  // Best-fit rotation R with R * b_i ~= r_i, built directly rather than via full SVD.
 
-  // Build an orthonormal "measured" frame from b0, b1, b2
   auto e0 = b0;
   auto e1 = MathHelpers::normalize(
       MathHelpers::cross(b0, b1)); // perp to b0 in the b0-b1 plane
   auto e2 = MathHelpers::cross(e0, e1);
 
-  // Build corresponding orthonormal "virtual" frame from r0, r1, r2
   auto f0 = r0;
   auto f1 = MathHelpers::normalize(MathHelpers::cross(r0, r1));
   auto f2 = MathHelpers::cross(f0, f1);
 
-  // The rotation R that takes the measured frame to the virtual frame:
-  // R = [f0 f1 f2] * [e0 e1 e2]^T
-  // Each f_i is a column of the target, each e_i is a column of the source.
-  // R_ij = sum_k f_k[i] * e_k[j]
+  // R = [f0 f1 f2] * [e0 e1 e2]^T - the rotation taking the measured frame to the virtual frame.
   float R[3][3];
   float fv[3][3] = {{f0.x, f1.x, f2.x}, {f0.y, f1.y, f2.y}, {f0.z, f1.z, f2.z}};
   float ev[3][3] = {{e0.x, e1.x, e2.x}, {e0.y, e1.y, e2.y}, {e0.z, e1.z, e2.z}};
@@ -173,9 +160,7 @@ void REMORAProcessor::computeCorrection() {
         R[i][j] += fv[i][k] * ev[j][k]; // f col k row i * e col k row j
     }
 
-  // Convert rotation matrix to quaternion
-  // R is stored row-major: R[row][col]
-  // Pass columns to fromMatrix
+  // R is row-major; fromMatrix expects columns, so index it transposed below.
   MathHelpers::Vec3 col0{R[0][0], R[1][0], R[2][0]};
   MathHelpers::Vec3 col1{R[0][1], R[1][1], R[2][1]};
   MathHelpers::Vec3 col2{R[0][2], R[1][2], R[2][2]};
@@ -194,8 +179,7 @@ MathHelpers::Quat REMORAProcessor::getCalibratedQuat() const {
   MathHelpers::Quat corr = corrQuat.load();
   MathHelpers::Quat qAlign = alignQuat.load();
 
-  // First align local physical axis to X, then apply raw orientation, then
-  // apply global correction
+  // Align local axis to X, then raw orientation, then global correction.
   return MathHelpers::multiply(corr, MathHelpers::multiply(q_raw, qAlign));
 }
 
@@ -206,9 +190,7 @@ void REMORAProcessor::prepareToPlay(double sampleRate,
 
 void REMORAProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                          juce::MidiBuffer &) {
-  // Determine if we have valid live connection data
-  // Use tick age instead of messagesPerSecond (which has 1s update latency).
-  // Sound is valid as long as a packet arrived within the last 500ms.
+  // Tick age avoids messagesPerSecond's 1s update latency.
   constexpr double kMaxDataAgeMs = 500.0;
   const int64_t lastTicks = oscManager.getLastMessageReceivedTicks();
   const double dataAgeMs = (lastTicks > 0)
@@ -227,7 +209,6 @@ void REMORAProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     historyWriteIndex.store(idx + 1, std::memory_order_release);
   }
 
-  // Offload all sound generation and data mapping to the dedicated DSP class
   StaffSoundParams params;
   params.isReceivingValidData = isReceivingValidData;
 
@@ -237,8 +218,7 @@ void REMORAProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     params.roll = euler.roll;
     params.yaw = euler.yaw;
 
-    // Pass the calibrated quaternion directly so mappings can rotate
-    // vectors into world frame without Euler reconstruction errors.
+    // Passed directly so mappings can rotate vectors into world frame without Euler reconstruction errors.
     params.qw = calibratedQ.w;
     params.qx = calibratedQ.x;
     params.qy = calibratedQ.y;

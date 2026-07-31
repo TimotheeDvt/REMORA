@@ -22,11 +22,7 @@ void BoStaffSynth::pushNextSampleIntoFifo(float sample) noexcept {
 }
 
 BoStaffSynth::BoStaffSynth() {
-    // Register mappings - each is a node graph (see Source/DSP/Graph/) built
-    // by a Presets::build*() function, wrapped in the one generic
-    // GraphMappingStrategy. These replace what used to be 11 distinct
-    // hand-written IMappingStrategy subclasses under Mappings/ - see
-    // Source/DSP/Graph/Presets/*.cpp for each preset's construction.
+    // Each mapping is a Presets::build*() node graph wrapped in the one generic GraphMappingStrategy.
     using Graph::GraphMappingStrategy;
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSimple(), "Simple (Pitch+Roll)"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBowedChord(), "Bowed Chord"));
@@ -153,8 +149,7 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
         return;
     }
 
-    // Only AzimutReverbMapping sets this; reset it here so switching away
-    // from it can't leave a stale wet level stuck on for every other mapping.
+    // Only AzimutReverbMapping sets this - reset so switching away from it doesn't leave a stale wet level stuck on.
     mappingOut.reverbWetLevel = 0.0f;
 
     int activeIndex = activeMappingIndex.load();
