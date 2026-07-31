@@ -1,10 +1,7 @@
+#include "NodeMetadata.h"
 #include "NodeTypeRegistry.h"
 
 namespace Graph {
-
-void registerSourceNodes(NodeTypeRegistry&);
-void registerMathNodes(NodeTypeRegistry&);
-void registerSinkNodes(NodeTypeRegistry&);
 
 NodeTypeRegistry& NodeTypeRegistry::instance() {
     static NodeTypeRegistry registry;
@@ -12,9 +9,7 @@ NodeTypeRegistry& NodeTypeRegistry::instance() {
 }
 
 NodeTypeRegistry::NodeTypeRegistry() {
-    registerSourceNodes(*this);
-    registerMathNodes(*this);
-    registerSinkNodes(*this);
+    registerAllNodes(*this);
 }
 
 void NodeTypeRegistry::registerType(NodeTypeInfo info) {
