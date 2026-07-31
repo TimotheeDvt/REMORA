@@ -1,4 +1,4 @@
-\documentclass[10pt, twocolumn]{article}
+\documentclass[10pt]{article}
 \usepackage[margin=0.75in]{geometry}
 \usepackage{amsmath, amssymb}
 \usepackage{graphicx}
@@ -24,75 +24,57 @@
 \maketitle
 
 \begin{onecolabstract}
-This paper presents a two-column research paper template suitable for IEEE-style journal and conference submissions. The template demonstrates proper formatting for title, authors, abstract, sections, equations, tables, and references in a compact two-column layout commonly used in computer science and engineering publications.
+REMORA turns a martial arts staff (b\^o) into a musical instrument: spins, tilts, and strikes become sound in real time. A small wireless sensor unit on the staff tracks its motion and sends it to a companion audio plugin, which we built around a simple idea - instead of hard-wiring one fixed gesture-to-sound behaviour, the mapping itself is a small patch of connected building blocks that the performer can see and rewire live, on a visual canvas inside the plugin, much like a modular synthesiser. We show that this same small set of building blocks is enough to reproduce, as editable patches, everything from simple tilt-controlled pitch to compound movement-quality mappings inspired by Laban Movement Analysis. This paper describes the instrument's hardware, its self-calibration method, the mathematics behind turning raw orientation into musical control, and the live patching interface itself, and reflects on what it means to make an instrument's gestural vocabulary an explicit, editable part of the instrument.
 \end{onecolabstract}
 
-\noindent\textbf{Keywords:} two-column, research paper, LaTeX template, IEEE style
+\noindent\textbf{Keywords:} digital musical instrument, gestural control, inertial sensing, Laban Movement Analysis, OSC, staff instrument
 
 \section{Introduction}
+\textit{The b\^o staff is a full-body controller form factor that's had surprisingly little attention, and that's my opening case. The claim I want on the table from the first paragraph: REMORA's contribution isn't one more fixed gesture-to-sound mapping, but a reusable, block-rate visual programming layer embedded inside the instrument itself - every named mapping described later in the paper is really just one saved patch of that layer.}
 
-Two-column layouts are standard in many conferences and journals, particularly in computer science, engineering, and physics. This template provides a starting point for such submissions.
-
-The key advantages of two-column layouts include:
-\begin{itemize}
-    \item More efficient use of page space
-    \item Better readability for technical content
-    \item Conformance with venue requirements
-\end{itemize}
+\subsection*{Contributions}
+\textit{Four things here feel genuinely new to me, and I still need to turn this list into proper prose: (1) a small dataflow language (source / math / sink node primitives) embedded directly in the audio plugin, evaluated as a DAG (Directed Acyclic Graph) once per audio block, that a performer can rewire live instead of me recompiling C++; (2) by construction, this same handful of primitives turns out to be expressive enough to reproduce eleven previously hand-coded mapping strategies as ordinary presets - the mapping design space I explored by hand over the course of this project is, it turns out, spanned by a fairly compact algebra; (3) a magnetometer-free world-frame heading estimate (``facing'') derived purely from the calibrated orientation stream, which sidesteps the magnetic interference a stage rig would otherwise cause; (4) a mount-agnostic calibration transform, so the same instrument logic runs no matter where the sensor physically sits on the staff.}
 
 \section{Related Work}
+\textit{I need to place REMORA against prior IMU (Inertial Measurement Unit)-based and staff/rod-shaped DMIs (Digital Musical Instruments) - the T-Stick, conducting batons, poi/staff-flow instruments come to mind - and against visual dataflow patching environments (Max/MSP, Pure Data, VCV Rack), which is really the closest existing point of comparison for the node-graph interface. I should also cover prior uses of Laban Effort qualities and world-frame orientation as mapping sources in the NIME literature.}
 
-Discuss prior work relevant to your research. Cite important papers and explain how your approach differs or improves upon existing methods.
+\section{System Overview}
+\textit{Here's where I lay out the two-part architecture: firmware-side sensing and OSC (Open Sound Control) transport on one end, plugin-side reception, calibration, graph evaluation, and synthesis on the other. The signal-flow diagram belongs in this section.}
 
-\section{Methodology}
+\section{Hardware and Firmware}
+\textit{This is where I go through the ESP32-S2 + MPU-9250 sensor package, the 100~Hz I2C (Inter-Integrated Circuit) sampling loop, the Wi-Fi/UDP (User Datagram Protocol)/OSC packet format, the battery-powered staff-mounted enclosure, and the parametric OpenSCAD casing.}
 
-\subsection{Problem Definition}
+\section{Mathematical Formulation}
+\textit{This is the technical core of the paper, so I'd rather put the actual transformations down as compact equations than bury them in prose.}
 
-Given a dataset $\mathcal{D} = \{(\mathbf{x}_i, y_i)\}_{i=1}^{N}$, we aim to learn a function $f_\theta$ that minimizes:
-\begin{equation}
-    \mathcal{L}(\theta) = \frac{1}{N} \sum_{i=1}^{N} \ell(f_\theta(\mathbf{x}_i), y_i) + \lambda \|\theta\|_2^2
-    \label{eq:loss}
-\end{equation}
+\textbf{Calibration.} Three recorded poses $\{q_A, q_B, q_C\}$ define a target frame; a correction quaternion $q_c$ is recovered from the orthonormal polar factor $U$ of the $3\times3$ matrix built from the pose vectors, $M = U\Sigma V^{\top} \Rightarrow U = MV\Sigma^{-1}V^{\top}$, so that every subsequent reading $q_t$ is expressed in instrument space as $q_t' = q_c \, q_t \, q_c^{-1}$, independent of how the sensor is physically mounted.
 
-where $\ell$ is the loss function and $\lambda$ controls regularization.
+\textbf{World-frame facing.} A calibrated forward vector $\hat{f} = q_t' \cdot \hat{x} \cdot q_t'^{-1}$ is projected to the horizontal plane; heading is $\theta = \operatorname{atan2}(\hat{f}_y, \hat{f}_x)$, quantised into compass sectors with a hysteresis band ($\approx\!1.15{:}1$ ratio between switch points) so $\theta$ near a boundary does not chatter the mapped root note.
 
-\subsection{Proposed Approach}
+\textbf{Laban-derived features.} Weight is the leaky integral of gravity-removed acceleration magnitude, $w_n = \alpha w_{n-1} + \lVert a_n - g\rVert$; Time (suddenness) is a normalised derivative of smoothed gyroscopic magnitude, $|\dot{\lVert\omega\rVert}|$; Flow is derived from jerk, $\lVert \dot a_n \rVert$, split into bound/free complements summing to $\approx\!1$.
 
-Describe your method in detail. Use equations, algorithms, and diagrams as needed to explain the approach clearly.
+\textbf{Graph evaluation.} A patch is a DAG $G=(N,E)$ of typed nodes; each block, nodes are visited in topological order $n_1,\dots,n_k$ and each node computes $y_i = f_{\text{type}(n_i)}(x_{i,1},\dots,x_{i,m};\,\theta_i)$ from its wired inputs $x$ and parameters $\theta$, so the whole patch is one composed function of the raw sensor frame evaluated once per audio block; connecting an edge that would close a cycle is rejected at edit time.
 
-\section{Experiments}
+\section{A Node-Graph Mapping Language}
+\textit{Here I explain the \texttt{NodeGraph}/\texttt{NodeTypeRegistry} design: three node categories (Source - raw IMU channels and derived motion/Laban features; Math - arithmetic, shaping, dynamics, lookup tables; Sink - synth parameters, from scalars like root frequency to indexed arrays like per-voice gain/pan), each a small typed function registered once. A graph is just nodes plus typed input-to-output wiring, serialised to/from XML (Extensible Markup Language) as a preset - and I want to be clear that \texttt{GraphMappingStrategy} makes the graph itself the only mapping type the synth ever talks to; there's no separate hand-written mapping path anymore.}
 
-\subsection{Setup}
+\section{Named Mappings as Graph Presets}
+\textit{I'd rather show the generalisation claim than just assert it, so this section walks through how Simple (tilt-to-pitch), Bowed Chord, Lead+Drone, Spin Filter, the Bozendo V1/V2 Laban-driven mappings, and the Azimut family (facing-based eight-way root table, spin-count filter sweep, axial thrust transients, plus the Azimut+/Reverb/Ben's/Spin Voices variants) are each just a specific wiring of the same node vocabulary - built once in C++ via \texttt{GraphBuilder}, and now editable as ordinary patches.}
 
-We evaluate on three benchmark datasets. All experiments use the same hyperparameters: learning rate $\eta = 10^{-3}$, batch size 32, and 100 training epochs.
+\section{Graphical Interface: Live Patching as Performance Practice}
+\textit{This is probably the section I want to spend the most space on after the mathematics.} I want to present the node-graph editor as the instrument's primary authoring surface, not a debug tool: a pannable, zoomable canvas on which each node renders as a coloured card - green for Source, yellow for Sink, neutral for Math - labelled with its category and inline, live-editable parameter fields; typed input/output pins along each card's edges accept click-and-drag connections rendered as cubic-B\'ezier wires, colour-highlighted while dragging and hit-testable afterward for rewiring or deletion via context menu. New nodes are added from a categorised picker at any canvas position; an auto-layout pass untangles a freshly loaded preset into left-to-right source-to-sink columns. A dirty-state indicator tracks whether the active patch has diverged from its saved preset, with one-click revert - so a performer can improvise a mapping change mid-rehearsal and either keep or discard it, treating the mapping itself as something authored and iterated on at the same level as the sound it produces.
 
-\subsection{Results}
-
-\begin{table}[h]
-    \centering
-    \caption{Comparison with baseline methods.}
-    \label{tab:results}
-    \begin{tabular}{lcc}
-        \toprule
-        Method & Acc. (\%) & F1 \\
-        \midrule
-        Baseline A & 82.1 & 0.79 \\
-        Baseline B & 84.5 & 0.82 \\
-        Baseline C & 86.3 & 0.84 \\
-        \textbf{Ours} & \textbf{91.0} & \textbf{0.89} \\
-        \bottomrule
-    \end{tabular}
-\end{table}
-
-Table~\ref{tab:results} shows our method outperforms all baselines. The improvement is statistically significant ($p < 0.01$).
+\section{Synthesis Engine}
+\textit{Still need to write up \texttt{BoStaffSynth} here - the shared four-voice additive engine and its mapping-agnostic parameter surface (gain, drive, noise, filter, pan, reverb send) that every graph's sink nodes write into.}
 
 \section{Discussion}
+\textit{I want to be honest here about what the generalisation into a graph actually buys versus what it costs: expressiveness and shareability of mappings, weighed against the added cognitive step of patching for performers used to fixed instruments. Worth folding in the informal playtesting observations, and I should be upfront about the current limitations - single-IMU ambiguity, no formal user study yet, no perceptual evaluation of the facing/calibration accuracy.}
 
-Interpret the results and discuss implications, limitations, and potential future directions.
+\section{Future Work}
+\textit{Extensions I keep coming back to: gesture-triggered mode switching, a merged rest/motion mapping, a two-IMU dual-tip configuration, further Laban Effort mapping targets, ML-based discrete gesture recognition, and eventually exposing the node graph itself as a shareable/community patch format.}
 
 \section{Conclusion}
-
-Summarize contributions and key findings. Our method achieves state-of-the-art performance on all evaluated benchmarks as shown in Equation~\ref{eq:loss} and Table~\ref{tab:results}.
+\textit{I want to close by making REMORA's real novelty explicit: it's architectural, not just one more instrument - collapsing eleven hand-built gesture mappings into presets of one small, live-patchable dataflow language embedded in the plugin, grounded in an explicit mathematical account of calibration, orientation, and movement-quality extraction.}
 
 \bibliographystyle{plain}
 \bibliography{references}
