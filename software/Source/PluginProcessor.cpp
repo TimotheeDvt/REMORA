@@ -118,26 +118,10 @@ void REMORAProcessor::computeCorrection() {
       MathHelpers::rotate(staffAxis, qA)); // measured "forward"
   auto b1 = MathHelpers::normalize(
       MathHelpers::rotate(staffAxis, qB)); // measured "up"
-  auto b2 = MathHelpers::normalize(
-      MathHelpers::rotate(staffAxis, qC)); // measured "right"
 
   // What we WANT those directions to map to in virtual space
   MathHelpers::Vec3 r0{1.f, 0.f, 0.f}; // virtual +X (forward)
   MathHelpers::Vec3 r1{0.f, 0.f, 1.f}; // virtual +Z (up)
-  MathHelpers::Vec3 r2{0.f, 1.f, 0.f}; // virtual +Y (right)
-
-  // Cross-covariance H = sum(r_i * b_i^T), 3x3 stored as columns.
-  float H[3][3] = {};
-  auto addOuter = [&](MathHelpers::Vec3 r, MathHelpers::Vec3 b) {
-    float rv[3] = {r.x, r.y, r.z};
-    float bv[3] = {b.x, b.y, b.z};
-    for (int i = 0; i < 3; ++i)
-      for (int j = 0; j < 3; ++j)
-        H[i][j] += rv[i] * bv[j];
-  };
-  addOuter(r0, b0);
-  addOuter(r1, b1);
-  addOuter(r2, b2);
 
   // Best-fit rotation R with R * b_i ~= r_i, built directly rather than via full SVD.
 

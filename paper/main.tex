@@ -89,114 +89,114 @@ REMORA turns a martial arts staff (b\^o) into a musical instrument: spins, tilts
 \textit{This is where I go through the ESP32-S2 + MPU-9250 sensor package, the 100~Hz I2C (Inter-Integrated Circuit) sampling loop, and the Wi-Fi/UDP (User Datagram Protocol)/OSC packet format the firmware streams to the host.}
 
 \subsection*{Software: Calibration and Motion Mathematics}
-\textit{This is the technical core of the paper. Every transformation below is transcribed from the actual implementation, not idealised - each item is tagged with the function(s) it lives in so the mapping from equation to code is traceable.}
+\textit{Every equation below comes straight from the running code, each one is tagged with the function it lives in.}
 
 \subsubsection*{Orientation and Calibration}
 
-\textbf{Rotation.} All spatial reasoning works on unit quaternions rather than Euler angles, to avoid gimbal lock:
+\textbf{Rotation.} Orientation is tracked as a unit quaternion rather than Euler angles, since quaternions don't suffer from gimbal lock. Rotating a vector $v$ by orientation $q$ gives
 \[
 v' = q\,v\,q^{-1}
 \]
-where $v$ is the vector being rotated, $q$ the unit orientation quaternion, and $q^{-1}$ its conjugate. Computed via the standard expanded (non-multiplication) formula; Euler pitch/roll/yaw are only reconstructed once, at the very end, for the handful of mappings that still want them.
+where $q^{-1}$ is the conjugate of $q$. Euler angles (pitch/roll/yaw) are only computed once, right at the end, for the handful of mappings that still need them.
 \\\hfill\texttt{MathHelpers::rotate}, \texttt{rotateVectorByQuaternion}, \texttt{toEuler}, \texttt{multiply}, \texttt{conjugate}
 
-\textbf{Calibration, stage 1 - local axis selection.} The three calibration poses $q_A, q_B, q_C$ determine \emph{which} body axis of the sensor is the staff's forward direction. For each of the six axis-aligned candidates $L \in \{\pm X, \pm Y, \pm Z\}$:
+\textbf{Calibration, stage 1 - which axis is ``forward''.} The sensor chip can be glued onto the staff at any orientation, so REMORA can't just assume which of its axes points along the staff. During calibration the performer holds the staff in three reference poses, labelled $A, B$ and $C$, giving three corresponding recorded quaternions $q_A, q_B, q_C$. For each of the six candidate axes $L \in \{\pm X, \pm Y, \pm Z\}$, we rotate $L$ through all three poses and see how spread out the results are:
 \begin{align*}
 v_P &= \widehat{\mathrm{rotate}(L, q_P)}\,,\quad P \in \{A,B,C\} \\
 e(L) &= |v_A{\cdot}v_B| + |v_B{\cdot}v_C| + |v_C{\cdot}v_A|
 \end{align*}
-where $L$ is the candidate body axis under test, $q_P$ the quaternion recorded for pose $P$, and $v_A, v_B, v_C$ the resulting normalised directions for the three poses. The candidate minimising $e(L)$, subject to the right-handedness constraint $(v_A \times v_B)\cdot v_C < 0$, is kept as the alignment quaternion $q_{\text{align}}$.
+A genuine forward axis should point in three noticeably different directions across the three poses, so a low $e(L)$ (near-orthogonal directions) is a good sign. The candidate with the lowest $e(L)$ - as long as it also forms a right-handed triad, $(v_A \times v_B)\cdot v_C < 0$ - is kept as the alignment quaternion $q_{\text{align}}$.
 \\\hfill\texttt{computeAlignQuat} (PluginProcessor.cpp)
 
-\textbf{Calibration, stage 2 - frame alignment.} The chosen staff axis, rotated through each pose, gives three measured directions $b_0, b_1, b_2$ (forward/up/right), compared against the target directions $r_0, r_1, r_2$ of the virtual instrument frame. Both triads are orthonormalised by Gram-Schmidt:
+\textbf{Calibration, stage 2 - fixing the remaining twist.} Picking the right axis isn't quite enough, since the sensor could still be mounted rotated around it. So the three poses also give a measured forward/up/right triad $b_0, b_1, b_2$, which is compared against where those directions are \emph{supposed} to point in the ideal instrument frame, $r_0, r_1, r_2$. Both triads are first straightened into right-angled axes with Gram-Schmidt:
 \begin{align*}
 e_0 &= b_0, & e_1 &= \widehat{b_0 \times b_1}, & e_2 &= e_0 \times e_1 \\
 f_0 &= r_0, & f_1 &= \widehat{r_0 \times r_1}, & f_2 &= f_0 \times f_1
 \end{align*}
-and the correction rotation is the closed form
+and the rotation that best lines one triad up with the other has a simple closed form,
 \[
 R = F E^{\top}\,,\qquad F = [\,f_0\;\;f_1\;\;f_2\,]\,,\quad E = [\,e_0\;\;e_1\;\;e_2\,]
 \]
-the least-squares-optimal rotation aligning the measured triad to the target triad - the same result an orthogonal-Procrustes/SVD solve would give here, obtained without an SVD. $R$ is converted back to a quaternion $q_{\text{corr}}$ by Shepperd's method.
+giving the same answer an SVD-based Procrustes solve would, without needing an SVD. $R$ is then converted to a quaternion $q_{\text{corr}}$ using Shepperd's method.
 \\\hfill\texttt{computeCorrection}, \texttt{MathHelpers::fromMatrix}
 
-\textbf{Calibration, runtime application.} Every subsequent raw reading is expressed in instrument space as
+\textbf{Calibration, runtime application.} From then on, every live reading is converted into instrument space with
 \[
 q' = q_{\text{corr}} \, \big(q_{\text{raw}} \, q_{\text{align}}\big)
 \]
-where $q_{\text{raw}}$ is the live quaternion reported by the sensor and $q_{\text{align}}$, $q_{\text{corr}}$ the two calibration quaternions found above - independent of how the sensor is physically mounted on the staff.
+where $q_{\text{raw}}$ is what the sensor reports and $q_{\text{align}}$, $q_{\text{corr}}$ are the two quaternions found above. The result doesn't depend on where on the staff the sensor happens to be mounted.
 \\\hfill\texttt{REMORAProcessor::getCalibratedQuat}
 
 \subsubsection*{Motion Feature Extraction}
-\textit{All of the following run once per received packet inside the shared analyzer every mapping graph reads from, so no mapping duplicates this logic.} \texttt{StaffMotionAnalyzer::computeFrame} (StaffMotionAnalyzer.cpp/.h).
+\textit{Everything below runs once per received packet, inside the shared analyzer that every mapping graph reads from - so no individual mapping repeats this work.} \texttt{StaffMotionAnalyzer::computeFrame} (StaffMotionAnalyzer.cpp/.h).
 
-\textbf{Timestep.} $\Delta t$ is measured between packets and only updated when it falls inside $(0.1\text{ms}, 200\text{ms})$; outside that window the previous $\Delta t$ is held unchanged, so a dropped or duplicate packet cannot spike any integrator.
+\textbf{Timestep.} $\Delta t$ is the time between two packets. If it looks suspicious (outside $0.1$-$200\,\text{ms}$), REMORA just reuses the last valid $\Delta t$ instead of trusting it - so a dropped or duplicated packet can't send any of the integrators below flying.
 \\\hfill\texttt{calculateDeltaTime}
 
-\textbf{Tip vector and rotation axis.} The staff-tip direction $p_n = \mathrm{rotate}((1,0,0), q_n)$ is kept in a 3-sample ring buffer; the instantaneous rotation axis at the midpoint sample is obtained by central difference:
+\textbf{Tip vector and rotation axis.} The direction the staff's tip is pointing, $p_n = \mathrm{rotate}((1,0,0), q_n)$, is kept in a rolling buffer of the last three samples. From those three points we get the tip's velocity and, from that, the axis it's currently spinning around:
 \[
 \bar v = \tfrac{1}{2}(p_0 - p_2) \qquad\qquad \mathrm{axis} = p_1 \times \bar v
 \]
-where subscripts $0, 1, 2$ denote the newest, middle, and oldest of the three buffered tip vectors, and $\bar v$ is the estimated tip velocity at the middle sample.
+where $p_0, p_1, p_2$ are the newest, middle, and oldest of the three buffered points.
 \\\hfill\texttt{updateTipPositionHistory}, \texttt{calculateRotationAxisAtMidpoint}
 
-\textbf{Gravity and dynamic acceleration.} A gravity estimate is tracked as a smoothed inverse-rotation of the world $+Z$ axis,
+\textbf{Gravity and dynamic acceleration.} The accelerometer always mixes gravity in with whatever motion the performer is making. To separate the two, REMORA keeps a running estimate of which way ``down'' currently is, by smoothing the inverse-rotated world $+Z$ axis:
 \[
 g_n = \mathrm{onePole}\big(g_{n-1},\ \mathrm{rotate}(+Z,\, q_n^{-1}),\ \alpha{=}0.10\big)
 \]
-then subtracted from the raw accelerometer reading to isolate motion from posture: $a_{\text{dyn}} = a_{\text{raw}} - g$, where $a_{\text{raw}}$ is the raw accelerometer sample (in g) and $g$ the smoothed gravity estimate $g_n$ above.
+Subtracting this gravity estimate from the raw reading leaves just the motion: $a_{\text{dyn}} = a_{\text{raw}} - g$.
 \\\hfill\texttt{updateGravityVector}, \texttt{calculateDynamicAcceleration}
 
-\textbf{One-pole smoothing.} The single primitive reused by nearly every feature below:
+\textbf{One-pole smoothing.} One simple filter shows up everywhere below, so it's worth naming just once:
 \[
 y_n = y_{n-1} + \alpha \,(x_n - y_{n-1})
 \]
-where $x_n$ is the new input sample, $y_{n-1}$ the previous smoothed output, and $\alpha\in(0,1]$ the smoothing coefficient (higher = faster response).
+Each new output nudges partway from the previous output $y_{n-1}$ toward the new input $x_n$; $\alpha \in (0,1]$ sets how big that step is - higher means it reacts faster, but gets noisier.
 \\\hfill\texttt{MathHelpers::applyOnePoleFilter}
 
-\textbf{Laban Weight.} Velocity is integrated from dynamic acceleration with exponential decay derived from an 80\,ms half-life:
+\textbf{Laban Weight.} Meant to capture how forceful a movement feels. Dynamic acceleration is integrated into a running velocity estimate, with old velocity constantly leaking away (an 80\,ms half-life, so a staff left resting doesn't drift):
 \[
 v_n = \big(v_{n-1} + a_{\text{dyn}}\cdot 9.81 \cdot \Delta t\big)\cdot e^{-\Delta t \cdot 1000 \ln 2 / 80}
 \]
-where $v_n$ is the running velocity estimate, $9.81\,\text{m/s}^2$ converts $a_{\text{dyn}}$ from g-units to physical units, and the exponential factor discards accumulated velocity with an $\approx\!80$\,ms half-life. Weight is $\lVert v_n \rVert$, scaled and clamped, run through an asymmetric attack/release envelope ($\alpha_{\text{attack}}{=}0.40$, $\alpha_{\text{release}}{=}0.006$) so it snaps up on impact and settles slowly.
+($9.81\,\text{m/s}^2$ just converts $a_{\text{dyn}}$ from g-units to physical units.) Weight is $\lVert v_n \rVert$, scaled and clamped, pushed through an envelope that snaps up fast on impact ($\alpha_{\text{attack}}{=}0.40$) but settles back down slowly ($\alpha_{\text{release}}{=}0.006$).
 \\\hfill\texttt{integrateVelocityForLabanWeight}, \texttt{updateLabanWeight}
 
-\textbf{Laban Time (suddenness).} The derivative of raw gyroscope magnitude,
+\textbf{Laban Time (suddenness).} Tracks how abruptly the rotation speed is changing. It's the rate of change of the \emph{raw} gyroscope magnitude - deliberately not the smoothed version used elsewhere, so a sharp onset isn't blurred out before it's measured:
 \[
 \dot{\lVert\omega\rVert} = \frac{\lVert\omega\rVert_n - \lVert\omega\rVert_{n-1}}{\Delta t}
 \]
-where $\omega$ is the gyroscope's angular-velocity vector (in $^\circ/\text{s}$) and $\lVert\omega\rVert_n$ its \emph{raw}, unsmoothed magnitude at block $n$ - deliberately not the separately-smoothed gyroscope magnitude computed elsewhere in the same frame, so onset transients aren't damped out before they reach this feature. The result is clamped to its positive part, normalised by $800^\circ/\text{s}^2$, and given its own fast-attack/slow-release envelope.
+where $\omega$ is the gyroscope's angular-velocity vector (in $^\circ/\text{s}$). Only increases count (it's clamped to its positive part), normalised by $800^\circ/\text{s}^2$, then given its own fast-attack/slow-release envelope.
 \\\hfill\texttt{updateLabanTime}
 
-\textbf{Laban Space (focus).} The running absolute dot product of consecutive normalised gyroscope-axis directions, one-pole smoothed ($\alpha{=}0.10$) and relaxing toward $0.5$ whenever the staff is nearly still.
+\textbf{Laban Space (focus).} Captures how consistently the staff spins around the \emph{same} axis, versus wandering. It's the absolute dot product between consecutive, normalised rotation-axis directions, one-pole smoothed ($\alpha{=}0.10$) and relaxing back toward $0.5$ whenever the staff is nearly still.
 \\\hfill\texttt{updateLabanSpace}
 
-\textbf{Laban Flow.} Normalised jerk of the dynamic-acceleration magnitude,
+\textbf{Laban Flow.} Separates bound, controlled movement from free, flung movement, using the jerk (rate of change) of the dynamic-acceleration magnitude:
 \begin{align*}
 \dot{\lVert a_{\text{dyn}}\rVert} &= \frac{\lVert a_{\text{dyn}}\rVert_n - \lVert a_{\text{dyn}}\rVert_{n-1}}{\Delta t + 10^{-6}} \\
 j_{\text{flow}} &= \frac{\big|\dot{\lVert a_{\text{dyn}}\rVert}\big|}{50}
 \end{align*}
-where $\dot{\lVert a_{\text{dyn}}\rVert}$ is the block-to-block change in dynamic-acceleration magnitude \emph{per second}, with a $10^{-6}$ epsilon guarding the division. $j_{\text{flow}}$ is clamped to $[0,1]$ and smoothed ($\alpha{=}0.12$) into \texttt{flow\_bound}; \texttt{flow\_free} $= 1 - \texttt{flow\_bound}$.
+(the $10^{-6}$ just guards against dividing by zero). $j_{\text{flow}}$ is clamped to $[0,1]$ and smoothed ($\alpha{=}0.12$) into \texttt{flow\_bound}; \texttt{flow\_free} is simply $1 - \texttt{flow\_bound}$.
 \\\hfill\texttt{updateLabanFlow}
 
-\textbf{Spin classification.} The smoothed rotation axis ($\alpha{=}0.35$) is classified vertical iff its horizontal-plane magnitude exceeds $|axis_z|$; spin direction is the sign of the dominant in-plane axis component in one convention, or the sign of that axis's dot product with a reference azimuth latched once, at the first qualifying vertical spin after the mapping is loaded (not re-latched per gesture), in the other.
+\textbf{Spin classification.} Is the staff spinning like a baton (vertical) or more like a fan blade (horizontal)? The smoothed rotation axis ($\alpha{=}0.35$) is called vertical when its horizontal-plane component outweighs its $z$ component. Spin direction (CW/CCW) then comes either from the sign of the dominant in-plane axis component, or - in the Bozendo mappings - from the sign of that axis's dot product against a reference heading latched once, the first time a qualifying vertical spin happens after the mapping loads.
 \\\hfill\texttt{updateSpinClassificationByAbsoluteComponent} (Azimut/Ben's), \texttt{...ByReferenceAzimuth} (Bozendo)
 
-\textbf{Facing.} Deliberately not an atan2/compass-heading computation - a hysteresis comparison
+\textbf{Facing.} Rather than compute a compass heading - which would need a magnetometer, and stages are full of magnetic interference - REMORA asks a simpler question: is the staff pointing more east-west or more north-south? That's just a hysteresis comparison,
 \[
 |axis_x| \ \gtrless\ 1.15\cdot|axis_y|
 \]
-where $axis_x, axis_y$ are the horizontal components of whichever axis is currently in play - the smoothed rotation axis during vertical spins, or the smoothed tip direction during horizontal ones - giving $\approx\!48^\circ/42^\circ$ asymmetric switch points so the classification does not chatter at the boundary. No magnetometer is involved.
+using whichever axis is currently relevant - the rotation axis during vertical spins, the tip direction during horizontal ones. The $1.15$ factor gives asymmetric switch points ($\approx\!48^\circ/42^\circ$) so the classification doesn't flicker right at the boundary.
 \\\hfill\texttt{updateFacingClassification}
 
-\textbf{Continuous spin count.} Degrees are accumulated as $\lVert\omega\rVert \cdot \Delta t$, independent of spin direction; every $360^\circ$ crossed decrements the accumulator and increments an unsigned lap counter, which resets to $0$ the instant the spin classification changes.
+\textbf{Continuous spin count.} Counts how many full turns the staff has made in its current spin, regardless of direction. Degrees accumulate as $\lVert\omega\rVert \cdot \Delta t$; every $360^\circ$ crossed resets the accumulator and bumps the lap counter by one. The counter itself resets to $0$ the instant the spin classification changes.
 \\\hfill\texttt{accumulateContinuousSpins}
 
-\textbf{Axial thrust detection.} Dynamic acceleration is rotated into world frame and projected onto the tip direction by dot product to give a signed axial acceleration $a_{\text{ax}}$; its jerk
+\textbf{Axial thrust detection.} Catches a stabbing or striking motion along the staff's own axis. Dynamic acceleration is rotated into world frame and projected onto the tip direction, giving a signed axial acceleration $a_{\text{ax}}$. A thrust is flagged when its jerk
 \[
 j_{\text{ax}} = \frac{a_{\text{ax},n} - a_{\text{ax},n-1}}{\Delta t}
 \]
-where $a_{\text{ax},n}$ and $a_{\text{ax},n-1}$ are the current and previous axial-acceleration samples. $j_{\text{ax}}$ is watched for a zero-crossing coincident with $|a_{\text{ax}}| > 1.5\text{g}$, gated to $\lVert\omega\rVert < 90^\circ/\text{s}$ (so a fast spin cannot be mistaken for a stab) and a 200\,ms cooldown. A valid peak sets the thrust envelope's target to $\mathrm{clamp}(\text{strength}+0.5,0,1)$; a $\times 0.94$ per-block decay ($\approx\!150$\,ms half-life) is then applied unconditionally every block, including the trigger block itself, so the value actually reached on a hit is $0.94$ of that target.
+crosses zero right as $|a_{\text{ax}}|$ passes $1.5\text{g}$ - gated to $\lVert\omega\rVert < 90^\circ/\text{s}$ so a fast spin can't be mistaken for a stab, plus a 200\,ms cooldown between hits. A detected hit sets the thrust envelope's target to $\mathrm{clamp}(\text{strength}+0.5,0,1)$, and a $\times 0.94$-per-block decay ($\approx\!150$\,ms half-life) applies from then on, every block, including the trigger block itself - so what actually shows up on a hit is $0.94\times$ that target.
 \\\hfill\texttt{detectAxialThrustPeaks}
 
 \subsection*{Software: Mapping Architecture}
