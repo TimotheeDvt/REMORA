@@ -87,6 +87,7 @@ static MathHelpers::Quat computeAlignQuat(MathHelpers::Quat qA, MathHelpers::Qua
     }
   }
 
+  // Each case is the quaternion rotating canonical +X onto that axis; 0.70710678f = sin(45deg) = cos(45deg): w and axis component of a 90deg rotation.
   switch (bestIndex) {
     case 0: return {1.f, 0.f, 0.f, 0.f};                       // +X
     case 1: return {0.f, 0.f, 1.f, 0.f};                       // -X
