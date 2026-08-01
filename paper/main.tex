@@ -165,10 +165,13 @@ results are:
 v_P &= \widehat{\mathrm{rotate}(L, q_P)}\,,\quad P \in \{A,B,C\} \\
 e(L) &= |v_A{\cdot}v_B| + |v_B{\cdot}v_C| + |v_C{\cdot}v_A|
 \end{align*}
-A genuine forward axis should point in three noticeably different directions across the three poses,
-so a low $e(L)$ (near-orthogonal directions) is a good sign. The candidate with the lowest $e(L)$ -
-as long as it also forms a right-handed triad, $(v_A \times v_B)\cdot v_C < 0$ - is kept as the
-alignment quaternion $q_{\text{align}}$.
+The calibration poses are chosen so the forward direction changes substantially between them while
+up/right do not; under that assumption a low $e(L)$ (near-orthogonal $v_A,v_B,v_C$) is the signature
+of the genuine forward axis. Restricting to right-handed candidates, the alignment axis is
+\[
+L^\ast = \operatorname*{arg\,min}_{L\,:\,(v_A \times v_B)\cdot v_C < 0} e(L)\,,
+\]
+and $L^\ast$'s rotation is kept as the alignment quaternion $q_{\text{align}}$.
 \coderef{\texttt{computeAlignQuat}}
 
 \textbf{Calibration, stage 2 - fixing the remaining twist.} Picking the right axis isn't quite
@@ -177,12 +180,13 @@ measured forward/up/right triad $b_f, b_u, b_r$, which is compared against where
 are \emph{supposed} to point in the ideal instrument frame, $r_f, r_u, r_r$. Both triads are first
 straightened into right-angled axes with Gram-Schmidt:
 \begin{align*}
-e_0 &= b_f, & e_1 &= \widehat{b_f \times b_u}, & e_2 &= e_0 \times e_1 \\
-f_0 &= r_f, & f_1 &= \widehat{r_f \times r_u}, & f_2 &= f_0 \times f_1
+u_0 &= b_f, & u_1 &= \widehat{b_f \times b_u}, & u_2 &= u_0 \times u_1 \\
+w_0 &= r_f, & w_1 &= \widehat{r_f \times r_u}, & w_2 &= w_0 \times w_1
 \end{align*}
-and the rotation that best lines one triad up with the other has a simple closed form,
+This is a special case of the orthogonal Procrustes problem, so the rotation that best lines one
+triad up with the other has a closed form,
 \[
-R = F E^{\top}\,,\qquad F = [\,f_0\;\;f_1\;\;f_2\,]\,,\quad E = [\,e_0\;\;e_1\;\;e_2\,]
+R = W U^{\top}\,,\qquad W = [\,w_0\;\;w_1\;\;w_2\,]\,,\quad U = [\,u_0\;\;u_1\;\;u_2\,]
 \]
 $R$ is then converted to a quaternion $q_{\text{corr}}$ using Shepperd's method.
 \coderef{\texttt{computeCorrection}}
@@ -199,9 +203,35 @@ be mounted.
 \coderef{\texttt{REMORAProcessor::getCalibratedQuat}}
 
 \subsubsection*{Motion Feature Extraction}
+
 \textit{Everything below runs once per received packet, inside the shared analyzer that every
-mapping graph reads from - so no individual mapping repeats this work.}
+mapping graph reads from - so no individual mapping repeats this work.} The smoothing rates,
+thresholds, and envelope times named throughout this subsection were tuned by ear against the
+physical instrument during iterative testing, not derived analytically or fit to recorded data; see
+Discussion for the resulting lack of a perceptual evaluation of these choices.
 \coderef{\texttt{StaffMotionAnalyzer::computeFrame}}
+
+\begin{center}
+\small
+\textbf{Table 1: Per-packet motion features.}\par\smallskip
+\begin{tabular}{@{}p{0.32\linewidth}p{0.58\linewidth}@{}}
+\toprule
+Feature & Purpose \\
+\midrule
+Timestep $\Delta t$ & reject implausible packet gaps \\
+Tip vector / rotation axis & derive tip velocity \& spin axis \\
+Gravity / dynamic accel. & separate gravity from motion \\
+Laban Weight & movement forcefulness \\
+Laban Time & suddenness of rotation-speed change \\
+Laban Space & spin-axis consistency (focus) \\
+Laban Flow & bound vs.\ free movement \\
+Spin classification & vertical/horizontal spin \& direction \\
+Facing & east-west vs.\ north-south heading \\
+Continuous spin count & count full turns per spin \\
+Axial thrust & detect stab/strike along staff axis \\
+\bottomrule
+\end{tabular}
+\end{center}
 
 \textbf{Timestep.} $\Delta t$ is the time between two packets. If it looks suspicious (outside
 $0.1$-$200\,\text{ms}$), REMORA just reuses the last valid $\Delta t$ instead of trusting it - so a
@@ -281,23 +311,28 @@ smoothed ($\alpha{=}0.12$) into \texttt{flow\_bound}; \texttt{flow\_free} is sim
 \coderef{\texttt{updateLabanFlow}}
 
 \textbf{Spin classification.} Is the staff spinning like a baton (vertical) or more like a fan blade
-(horizontal)? The smoothed rotation axis ($\alpha{=}0.35$) is called vertical when its
-horizontal-plane component outweighs its $z$ component. Spin direction (CW/CCW) then comes either
-from the sign of the dominant in-plane axis component, or - in the Bozendo mappings - from the sign
-of that axis's dot product against a reference heading latched once, the first time a qualifying
-vertical spin happens after the mapping loads.
+(horizontal)? Let $(\mathrm{axis}_x,\mathrm{axis}_y,\mathrm{axis}_z)$ be the $\alpha{=}0.35$
+one-pole-smoothed rotation axis from above. The spin is classified vertical when
+\[
+\sqrt{\mathrm{axis}_x^2 + \mathrm{axis}_y^2}\ \gtrless\ |\mathrm{axis}_z|\,,
+\]
+i.e.\ when the horizontal-plane component outweighs the $z$ component. Spin direction (CW/CCW) then
+comes either from the sign of the dominant in-plane axis component, or - in the Bozendo mappings -
+from the sign of that axis's dot product against a reference heading latched once, the first time a
+qualifying vertical spin happens after the mapping loads.
 \coderef{\texttt{updateSpinClassificationByAbsoluteComponent}}
 \coderef{\texttt{ByReferenceAzimuth}}
 
 \textbf{Facing.} Rather than compute a compass heading - which would need a magnetometer, and stages
 are full of magnetic interference - REMORA asks a simpler question: is the staff pointing more
-east-west or more north-south? That's just a hysteresis comparison,
+east-west or more north-south? Let $(\mathrm{dir}_x,\mathrm{dir}_y)$ be the horizontal-plane
+components of whichever direction is currently relevant - the rotation axis during vertical spins,
+the tip direction during horizontal ones. Facing is then just a hysteresis comparison,
 \[
-|axis_x| \ \gtrless\ 1.15\cdot|axis_y|
+|\mathrm{dir}_x| \ \gtrless\ 1.15\cdot|\mathrm{dir}_y|\,,
 \]
-using whichever axis is currently relevant - the rotation axis during vertical spins, the tip
-direction during horizontal ones. The $1.15$ factor gives asymmetric switch points
-($\approx\!48^\circ/42^\circ$) so the classification doesn't flicker right at the boundary.
+where the $1.15$ factor gives asymmetric switch points ($\approx\!48^\circ/42^\circ$) so the
+classification doesn't flicker right at the boundary.
 \coderef{\texttt{updateFacingClassification}}
 
 \textbf{Continuous spin count.} Counts how many full turns the staff has made in its current spin,
