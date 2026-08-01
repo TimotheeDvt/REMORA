@@ -98,16 +98,15 @@ REMORA turns a martial arts staff (b\^o) into a musical instrument: spins, tilts
 v' = q\,v\,q^{-1}
 \]
 where $v$ is the vector being rotated, $q$ the unit orientation quaternion, and $q^{-1}$ its conjugate. Computed via the standard expanded (non-multiplication) formula; Euler pitch/roll/yaw are only reconstructed once, at the very end, for the handful of mappings that still want them.
-\hfill\texttt{MathHelpers::rotate}, \texttt{rotateVectorByQuaternion}, \texttt{toEuler}, \texttt{multiply}, \texttt{conjugate}
+\\\hfill\texttt{MathHelpers::rotate}, \texttt{rotateVectorByQuaternion}, \texttt{toEuler}, \texttt{multiply}, \texttt{conjugate}
 
 \textbf{Calibration, stage 1 - local axis selection.} The three calibration poses $q_A, q_B, q_C$ determine \emph{which} body axis of the sensor is the staff's forward direction. For each of the six axis-aligned candidates $L \in \{\pm X, \pm Y, \pm Z\}$:
-\[
-v_P = \widehat{\mathrm{rotate}(L, q_P)}\,,\quad P \in \{A,B,C\}
-\qquad\qquad
-e(L) = |v_A{\cdot}v_B| + |v_B{\cdot}v_C| + |v_C{\cdot}v_A|
-\]
+\begin{align*}
+v_P &= \widehat{\mathrm{rotate}(L, q_P)}\,,\quad P \in \{A,B,C\} \\
+e(L) &= |v_A{\cdot}v_B| + |v_B{\cdot}v_C| + |v_C{\cdot}v_A|
+\end{align*}
 where $L$ is the candidate body axis under test, $q_P$ the quaternion recorded for pose $P$, and $v_A, v_B, v_C$ the resulting normalised directions for the three poses. The candidate minimising $e(L)$, subject to the right-handedness constraint $(v_A \times v_B)\cdot v_C < 0$, is kept as the alignment quaternion $q_{\text{align}}$.
-\hfill\texttt{computeAlignQuat} (PluginProcessor.cpp)
+\\\hfill\texttt{computeAlignQuat} (PluginProcessor.cpp)
 
 \textbf{Calibration, stage 2 - frame alignment.} The chosen staff axis, rotated through each pose, gives three measured directions $b_0, b_1, b_2$ (forward/up/right), compared against the target directions $r_0, r_1, r_2$ of the virtual instrument frame. Both triads are orthonormalised by Gram-Schmidt:
 \begin{align*}
@@ -119,85 +118,86 @@ and the correction rotation is the closed form
 R = F E^{\top}\,,\qquad F = [\,f_0\;\;f_1\;\;f_2\,]\,,\quad E = [\,e_0\;\;e_1\;\;e_2\,]
 \]
 the least-squares-optimal rotation aligning the measured triad to the target triad - the same result an orthogonal-Procrustes/SVD solve would give here, obtained without an SVD. $R$ is converted back to a quaternion $q_{\text{corr}}$ by Shepperd's method.
-\hfill\texttt{computeCorrection}, \texttt{MathHelpers::fromMatrix}
+\\\hfill\texttt{computeCorrection}, \texttt{MathHelpers::fromMatrix}
 
 \textbf{Calibration, runtime application.} Every subsequent raw reading is expressed in instrument space as
 \[
 q' = q_{\text{corr}} \, \big(q_{\text{raw}} \, q_{\text{align}}\big)
 \]
 where $q_{\text{raw}}$ is the live quaternion reported by the sensor and $q_{\text{align}}$, $q_{\text{corr}}$ the two calibration quaternions found above - independent of how the sensor is physically mounted on the staff.
-\hfill\texttt{REMORAProcessor::getCalibratedQuat}
+\\\hfill\texttt{REMORAProcessor::getCalibratedQuat}
 
 \subsubsection*{Motion Feature Extraction}
 \textit{All of the following run once per received packet inside the shared analyzer every mapping graph reads from, so no mapping duplicates this logic.} \texttt{StaffMotionAnalyzer::computeFrame} (StaffMotionAnalyzer.cpp/.h).
 
-\textbf{Timestep.} $\Delta t$ is measured between packets and clamped to $(0.1\text{ms}, 200\text{ms})$ so a dropped packet cannot spike any integrator.
-\hfill\texttt{calculateDeltaTime}
+\textbf{Timestep.} $\Delta t$ is measured between packets and only updated when it falls inside $(0.1\text{ms}, 200\text{ms})$; outside that window the previous $\Delta t$ is held unchanged, so a dropped or duplicate packet cannot spike any integrator.
+\\\hfill\texttt{calculateDeltaTime}
 
 \textbf{Tip vector and rotation axis.} The staff-tip direction $p_n = \mathrm{rotate}((1,0,0), q_n)$ is kept in a 3-sample ring buffer; the instantaneous rotation axis at the midpoint sample is obtained by central difference:
 \[
 \bar v = \tfrac{1}{2}(p_0 - p_2) \qquad\qquad \mathrm{axis} = p_1 \times \bar v
 \]
 where subscripts $0, 1, 2$ denote the newest, middle, and oldest of the three buffered tip vectors, and $\bar v$ is the estimated tip velocity at the middle sample.
-\hfill\texttt{updateTipPositionHistory}, \texttt{calculateRotationAxisAtMidpoint}
+\\\hfill\texttt{updateTipPositionHistory}, \texttt{calculateRotationAxisAtMidpoint}
 
 \textbf{Gravity and dynamic acceleration.} A gravity estimate is tracked as a smoothed inverse-rotation of the world $+Z$ axis,
 \[
 g_n = \mathrm{onePole}\big(g_{n-1},\ \mathrm{rotate}(+Z,\, q_n^{-1}),\ \alpha{=}0.10\big)
 \]
 then subtracted from the raw accelerometer reading to isolate motion from posture: $a_{\text{dyn}} = a_{\text{raw}} - g$, where $a_{\text{raw}}$ is the raw accelerometer sample (in g) and $g$ the smoothed gravity estimate $g_n$ above.
-\hfill\texttt{updateGravityVector}, \texttt{calculateDynamicAcceleration}
+\\\hfill\texttt{updateGravityVector}, \texttt{calculateDynamicAcceleration}
 
 \textbf{One-pole smoothing.} The single primitive reused by nearly every feature below:
 \[
 y_n = y_{n-1} + \alpha \,(x_n - y_{n-1})
 \]
 where $x_n$ is the new input sample, $y_{n-1}$ the previous smoothed output, and $\alpha\in(0,1]$ the smoothing coefficient (higher = faster response).
-\hfill\texttt{MathHelpers::applyOnePoleFilter}
+\\\hfill\texttt{MathHelpers::applyOnePoleFilter}
 
 \textbf{Laban Weight.} Velocity is integrated from dynamic acceleration with exponential decay derived from an 80\,ms half-life:
 \[
 v_n = \big(v_{n-1} + a_{\text{dyn}}\cdot 9.81 \cdot \Delta t\big)\cdot e^{-\Delta t \cdot 1000 \ln 2 / 80}
 \]
 where $v_n$ is the running velocity estimate, $9.81\,\text{m/s}^2$ converts $a_{\text{dyn}}$ from g-units to physical units, and the exponential factor discards accumulated velocity with an $\approx\!80$\,ms half-life. Weight is $\lVert v_n \rVert$, scaled and clamped, run through an asymmetric attack/release envelope ($\alpha_{\text{attack}}{=}0.40$, $\alpha_{\text{release}}{=}0.006$) so it snaps up on impact and settles slowly.
-\hfill\texttt{integrateVelocityForLabanWeight}, \texttt{updateLabanWeight}
+\\\hfill\texttt{integrateVelocityForLabanWeight}, \texttt{updateLabanWeight}
 
-\textbf{Laban Time (suddenness).} The derivative of smoothed gyroscope magnitude,
+\textbf{Laban Time (suddenness).} The derivative of raw gyroscope magnitude,
 \[
 \dot{\lVert\omega\rVert} = \frac{\lVert\omega\rVert_n - \lVert\omega\rVert_{n-1}}{\Delta t}
 \]
-where $\omega$ is the gyroscope's angular-velocity vector (in $^\circ/\text{s}$) and $\lVert\omega\rVert_n$ its smoothed magnitude at block $n$. The result is clamped to its positive part, normalised by $800^\circ/\text{s}^2$, and given its own fast-attack/slow-release envelope.
-\hfill\texttt{updateLabanTime}
+where $\omega$ is the gyroscope's angular-velocity vector (in $^\circ/\text{s}$) and $\lVert\omega\rVert_n$ its \emph{raw}, unsmoothed magnitude at block $n$ - deliberately not the separately-smoothed gyroscope magnitude computed elsewhere in the same frame, so onset transients aren't damped out before they reach this feature. The result is clamped to its positive part, normalised by $800^\circ/\text{s}^2$, and given its own fast-attack/slow-release envelope.
+\\\hfill\texttt{updateLabanTime}
 
 \textbf{Laban Space (focus).} The running absolute dot product of consecutive normalised gyroscope-axis directions, one-pole smoothed ($\alpha{=}0.10$) and relaxing toward $0.5$ whenever the staff is nearly still.
-\hfill\texttt{updateLabanSpace}
+\\\hfill\texttt{updateLabanSpace}
 
 \textbf{Laban Flow.} Normalised jerk of the dynamic-acceleration magnitude,
-\[
-j_{\text{flow}} = \frac{\big|\dot{\lVert a_{\text{dyn}}\rVert}\big|}{50}
-\]
-where $\dot{\lVert a_{\text{dyn}}\rVert}$ is the block-to-block change in dynamic-acceleration magnitude. $j_{\text{flow}}$ is clamped to $[0,1]$ and smoothed ($\alpha{=}0.12$) into \texttt{flow\_bound}; \texttt{flow\_free} $= 1 - \texttt{flow\_bound}$.
-\hfill\texttt{updateLabanFlow}
+\begin{align*}
+\dot{\lVert a_{\text{dyn}}\rVert} &= \frac{\lVert a_{\text{dyn}}\rVert_n - \lVert a_{\text{dyn}}\rVert_{n-1}}{\Delta t + 10^{-6}} \\
+j_{\text{flow}} &= \frac{\big|\dot{\lVert a_{\text{dyn}}\rVert}\big|}{50}
+\end{align*}
+where $\dot{\lVert a_{\text{dyn}}\rVert}$ is the block-to-block change in dynamic-acceleration magnitude \emph{per second}, with a $10^{-6}$ epsilon guarding the division. $j_{\text{flow}}$ is clamped to $[0,1]$ and smoothed ($\alpha{=}0.12$) into \texttt{flow\_bound}; \texttt{flow\_free} $= 1 - \texttt{flow\_bound}$.
+\\\hfill\texttt{updateLabanFlow}
 
-\textbf{Spin classification.} The smoothed rotation axis ($\alpha{=}0.35$) is classified vertical iff its horizontal-plane magnitude exceeds $|axis_z|$; spin direction is the sign of the dominant in-plane axis component in one convention, or the sign of that axis's dot product with a reference azimuth latched at gesture onset in the other.
-\hfill\texttt{updateSpinClassificationByAbsoluteComponent} (Azimut/Ben's), \texttt{...ByReferenceAzimuth} (Bozendo)
+\textbf{Spin classification.} The smoothed rotation axis ($\alpha{=}0.35$) is classified vertical iff its horizontal-plane magnitude exceeds $|axis_z|$; spin direction is the sign of the dominant in-plane axis component in one convention, or the sign of that axis's dot product with a reference azimuth latched once, at the first qualifying vertical spin after the mapping is loaded (not re-latched per gesture), in the other.
+\\\hfill\texttt{updateSpinClassificationByAbsoluteComponent} (Azimut/Ben's), \texttt{...ByReferenceAzimuth} (Bozendo)
 
 \textbf{Facing.} Deliberately not an atan2/compass-heading computation - a hysteresis comparison
 \[
 |axis_x| \ \gtrless\ 1.15\cdot|axis_y|
 \]
 where $axis_x, axis_y$ are the horizontal components of whichever axis is currently in play - the smoothed rotation axis during vertical spins, or the smoothed tip direction during horizontal ones - giving $\approx\!48^\circ/42^\circ$ asymmetric switch points so the classification does not chatter at the boundary. No magnetometer is involved.
-\hfill\texttt{updateFacingClassification}
+\\\hfill\texttt{updateFacingClassification}
 
-\textbf{Continuous spin count.} Degrees are accumulated as $\lVert\omega\rVert \cdot \Delta t$; every $360^\circ$ crossed decrements the accumulator and increments a signed lap counter, which resets to $0$ the instant the spin classification changes.
-\hfill\texttt{accumulateContinuousSpins}
+\textbf{Continuous spin count.} Degrees are accumulated as $\lVert\omega\rVert \cdot \Delta t$, independent of spin direction; every $360^\circ$ crossed decrements the accumulator and increments an unsigned lap counter, which resets to $0$ the instant the spin classification changes.
+\\\hfill\texttt{accumulateContinuousSpins}
 
 \textbf{Axial thrust detection.} Dynamic acceleration is rotated into world frame and projected onto the tip direction by dot product to give a signed axial acceleration $a_{\text{ax}}$; its jerk
 \[
 j_{\text{ax}} = \frac{a_{\text{ax},n} - a_{\text{ax},n-1}}{\Delta t}
 \]
-where $a_{\text{ax},n}$ and $a_{\text{ax},n-1}$ are the current and previous axial-acceleration samples. $j_{\text{ax}}$ is watched for a zero-crossing coincident with $|a_{\text{ax}}| > 1.5\text{g}$, gated to $\lVert\omega\rVert < 90^\circ/\text{s}$ (so a fast spin cannot be mistaken for a stab) and a 200\,ms cooldown. A valid peak sets the thrust envelope to $\mathrm{clamp}(\text{strength}+0.5,0,1)$, decaying $\times 0.94$ per block ($\approx\!150$\,ms half-life).
-\hfill\texttt{detectAxialThrustPeaks}
+where $a_{\text{ax},n}$ and $a_{\text{ax},n-1}$ are the current and previous axial-acceleration samples. $j_{\text{ax}}$ is watched for a zero-crossing coincident with $|a_{\text{ax}}| > 1.5\text{g}$, gated to $\lVert\omega\rVert < 90^\circ/\text{s}$ (so a fast spin cannot be mistaken for a stab) and a 200\,ms cooldown. A valid peak sets the thrust envelope's target to $\mathrm{clamp}(\text{strength}+0.5,0,1)$; a $\times 0.94$ per-block decay ($\approx\!150$\,ms half-life) is then applied unconditionally every block, including the trigger block itself, so the value actually reached on a hit is $0.94$ of that target.
+\\\hfill\texttt{detectAxialThrustPeaks}
 
 \subsection*{Software: Mapping Architecture}
 \textit{Here I explain the \texttt{NodeGraph}/\texttt{NodeTypeRegistry} design: three node categories (Source - raw IMU channels and derived motion/Laban features; Math - arithmetic, shaping, dynamics, lookup tables; Sink - synth parameters, from scalars like root frequency to indexed arrays like per-voice gain/pan), each a small typed function registered once. A graph is just nodes plus typed input-to-output wiring, serialised to/from XML (Extensible Markup Language) as a preset - and I want to be clear that \texttt{GraphMappingStrategy} makes the graph itself the only mapping type the synth ever talks to; there's no separate hand-written mapping path anymore.}
@@ -210,8 +210,8 @@ y_i = f_{\text{type}(n_i)}\big(x_{i,1},\dots,x_{i,m}\,;\,\theta_i\big)
 \]
 where $n_i$ is the $i$-th node in topological order, $\text{type}(n_i)$ its registered node-type function, $x_{i,1},\dots,x_{i,m}$ its wired input values, $\theta_i$ its parameters, and $y_i$ its resulting output(s) - so the whole patch is one composed function of the raw sensor frame, evaluated once per block with no re-sorting on the audio thread.
 
-\textbf{Primitive vocabulary.} Every node type is a single small pure function (or, for the few stateful ones, a function plus one scratch struct), registered once: arithmetic (add/subtract/multiply/divide/abs/max/min/equals), shaping (mapRange, clamp, threshold, crossfade, quantizeSteps, sine, atan2, semitonesToHz), lookup tables (a general 1-D table and a 3-boolean-selector table - the same node type that implements the Azimut root table below), and stateful dynamics (variable-rate one-pole smoother, leaky integrator, retrigger envelope, hysteresis step, derivative, latched smoother).
-\hfill\texttt{Graph::buildAllNodes} (NodeMetadata.cpp)
+\textbf{Primitive vocabulary.} Every node type is a single small pure function (or, for the few stateful ones, a function plus one scratch struct), registered once: arithmetic (add / subtract / multiply / divide / abs / max / min / equals), shaping (mapRange, clamp, threshold, crossfade, quantizeSteps, sine, atan2, semitonesToHz), lookup tables (a general 1-D table and a 3-boolean-selector table - the same node type that implements the Azimut root table below), and stateful dynamics (variable-rate one-pole smoother, leaky integrator, retrigger envelope, hysteresis step, derivative, latched smoother).
+\\\hfill\texttt{Graph::buildAllNodes} (NodeMetadata.cpp)
 
 \subsection*{Software: Named Mappings as Graph Presets}
 \label{sec:azimut-deep-dive}
@@ -229,11 +229,12 @@ where $n_i$ is the $i$-th node in topological order, $\text{type}(n_i)$ its regi
 where \texttt{onsetEnv} is a retrigger envelope (decay $0.90$) that fires the instant the staff leaves rest - faster motion, or a fresh onset, morphs the root pitch in quicker.
 
 \textbf{Filter sweep.} The spin count drives a phase modulator whose sine output is remapped onto the filter's cutoff range and smoothed:
-\[
-\text{cutoff} = \mathrm{onePole}\Big(\mathrm{mapRange}\big(\sin(1.5\cdot\text{spinCount})\,,\,[-1,1]\,,\,[400,20000]\text{Hz}\big)\,,\ \text{rate}{=}0.03\Big)
-\]
-where $\text{spinCount}$ is the signed lap counter from Continuous Spin Count above, $\mathrm{mapRange}$ linearly rescales its argument from the first interval to the second, and $\mathrm{onePole}$ is the smoothing primitive defined earlier.
-\hfill\texttt{buildSpinCountLpfHz}
+\begin{align*}
+c_{\text{raw}} &= \mathrm{mapRange}\big(\sin(1.5\cdot\text{spinCount})\,,\,[-1,1]\,,\,[400,20000]\text{Hz}\big) \\
+\text{cutoff} &= \mathrm{onePole}\big(c_{\text{raw}}\,,\ \text{rate}{=}0.03\big)
+\end{align*}
+where $\text{spinCount}$ is the unsigned lap counter from Continuous Spin Count above, $\mathrm{mapRange}$ linearly rescales its argument from the first interval to the second, $c_{\text{raw}}$ the resulting unsmoothed cutoff target, and $\mathrm{onePole}$ the smoothing primitive defined earlier.
+\\\hfill\texttt{buildSpinCountLpfHz}
 
 \subsection*{Graphical Interface: Live Patching as Performance Practice}
 \textit{This is probably the subsection I want to spend the most space on after the mathematics.} I want to present the node-graph editor as the instrument's primary authoring surface, not a debug tool: a pannable, zoomable canvas on which each node renders as a coloured card - green for Source, yellow for Sink, neutral for Math - labelled with its category and inline, live-editable parameter fields; typed input/output pins along each card's edges accept click-and-drag connections rendered as cubic-B\'ezier wires, colour-highlighted while dragging and hit-testable afterward for rewiring or deletion via context menu. New nodes are added from a categorised picker at any canvas position; an auto-layout pass untangles a freshly loaded preset into left-to-right source-to-sink columns. A dirty-state indicator tracks whether the active patch has diverged from its saved preset, with one-click revert - so a performer can improvise a mapping change mid-rehearsal and either keep or discard it, treating the mapping itself as something authored and iterated on at the same level as the sound it produces.
@@ -242,7 +243,7 @@ where $\text{spinCount}$ is the signed lap counter from Continuous Spin Count ab
 \textit{Still need to write up \texttt{BoStaffSynth} here - the shared four-voice additive engine and its mapping-agnostic parameter surface (gain, drive, noise, filter, pan, reverb send) that every graph's sink nodes write into.}
 
 \subsubsection*{Additive Synthesis Engine}
-\texttt{BoStaffSynth::processBlock}, \texttt{SynthVoice::tick} (BoStaffSynth.h/.cpp).
+Implemented in \texttt{BoStaffSynth::processBlock} and \texttt{SynthVoice::tick} (BoStaffSynth.h/.cpp).
 
 \textbf{Harmonic bank.} Each of the 4 voices sums 6 phase-accumulated sine partials at integer multiples of a (vibrato- and chorus-modulated) fundamental, each with its own independently smoothed target amplitude.
 
@@ -262,14 +263,14 @@ g' = g\,\big(1-\text{depth}\cdot(0.5+0.5\sin\phi_t)\big)
 \]
 where $f, g$ are the fundamental frequency and master gain before modulation, $f', g'$ the modulated values actually used, and $\phi_v, \phi_t$ the vibrato and tremolo LFO phase accumulators (radians), each advancing by its own rate every sample. A per-voice phase-offset sine (depth $0.003$, rate $0.3$\,Hz) adds chorus detuning; chord changes cross-fade linearly between old and new semitone offsets over $200$\,ms rather than jumping.
 
-\textbf{Noise and filtering.} An xorshift32 PRNG feeds a one-pole lowpass (coefficient \texttt{noiseLpCoef}) before being mixed in at \texttt{noiseAmount}; the summed stereo output passes through a JUCE state-variable TPT lowpass (cutoff from the graph's \texttt{sink.lpfCutoffHz}) and an optional Schroeder-style \texttt{juce::dsp::Reverb} send, both smoothed to avoid zippering when the active mapping changes.
+\textbf{Noise and filtering.} An xorshift32 PRNG feeds a one-pole lowpass (coefficient \texttt{noiseLpCoef}) before being mixed in at \texttt{noiseAmount}; the summed stereo output passes through a JUCE state-variable TPT lowpass, its cutoff set directly each block from the graph's \texttt{sink.lpfCutoffHz} (only range-clamped, not ramped), and an optional Schroeder-style \texttt{juce::dsp::Reverb} send whose wet level \emph{is} ramped through a per-sample \texttt{SmoothedValue} to avoid zippering when the active mapping changes.
 
 \textbf{Pitch/frequency conversion.}
 \[
 f = f_{\text{root}} \cdot 2^{\,\text{semitones}/12}
 \]
 where $f_{\text{root}}$ is the mapping's current root frequency in Hz and $\text{semitones}$ the signed offset applied to it, giving the equal-tempered result $f$.
-\hfill\texttt{MathHelpers::semitoneRatio}, \texttt{convertSemitonesToHertz}
+\\\hfill\texttt{MathHelpers::semitoneRatio}, \texttt{convertSemitonesToHertz}
 
 \section{Development Iterations}
 \textit{Modelled on the reference paper's iteration log rather than presenting the final architecture as if it arrived fully formed. Mine reads roughly: (1) firmware + OSC transport + a single hardcoded tilt-to-pitch mapping, just to prove the sensor-to-sound pipeline worked at all; (2) hand-building the full progression of named mappings - Bowed Chord through Bozendo to Azimut and its variants - each one a bespoke C++ class; (3) noticing the hand-built mappings were all reducible to the same handful of primitives, and generalising that into the node-graph engine so every prior mapping became a preset instead of a class.}
