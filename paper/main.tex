@@ -9,7 +9,7 @@
 \acmYear{2026}
 \setcopyright{cc}
 \setcctype{by}
-\acmConference[NIME '26]{International Conference on New Interfaces for Musical Expression}{2026}{}
+\acmConference[NIME '27]{International Conference on New Interfaces for Musical Expression}{2027}{}
 
 \title{REMORA: Real-time Expressive Motion to Output Routing Audio}
 
@@ -34,7 +34,7 @@
 
 \begin{abstract}
 REMORA turns a martial arts staff (b\^o) into a musical instrument: spins, tilts, and strikes become
-sound in real time. A small wireless sensor unit on the staff tracks its motion and sends it to a
+sound in real time. A wireless sensor unit on the staff tracks its motion and sends it to a
 companion audio plugin, which we built around a simple idea - instead of hard-wiring one fixed
 gesture-to-sound behaviour, the mapping itself is a small patch of connected building blocks that
 the performer can see and rewire live, on a visual canvas inside the plugin, much like a modular
@@ -65,25 +65,33 @@ OSC, staff instrument}
 \section{Introduction}
 
 \subsection*{Motivation and Background}
-\textit{The b\^o staff is a full-body controller form factor that's had surprisingly little
-attention in NIME - most inertial-sensor DMIs mount their sensor on the body or a small handheld
-object, not a swung, two-handed staff with its own rotational inertia and reach. That gap is my
-opening case. The claim I want on the table early: REMORA's contribution isn't one more fixed
-gesture-to-sound mapping, but a reusable, block-rate visual programming layer embedded inside the
-instrument itself - every named mapping described later in the paper is really just one saved patch
-of that layer.}
+REMORA grew out of the first author's parallel practice in martial arts and music, and a frustration
+shared by many hand-built digital musical instruments: once a gesture vocabulary is designed and
+coded, changing it means rebuilding the instrument rather than performing with it. That friction is
+the paper's real starting point - not which single mapping best suits a staff, but whether a staff
+instrument's gestural vocabulary could instead be something the performer authors and revises live,
+the way a modular-synthesis patch is built and rebuilt on a rack.
+
+The b\^o staff itself sits in a gap NIME has left largely unexplored: a full-body, swung, two-handed
+controller with its own rotational inertia and reach, distinct from the small handheld or
+body-mounted objects most inertial-sensor DMIs use. Pairing that underused controller form with a
+mapping layer that can be reshaped at performance time, rather than fixed at design time, is the
+combination this paper investigates.
 
 \subsection*{Objectives of the Study}
-\textit{Four things here feel genuinely new to me, and I still need to turn this list into proper
-prose: (1) a small dataflow language (source / math / sink node primitives) embedded directly in the
-audio plugin, evaluated as a DAG (Directed Acyclic Graph) once per audio block, that a performer can
-rewire live instead of me recompiling C++; (2) by construction, this same handful of primitives
-turns out to be expressive enough to reproduce eleven previously hand-coded mapping strategies as
-ordinary presets - the mapping design space I explored by hand over the course of this project is,
-it turns out, spanned by a fairly compact algebra; (3) a magnetometer-free world-frame heading
-estimate (``facing'') derived purely from the calibrated orientation stream, which sidesteps the
-magnetic interference a stage rig would otherwise cause; (4) a mount-agnostic calibration transform,
-so the same instrument logic runs no matter where the sensor physically sits on the staff.}
+This article supports four claims, each argued based on the system as it currently operates rather than being proposed as future work:
+\begin{enumerate}
+\item A small dataflow language - source, math, and sink node primitives - is embedded directly in
+the audio plugin and evaluated once per audio block as a directed acyclic graph (DAG); the performer
+rewires it live, without recompiling any code.
+\item That same handful of primitives is expressive enough to reproduce eleven previously hand-coded
+mapping strategies as ordinary presets: the mapping design space explored by hand over the course of
+the project turns out to be spanned by a fairly compact algebra of building blocks.
+\item A magnetometer-free, world-frame heading estimate (``facing'') is derived purely from the
+calibrated orientation stream, eluding the magnetic interference a stage rig would otherwise cause.
+\item A mount-agnostic calibration transform lets the same instrument logic run correctly regardless
+of where the sensor is physically mounted on the staff.
+\end{enumerate}
 
 \subsection*{Scope and Applications}
 \textit{REMORA targets solo live performance with a single staff and a single IMU - not an
