@@ -1,6 +1,8 @@
 \documentclass[sigconf,nonacm]{acmart}
 
 \usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning}
 
 \newcommand{\coderef}[1]{{\small [#1]}}
 
@@ -128,32 +130,93 @@ prior use of Laban Effort qualities as a mapping source in NIME work.}
 \section{Design and System Architecture}
 
 \subsection*{Initial Design Requirements}
-\textit{Modelled on how a proper requirements list should read, not just a feature dump:}
+Five requirements shaped the design from the outset, chosen to keep the instrument performable
+rather than merely functional on a workbench:
 \begin{itemize}
-    \item \textit{Full-body, swingable staff form factor - not a handheld controller}
-    \item \textit{Wireless sensing during performance; a cable only for charging}
-    \item \textit{Live-editable mapping, with no audio interruption when switching or rewiring}
-    \item \textit{Mount-agnostic calibration, independent of the sensor's physical placement on the
-staff}
-    \item \textit{Low enough end-to-end latency for the staff to feel driven, not laggy}
+    \item \textbf{Full-body, swingable staff form factor.} Not a handheld controller: the instrument
+must support the reach, weight, and two-handed grip of an actual b\^o, not a miniaturised stand-in
+for one.
+    \item \textbf{Wireless sensing during performance.} A cable is acceptable only for charging
+between sets; nothing should tether the performer to a fixed point on stage.
+    \item \textbf{Live-editable mapping.} Switching or rewiring the mapping graph must not interrupt
+audio output, so a change can be made mid-rehearsal without stopping the sound.
+    \item \textbf{Mount-agnostic calibration.} Instrument behaviour must not depend on precisely
+where the sensor is glued to the staff, since exact placement varies from build to build and cannot
+be guaranteed reproducible by hand.
+    \item \textbf{Low end-to-end latency.} The staff has to feel driven by the performer's motion,
+not lagging behind it, which bounds how much time sensing, transport, and synthesis are together
+allowed to take.
 \end{itemize}
 
 \subsection*{Architecture Overview}
-\textit{Here's where I lay out the two-part architecture: firmware-side sensing and OSC (Open Sound
-Control) transport on one end, plugin-side reception, calibration, graph evaluation, and synthesis
-on the other. The signal-flow diagram belongs in this section.}
+REMORA's architecture has two parts, matching the physical split between staff and host: firmware
+handles sensing and transport, and the plugin handles everything downstream of the incoming OSC
+stream, from calibration through to the audio it produces. Figure~1 lays out that split directly,
+left to right: IMU sampling and OSC transmission on the staff, feeding the plugin's own
+reception-to-synthesis pipeline on the host.
+
+\begin{center}
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, align=center, text width=2.1cm, minimum height=0.7cm,
+    font=\small\bfseries, inner sep=2pt},
+  sub/.style={draw, align=center, text width=1.9cm, minimum height=0.45cm, font=\scriptsize,
+    inner sep=2pt},
+  arr/.style={-{Latex[length=1.5mm]}}
+]
+\node[box] (staff) {Firmware};
+\node[sub, below=1mm of staff] (collect) {IMU sampling};
+\node[sub, below=1.5mm of collect] (send) {OSC transmission};
+\draw[arr] (collect) -- (send);
+
+\node[box, right=26mm of staff] (host) {REMORA plugin};
+\draw[arr] (staff) -- (host)
+  node[midway, above, font=\scriptsize, align=center] {Wi-Fi / UDP / OSC\\(port 8000)};
+
+\node[sub, below=1mm of host, xshift=-1.03cm] (recv) {OSC reception};
+\node[sub, right=1.5mm of recv] (calib) {Calibration};
+\draw[arr] (recv) -- (calib);
+\node[sub, below=1.5mm of calib] (graph) {Graph evaluation};
+\node[sub, below=1.5mm of recv] (synth) {Synthesis};
+\draw[arr] (calib) -- (graph);
+\draw[arr] (graph) -- (synth);
+\end{tikzpicture}
+
+\small
+\textbf{Figure 1: REMORA's signal flow}, from IMU sampling on the staff to synthesis on the host.
+\end{center}
 
 \section{Implementation}
 
 \subsection*{The Build}
-\textit{This is where I go through the physical build: the staff-mounted enclosure, the parametric
-OpenSCAD casing, and how the electronics are secured to the staff without changing how it's normally
-gripped or swung.}
+The sensor unit sits in a small OpenSCAD-parametrised enclosure, sized to the b\^o's diameter rather
+than assuming a fixed one. Because calibration is mount-agnostic, the enclosure can be placed
+anywhere along the staff; in practice it is usually mounted near one extremity, out of the way of
+the performer's grip. It is secured with three zip ties passing through channels in the
+casing - no adhesive or drilling - so it can be repositioned or removed freely. The same zip ties
+hold the two enclosure halves closed, together with screws that additionally clamp the internal
+electronics in place so nothing shifts under swing.
+\begin{center}
+  \includegraphics[width=0.6\linewidth]{Assets/openscad_casing.png}
+
+  \small
+  \textbf{Figure 2: The parametric OpenSCAD enclosure}, sized to the staff diameter and secured with
+  zip ties.
+\end{center}
 
 \subsection*{Hardware}
-\textit{This is where I go through the ESP32-S2 + MPU-9250 sensor package, the 100~Hz I2C
-(Inter-Integrated Circuit) sampling loop, and the Wi-Fi/UDP (User Datagram Protocol)/OSC packet
-format the firmware streams to the host.}
+Inside the enclosure, a SparkFun ESP32-S2 Thing Plus reads a 9-DOF MPU-9250 IMU over I2C
+(Inter-Integrated Circuit) at 100~Hz and packs orientation, acceleration, and gyroscope readings into
+an OSC packet sent over UDP (User Datagram Protocol) on port 8000. The firmware joins the host
+computer's own Wi-Fi hotspot directly rather than a dedicated access point, which keeps setup to a
+single pairing step at the cost of the range and interference sensitivity Discussion returns to
+(\S\ref{sec:limitations}).
+\begin{center}
+  \includegraphics[angle=270, width=0.6\linewidth]{Assets/TEMP_hardware_wiring.png}
+
+  \small
+  \textbf{Figure 3: Component arrangement inside the enclosure} - ESP32-S2, MPU-9250 IMU, and LiPo
+  battery, wired as described in Hardware.
+\end{center}
 
 \subsection*{Software: Calibration and Motion Mathematics}
 \textit{Every equation below comes straight from the running code, each one is tagged with the
@@ -340,22 +403,17 @@ acceleration crosses zero as its magnitude passes $1.5\text{g}$, gated against f
 \coderef{\texttt{detectAxialThrustPeaks}}
 \end{flushright}
 
-\textbf{Sensitivity of tuned constants.} None of the constants above were fit to data, so it is worth
-being explicit about which direction each one biases the instrument and how forgiving it is. The
-gravity smoother's $\alpha{=}0.10$ trades off two failure modes directly: too high and rapid gestures
-bleed into the gravity estimate, making $a_{\text{dyn}}$ under-report real motion during fast swings;
-too low and the estimate lags after the staff is set down or re-oriented, producing a spurious motion
-blip. The spin-axis smoother's $\alpha{=}0.35$ - an order of magnitude faster - plays the same role
-for Laban Space: raising it makes Space read spin-axis noise as ``inconsistent'' more readily,
-lowering it makes a genuinely wandering spin read as falsely focused. The facing hysteresis factor
-($1.15$) sets the $\approx\!48^\circ/42^\circ$ dead-band described above rather than switching exactly
-at $45^\circ$; a factor of $1.0$ collapses that dead-band to nothing and reintroduces boundary
-flicker, while a substantially larger factor makes the classifier sluggish to acknowledge a genuine
-facing change. The thrust detector's $1.5\text{g}$ jerk threshold and $90^\circ/\text{s}$ spin gate
-trade false stab triggers during forceful spins (threshold or gate too low) against missed soft stabs
-(either too high). We have not run a sensitivity sweep against recorded gesture data to locate where
-each of these trade-offs actually bites in practice; Discussion returns to this as a concrete gap
-alongside the missing perceptual evaluation.
+\textbf{Sensitivity of tuned constants.} None of the constants above were fit to data; each biases the
+instrument in a specific direction. The gravity smoother's $\alpha{=}0.10$ trades under-reporting fast
+motion (too high) against a lagging estimate that produces a spurious motion blip when the staff is
+set down (too low). The spin-axis smoother's $\alpha{=}0.35$ plays the same role for Laban Space:
+higher reads axis noise as ``inconsistent'' too readily, lower reads a genuinely wandering spin as
+falsely focused. The facing hysteresis factor ($1.15$) sets the $\approx\!48^\circ/42^\circ$
+dead-band; $1.0$ reintroduces boundary flicker, while a much larger factor makes facing changes
+sluggish to register. The thrust detector's $1.5\text{g}$ threshold and $90^\circ/\text{s}$ gate trade
+false triggers during forceful spins (too low) against missed soft stabs (too high). None of this has
+been swept against recorded data; Discussion returns to it alongside the missing perceptual
+evaluation.
 
 \subsection*{Software: Mapping Architecture}
 \textit{Here I explain the \texttt{NodeGraph}/\texttt{NodeTypeRegistry} design: three node
@@ -578,11 +636,14 @@ take notes rather than assume my own playtesting generalises.}
 \section{Discussion}
 
 \subsection*{Advantages and Limitations}
+\label{sec:limitations}
 \textit{I want to be honest here about what the generalisation into a graph actually buys versus
 what it costs: expressiveness and shareability of mappings, weighed against the added cognitive step
 of patching for performers used to fixed instruments. Worth folding in the informal playtesting
 observations, and I should be upfront about the current limitations - single-IMU ambiguity, no
-formal user study yet, no perceptual evaluation of the facing/calibration accuracy.}
+formal user study yet, no perceptual evaluation of the facing/calibration accuracy, and the Wi-Fi
+hotspot dependency noted in Hardware: joining the host's own hotspot instead of a dedicated access
+point trades range and interference robustness for a simpler one-step pairing setup.}
 
 \subsection*{Future Improvements}
 \textit{Extensions I keep coming back to: gesture-triggered mode switching, a merged rest/motion
