@@ -50,6 +50,35 @@ GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::No
         addAndMakeVisible(box);
     }
 
+    if (hasValueSlider(typeInfo)) {
+        const float initialValue = params[0];
+        float lo = juce::jmin(initialValue * 0.5f, initialValue * 2.0f);
+        float hi = juce::jmax(initialValue * 0.5f, initialValue * 2.0f);
+        if (juce::approximatelyEqual(lo, hi)) {
+            lo = -1.0f;
+            hi = 1.0f;
+        }
+
+        valueSlider = std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
+        valueSlider->setRange(lo, hi);
+        valueSlider->setValue(initialValue, juce::dontSendNotification);
+        valueSlider->setEnabled(editable);
+        auto* box = paramEditors.getFirst();
+        valueSlider->onValueChange = [this, box] {
+            const float sliderValue = static_cast<float>(valueSlider->getValue());
+            params[0] = sliderValue;
+            box->setText(juce::String(sliderValue, 3), false);
+            editor.updateNodeParam(nodeId, 0, sliderValue);
+        };
+        box->onFocusLost = [this, box] {
+            const float typedValue = box->getText().getFloatValue();
+            params[0] = typedValue;
+            valueSlider->setValue(typedValue, juce::dontSendNotification);
+            editor.updateNodeParam(nodeId, 0, typedValue);
+        };
+        addAndMakeVisible(*valueSlider);
+    }
+
     setSize(kWidth, preferredHeight(typeInfo));
 }
 
@@ -59,8 +88,13 @@ juce::String GraphNodeComponent::paramLabelFor(size_t index) const {
     return "v" + juce::String(static_cast<int>(index));
 }
 
+bool GraphNodeComponent::hasValueSlider(const Graph::NodeTypeInfo& typeInfo) {
+    return typeInfo.id == "math.constant" && !typeInfo.defaultParams.empty();
+}
+
 int GraphNodeComponent::paramsHeight(const Graph::NodeTypeInfo& typeInfo) {
-    return static_cast<int>(typeInfo.defaultParams.size()) * kParamRowHeight;
+    return static_cast<int>(typeInfo.defaultParams.size()) * kParamRowHeight
+        + (hasValueSlider(typeInfo) ? kSliderRowHeight : 0);
 }
 
 int GraphNodeComponent::preferredHeight(const Graph::NodeTypeInfo& typeInfo) {
@@ -69,7 +103,8 @@ int GraphNodeComponent::preferredHeight(const Graph::NodeTypeInfo& typeInfo) {
 }
 
 int GraphNodeComponent::portsTop() const noexcept {
-    return kHeaderHeight + static_cast<int>(params.size()) * kParamRowHeight;
+    return kHeaderHeight + static_cast<int>(params.size()) * kParamRowHeight
+        + (valueSlider != nullptr ? kSliderRowHeight : 0);
 }
 
 void GraphNodeComponent::paint(juce::Graphics& g) {
@@ -123,6 +158,11 @@ void GraphNodeComponent::resized() {
         const int nameWidth = kWidth * 2 / 5;
         paramNameLabels.getUnchecked(i)->setBounds(4, y, nameWidth - 4, kParamRowHeight);
         paramEditors.getUnchecked(i)->setBounds(nameWidth, y, kWidth - nameWidth - 4, kParamRowHeight - 2);
+    }
+
+    if (valueSlider != nullptr) {
+        const int y = kHeaderHeight + static_cast<int>(paramEditors.size()) * kParamRowHeight;
+        valueSlider->setBounds(4, y, kWidth - 8, kSliderRowHeight - 2);
     }
 
     const int top = portsTop();

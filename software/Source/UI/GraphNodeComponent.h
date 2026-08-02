@@ -12,6 +12,7 @@ public:
     static constexpr int kWidth = 140;
     static constexpr int kHeaderHeight = 22;
     static constexpr int kParamRowHeight = 18;
+    static constexpr int kSliderRowHeight = 18;
     static constexpr int kRowHeight = 20;
     static constexpr int kPinSize = 12;
 
@@ -40,12 +41,14 @@ private:
     juce::OwnedArray<GraphPinComponent> outputPins;
     juce::OwnedArray<juce::Label> paramNameLabels;
     juce::OwnedArray<juce::TextEditor> paramEditors;
+    std::unique_ptr<juce::Slider> valueSlider;
     juce::Point<int> dragStartPos;
 
     juce::Rectangle<int> infoButtonBounds;
 
     int portsTop() const noexcept;
     static int paramsHeight(const Graph::NodeTypeInfo& typeInfo);
+    static bool hasValueSlider(const Graph::NodeTypeInfo& typeInfo);
     juce::String paramLabelFor(size_t index) const;
     void showInfoPopup();
 
