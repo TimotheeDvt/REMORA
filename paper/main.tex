@@ -188,19 +188,14 @@ gives the alignment quaternion $q_{\text{align}}$.
 \coderef{\texttt{computeAlignQuat}}
 \end{flushright}
 
-\textbf{Stage 1 failure modes.} The implementation reports no confidence value for $L^\ast$.
-\texttt{computeAlignQuat} initialises the winner to $+X$ and only overwrites it when a candidate axis
-both beats the running-best $e(L)$ \emph{and} passes the right-handedness test; if none of the six
-candidates pass that test - which happens when the three calibration poses are close together or
-nearly coplanar, so $(v_A{\times}v_B)\cdot v_C$ never turns negative for any axis - the routine
-silently keeps the $+X$ default with no error surfaced to the performer, so a botched three-pose
-calibration can look successful while having picked the wrong physical axis. There is also no
-minimum-separation check between poses $A,B,C$: recorded too close together, $e(L)$ for the true
-forward axis and for a neighbouring wrong axis can be nearly tied, and the $\arg\min$ then breaks the
-tie on noise rather than signal. The same risk exists one step later - stage 2's Gram-Schmidt
-differencing of $b_0$ (measured forward) and $b_1$ (measured up) degenerates if those two poses were
-recorded too similarly, amplifying sensor noise into $q_{\text{corr}}$. None of this is currently
-checked or reported at calibration time; Discussion returns to it as a concrete robustness gap.
+\textbf{Stage 1 failure modes.} \texttt{computeAlignQuat} reports no confidence value: it defaults to
+$+X$ and only updates when a candidate beats the running-best $e(L)$ and passes the right-handedness
+test, so poses that are too close together or nearly coplanar - leaving
+$(v_A{\times}v_B)\cdot v_C$ never negative - silently keep that default with no error surfaced.
+Closely spaced poses can likewise leave $e(L)$ nearly tied between the true axis and a neighbour, so
+the $\arg\min$ breaks the tie on noise; the same fragility carries into stage 2's Gram-Schmidt, which
+degenerates if the forward/up poses are too similar. None of this is currently checked or reported at
+calibration time; Discussion returns to it as a concrete robustness gap.
 
 \textbf{Calibration, stage 2 - fixing the twist.} The sensor could still be rotated around
 $L^\ast$. The measured forward/up/right triad and the ideal instrument-frame triad are each
