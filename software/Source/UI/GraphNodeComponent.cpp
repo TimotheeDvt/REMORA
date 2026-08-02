@@ -62,6 +62,7 @@ GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::No
         valueSlider = std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
         valueSlider->setRange(lo, hi);
         valueSlider->setValue(initialValue, juce::dontSendNotification);
+        valueSlider->setChangeNotificationOnlyOnRelease(false);
         valueSlider->setEnabled(editable);
         auto* box = paramEditors.getFirst();
         valueSlider->onValueChange = [this, box] {
