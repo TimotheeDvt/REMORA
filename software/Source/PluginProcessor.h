@@ -56,12 +56,13 @@ public:
 
   const IMUData &getIMUData() const noexcept { return oscManager.getIMUData(); }
 
-  enum class CalibState { Idle, WaitingPoseA, WaitingPoseB, WaitingPoseC, Done };
+  enum class CalibState { Idle, WaitingPoseA, WaitingPoseB, WaitingPoseC, Done, Failed };
   void startCalibration();
   void recordPoseA();
   void recordPoseB();
   void recordPoseC();
-  void computeCorrection();
+  // Returns false if the three poses were too close/coplanar to determine a physical axis with confidence.
+  bool computeCorrection();
   int getCalibState() const { return calibState.load(); }
   MathHelpers::Quat getCalibratedQuat() const;
 

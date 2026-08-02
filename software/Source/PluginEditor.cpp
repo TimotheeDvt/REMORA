@@ -321,9 +321,11 @@ void REMORAEditor::onCalibrateClicked() {
   juce::String hintText;
   juce::Colour hintColour = Palette::yellow;
   bool nowDone = false;
+  bool nowFailed = false;
 
   if (state == REMORAProcessor::CalibState::Idle ||
-      state == REMORAProcessor::CalibState::Done) {
+      state == REMORAProcessor::CalibState::Done ||
+      state == REMORAProcessor::CalibState::Failed) {
     processor.startCalibration();
     debug.print.yellow("Calibration started: Waiting for Pose A");
     overlayButtonText = "POSE A ->";
@@ -340,14 +342,24 @@ void REMORAEditor::onCalibrateClicked() {
     hintText = "Hold staff HORIZONTAL pointing RIGHT, then click";
   } else if (state == REMORAProcessor::CalibState::WaitingPoseC) {
     processor.recordPoseC();
-    debug.print.green("Recorded Pose C. Calibration complete.");
-    overlayButtonText = "CALIBRATE";
-    hintText = "Calibration complete.";
-    hintColour = Palette::green;
-    nowDone = true;
+    const bool succeeded = (REMORAProcessor::CalibState)processor.getCalibState() ==
+                            REMORAProcessor::CalibState::Done;
+    if (succeeded) {
+      debug.print.green("Recorded Pose C. Calibration complete.");
+      overlayButtonText = "CALIBRATE";
+      hintText = "Calibration complete.";
+      hintColour = Palette::green;
+      nowDone = true;
+    } else {
+      debug.print.red("Calibration failed - poses were too similar. Try again.");
+      overlayButtonText = "RETRY ->";
+      hintText = "Calibration failed, try again";
+      hintColour = Palette::red;
+      nowFailed = true;
+    }
   }
 
-  calibrateButton.setButtonText(nowDone ? "CALIBRATE" : "Calibrating...");
+  calibrateButton.setButtonText((nowDone || nowFailed) ? "CALIBRATE" : "Calibrating...");
 
   calibrationOverlay.setStepText(overlayButtonText, hintText, hintColour);
 

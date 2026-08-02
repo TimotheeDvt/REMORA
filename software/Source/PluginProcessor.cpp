@@ -53,11 +53,12 @@ void REMORAProcessor::recordPoseC() {
   poseCx.store(d.qx.load(std::memory_order_relaxed));
   poseCy.store(d.qy.load(std::memory_order_relaxed));
   poseCz.store(d.qz.load(std::memory_order_relaxed));
-  computeCorrection();
-  calibState.store((int)CalibState::Done);
+  const bool ok = computeCorrection();
+  calibState.store((int)(ok ? CalibState::Done : CalibState::Failed));
 }
 
-static MathHelpers::Quat computeAlignQuat(MathHelpers::Quat qA, MathHelpers::Quat qB, MathHelpers::Quat qC) {
+static bool computeAlignQuat(MathHelpers::Quat qA, MathHelpers::Quat qB, MathHelpers::Quat qC,
+                              MathHelpers::Quat &qOut) {
   MathHelpers::Vec3 candidates[6] = {{1.f, 0.f, 0.f},  {-1.f, 0.f, 0.f},
                                      {0.f, 1.f, 0.f},  {0.f, -1.f, 0.f},
                                      {0.f, 0.f, 1.f},  {0.f, 0.f, -1.f}};
@@ -67,7 +68,7 @@ static MathHelpers::Quat computeAlignQuat(MathHelpers::Quat qA, MathHelpers::Qua
   };
   auto abs_f = [](float x) { return x < 0.f ? -x : x; };
 
-  int bestIndex = 0; // default: +X
+  int bestIndex = -1;
   float minError = 1e9f;
 
   for (int i = 0; i < 6; ++i) {
@@ -87,19 +88,25 @@ static MathHelpers::Quat computeAlignQuat(MathHelpers::Quat qA, MathHelpers::Qua
     }
   }
 
+  if (bestIndex < 0) {
+    qOut = {1.f, 0.f, 0.f, 0.f}; // +X default
+    return false;
+  }
+
   // Each case is the quaternion rotating canonical +X onto that axis; 0.70710678f = sin(45deg) = cos(45deg): w and axis component of a 90deg rotation.
   switch (bestIndex) {
-    case 0: return {1.f, 0.f, 0.f, 0.f};                       // +X
-    case 1: return {0.f, 0.f, 1.f, 0.f};                       // -X
-    case 2: return {0.70710678f, 0.f, 0.f, 0.70710678f};       // +Y
-    case 3: return {0.70710678f, 0.f, 0.f, -0.70710678f};      // -Y
-    case 4: return {0.70710678f, 0.f, -0.70710678f, 0.f};      // +Z
-    case 5: return {0.70710678f, 0.f, 0.70710678f, 0.f};       // -Z
-    default: return {1.f, 0.f, 0.f, 0.f};
+    case 0: qOut = {1.f, 0.f, 0.f, 0.f}; break;                  // +X
+    case 1: qOut = {0.f, 0.f, 1.f, 0.f}; break;                  // -X
+    case 2: qOut = {0.70710678f, 0.f, 0.f, 0.70710678f}; break;  // +Y
+    case 3: qOut = {0.70710678f, 0.f, 0.f, -0.70710678f}; break; // -Y
+    case 4: qOut = {0.70710678f, 0.f, -0.70710678f, 0.f}; break; // +Z
+    case 5: qOut = {0.70710678f, 0.f, 0.70710678f, 0.f}; break;  // -Z
+    default: qOut = {1.f, 0.f, 0.f, 0.f}; break;
   }
+  return true;
 }
 
-void REMORAProcessor::computeCorrection() {
+bool REMORAProcessor::computeCorrection() {
   MathHelpers::Quat qA{poseAw.load(), poseAx.load(), poseAy.load(),
                        poseAz.load()};
   MathHelpers::Quat qB{poseBw.load(), poseBx.load(), poseBy.load(),
@@ -107,7 +114,9 @@ void REMORAProcessor::computeCorrection() {
   MathHelpers::Quat qC{poseCw.load(), poseCx.load(), poseCy.load(),
                        poseCz.load()};
 
-  MathHelpers::Quat qAlign = computeAlignQuat(qA, qB, qC);
+  MathHelpers::Quat qAlign;
+  if (!computeAlignQuat(qA, qB, qC, qAlign))
+    return false;
 
   alignQuat.store(qAlign);
 
@@ -152,6 +161,7 @@ void REMORAProcessor::computeCorrection() {
   auto corr = MathHelpers::fromMatrix(col0, col1, col2);
 
   corrQuat.store(corr);
+  return true;
 }
 
 MathHelpers::Quat REMORAProcessor::getCalibratedQuat() const {
