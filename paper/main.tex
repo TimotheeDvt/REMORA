@@ -251,14 +251,9 @@ gives the alignment quaternion $q_{\text{align}}$.
 \coderef{\texttt{computeAlignQuat}}
 \end{flushright}
 
-\textbf{Stage 1 failure modes.} \texttt{computeAlignQuat} reports no confidence value: it defaults to
-$+X$ and only updates when a candidate beats the running-best $e(L)$ and passes the right-handedness
-test, so poses that are too close together or nearly coplanar - leaving
-$(v_A{\times}v_B)\cdot v_C$ never negative - silently keep that default with no error surfaced.
-Closely spaced poses can likewise leave $e(L)$ nearly tied between the true axis and a neighbour, so
-the $\arg\min$ breaks the tie on noise; the same fragility carries into stage 2's Gram-Schmidt, which
-degenerates if the forward/up poses are too similar. None of this is currently checked or reported at
-calibration time; Discussion returns to it as a concrete robustness gap.
+\textbf{Stage 1 failure modes.} \texttt{computeAlignQuat} now reports failure when the three poses are
+too close together or nearly coplanar to fix a physical axis with confidence, and the UI surfaces this
+as a "Calibration failed, try again" prompt rather than silently keeping a bad result.
 
 \textbf{Calibration, stage 2 - fixing the twist.} The sensor could still be rotated around
 $L^\ast$. The measured forward/up/right triad and the ideal instrument-frame triad are each
@@ -416,49 +411,44 @@ been swept against recorded data; Discussion returns to it alongside the missing
 evaluation.
 
 \subsection*{Software: Mapping Architecture}
-\textit{Here I explain the \texttt{NodeGraph}/\texttt{NodeTypeRegistry} design: three node
-categories (Source - raw IMU channels and derived motion/Laban features; Math - arithmetic, shaping,
-dynamics, lookup tables; Sink - synth parameters, from scalars like root frequency to indexed arrays
-like per-voice gain/pan), each a small typed function registered once. A graph is just nodes plus
-typed input-to-output wiring, serialised to/from XML (Extensible Markup Language) as a preset - and
-I want to be clear that \texttt{GraphMappingStrategy} makes the graph itself the only mapping type
-the synth ever talks to; there's no separate hand-written mapping path anymore.}
+\textit{\texttt{NodeGraph}/\texttt{NodeTypeRegistry}: three node categories - Source (IMU,\\
+Laban features), Math (arithmetic, shaping, dynamics, lookup tables), Sink (synth parameters) - each a
+small typed function registered once. A graph is nodes plus typed wiring, serialised to/from XML as
+a preset; \texttt{GraphMappingStrategy} makes the graph the only mapping path the synth talks to,
+with no separate hand-written path.}
 
 \subsubsection*{Graph Evaluation and Primitive Library}
 
 \textbf{DAG evaluation.} A patch is a directed graph of typed nodes; \texttt{NodeGraph::connect}
-provisionally adds an edge and recomputes a topological order with Kahn's algorithm (in-degree
-queue) via \texttt{NodeGraph::recomputeTopoOrder} - if the graph does not fully drain (a node's
-in-degree never reaches zero), the edge closed a cycle and is reverted. Each audio block,
-\texttt{NodeGraph::evaluate} walks the cached order once, and every node computes
+provisionally adds an edge and recomputes a topological order with Kahn's algorithm via
+\texttt{NodeGraph::recomputeTopoOrder}, reverting the edge if the graph fails to fully drain (a
+closed cycle). Each audio block, \texttt{NodeGraph::evaluate} walks the cached order once, and every
+node computes
 \[
 y_i = f_{\text{type}(n_i)}\big(x_{i,1},\dots,x_{i,m}\,;\,\theta_i\big)
 \]
 where $n_i$ is the $i$-th node in topological order, $\text{type}(n_i)$ its registered node-type
-function, $x_{i,1},\dots,x_{i,m}$ its wired input values, $\theta_i$ its parameters, and $y_i$ its
-resulting output(s) - so the whole patch is one composed function of the raw sensor frame, evaluated
-once per block with no re-sorting on the audio thread.
+function, $x_{i,1},\dots,x_{i,m}$ its wired inputs, $\theta_i$ its parameters, and $y_i$ its output(s)
+- so the whole patch is one composed function of the sensor frame, evaluated once per block with no
+re-sorting on the audio thread.
 
-\textbf{Primitive vocabulary.} Every node type is a single small pure function (or, for the few
-stateful ones, a function plus one scratch struct), registered once: arithmetic (add / subtract /
-multiply / divide / abs / max / min / equals), shaping (mapRange, clamp, threshold, crossfade,
-quantizeSteps, sine, atan2, semitonesToHz), lookup tables (a general 1-D table and a
-3-boolean-selector table - the same node type that implements the Azimut root table below), and
-stateful dynamics (variable-rate one-pole smoother, leaky integrator, retrigger envelope, hysteresis
-step, derivative, latched smoother).
+\textbf{Primitive vocabulary.} Every node type is one small pure function (or, for stateful ones, a
+function plus a scratch struct): arithmetic (add/subtract/multiply/divide/abs/max/min/equals),
+shaping (mapRange, clamp, threshold, crossfade, quantizeSteps, sine, atan2, semitonesToHz), lookup
+tables (a general 1-D table and the 3-boolean-selector table used by the Azimut root table below),
+and stateful dynamics (one-pole smoother, leaky integrator, retrigger envelope, hysteresis step,
+derivative, latched smoother).
 \begin{flushright}
 \coderef{\texttt{Graph::buildAllNodes}}
 \end{flushright}
 
 \subsection*{Software: Named Mappings as Graph Presets}
 \label{sec:azimut-deep-dive}
-Rather than only assert the generalisation claim, Table~2 shows it directly. Each of the eleven
-mappings - Simple (tilt-to-pitch), Lead+Drone, Spin Filter, Bowed Chord, the Azimut family (Azimut,
-Azimut+, Azimut Reverb - facing-based eight-way root table, spin-count filter sweep, axial thrust
-transients), the Bozendo V1/V2 Laban-driven mappings, Spin Voices, and Ben's - is built once in C++
-via \texttt{GraphBuilder} and is, structurally, nothing more than a particular wiring of the same
-node catalog. The counts below are read directly off the constructed graphs
-(\texttt{NodeGraph::nodes()}), not estimated from the source.
+Table~2 shows the generalisation claim directly: each of the eleven mappings - Simple, Lead+Drone,
+Spin Filter, Bowed Chord, the Azimut family (facing-based root table, spin-count filter sweep, axial
+thrust transients), Bozendo V1/V2, Spin Voices, and Ben's - is built once via \texttt{GraphBuilder}
+and is structurally just a particular wiring of the same node catalog. Counts are read directly off
+the constructed graphs (\texttt{NodeGraph::nodes()}).
 \begin{center}
 \small
 \textbf{Table 2: Node composition of each named-mapping preset.}\par\smallskip
@@ -491,9 +481,6 @@ needed a node type invented specifically for it.
 
 \subsubsection*{Azimut-Specific Transformations}
 \textit{Shared by every Azimut-family preset.}
-\begin{flushright}
-\coderef{\texttt{Graph::Presets::buildAzimutCore}}
-\end{flushright}
 
 \textbf{Root-note table.} The spin-plane/direction/facing root-note table above is not an if/else
 chain - it is literally an 8-entry lookup table indexed by three booleans (\texttt{isVertical},
@@ -520,6 +507,7 @@ $\mathrm{mapRange}$ linearly rescales its argument from the first interval to th
 $c_{\text{raw}}$ the resulting unsmoothed cutoff target, and $\mathrm{onePole}$ the smoothing
 primitive defined earlier.
 \begin{flushright}
+\coderef{\texttt{Graph::Presets::buildAzimutCore}}
 \coderef{\texttt{buildSpinCountLpfHz}}
 \end{flushright}
 
