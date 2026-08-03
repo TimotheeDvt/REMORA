@@ -243,13 +243,19 @@ DSPWindow::DSPWindow(REMORAProcessor& p)
     selectorBar.onMappingChanged = [this] { graphEditorComponent.onMappingChanged(); };
     selectorBar.onResetRequested = [this] { graphEditorComponent.resetCurrentGraphToOriginal(); };
     selectorBar.onLayoutRequested = [this] { graphEditorComponent.rerunAutoLayout(); };
+    selectorBar.onRankSepChanged = [this](float v) {
+        graphEditorComponent.setLayoutSpacing(v, graphEditorComponent.getNodeSep());
+    };
+    selectorBar.onNodeSepChanged = [this](float v) {
+        graphEditorComponent.setLayoutSpacing(graphEditorComponent.getRankSep(), v);
+    };
     graphEditorComponent.onDirtyStateChanged = [this](bool dirty) { selectorBar.setResetButtonVisible(dirty); };
     graphEditorComponent.onMappingChanged();
 
     setContentNonOwned(&root, true);
     setResizable(true, true);
     setResizeLimits(400, 300, 2000, 2000);
-    setSize(680, 480);
+    setSize(880, 480);
     setUsingNativeTitleBar(true);
 }
 

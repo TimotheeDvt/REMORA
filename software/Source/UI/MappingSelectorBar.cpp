@@ -78,6 +78,30 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
     });
     addAndMakeVisible(layoutButton);
 
+    auto setupSepSlider = [this](juce::Slider& slider, juce::Label& label, const juce::String& labelText,
+                                  const juce::String& tooltip, float defaultValue,
+                                  std::function<void(float)>& callback) {
+        slider.setSliderStyle(juce::Slider::LinearHorizontal);
+        slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 34, 20);
+        slider.setColour(juce::Slider::textBoxTextColourId, Palette::textHi);
+        slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+        slider.setRange(0.0, 200.0, 1.0);
+        slider.setValue(defaultValue, juce::dontSendNotification);
+        slider.setTooltip(tooltip);
+        slider.onValueChange = [&slider, &callback] {
+            if (callback)
+                callback(static_cast<float>(slider.getValue()));
+        };
+        addAndMakeVisible(slider);
+
+        styleLabel(label, labelText, 14.f, Palette::textMid, juce::Justification::centredRight);
+        label.setTooltip(tooltip);
+        addAndMakeVisible(label);
+    };
+    setupSepSlider(rankSepSlider, rankSepLabel, "Rank Sep", "Spacing between columns (flow direction)", 40.0f,
+                    onRankSepChanged);
+    setupSepSlider(nodeSepSlider, nodeSepLabel, "Node Sep", "Spacing between lanes (rows)", 24.0f, onNodeSepChanged);
+
     startTimerHz(10);
 }
 
@@ -106,6 +130,12 @@ void MappingSelectorBar::resized() {
     resetButton.setBounds(bounds.removeFromRight(110));
     bounds.removeFromRight(10);
     layoutButton.setBounds(bounds.removeFromRight(100));
+    bounds.removeFromRight(10);
+    nodeSepSlider.setBounds(bounds.removeFromRight(90));
+    nodeSepLabel.setBounds(bounds.removeFromRight(60));
+    bounds.removeFromRight(10);
+    rankSepSlider.setBounds(bounds.removeFromRight(90));
+    rankSepLabel.setBounds(bounds.removeFromRight(60));
     bounds.removeFromRight(10);
     mappingCombo.setBounds(bounds.removeFromLeft(100));
     bounds.removeFromLeft(5);

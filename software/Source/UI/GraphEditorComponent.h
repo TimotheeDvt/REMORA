@@ -36,6 +36,11 @@ public:
 
     void rerunAutoLayout();
 
+    // ranksep: gap between columns (rank axis, flow direction). nodesep: gap between lanes (rows).
+    void setLayoutSpacing(float newRankSep, float newNodeSep);
+    float getRankSep() const noexcept { return rankSep; }
+    float getNodeSep() const noexcept { return nodeSep; }
+
     // Called by GraphNodeComponent's inline param TextEditors as they're edited.
     void updateNodeParam(Graph::NodeId id, int index, float value);
 
@@ -61,6 +66,8 @@ private:
     Graph::NodeGraph* currentGraph = nullptr;
     bool isEditable = false;
     std::set<Graph::NodeGraph*> autoLaidOutGraphs;
+    float rankSep = 40.0f;
+    float nodeSep = 24.0f;
 
     std::unordered_map<Graph::NodeGraph*, juce::String> originalSnapshots;
     std::unordered_map<Graph::NodeGraph*, bool> dirtyByGraph;

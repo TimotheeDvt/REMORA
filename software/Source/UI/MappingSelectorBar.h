@@ -15,6 +15,8 @@ public:
     std::function<void()> onMappingChanged;
     std::function<void()> onResetRequested;
     std::function<void()> onLayoutRequested;
+    std::function<void(float)> onRankSepChanged;
+    std::function<void(float)> onNodeSepChanged;
     void setResetButtonVisible(bool shouldBeVisible);
 
 private:
@@ -27,6 +29,10 @@ private:
     juce::TextButton layoutButton;
     juce::Slider globalVolumeSlider;
     juce::Label globalVolumeLabel;
+    juce::Slider rankSepSlider;
+    juce::Label rankSepLabel;
+    juce::Slider nodeSepSlider;
+    juce::Label nodeSepLabel;
 
     void timerCallback() override;
     void notifyMappingChanged();
