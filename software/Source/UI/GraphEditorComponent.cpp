@@ -113,6 +113,7 @@ void GraphEditorComponent::rerunAutoLayout() {
 }
 
 // Reimplements d3-dag's grid layout (https://github.com/erikbrinkman/d3-dag)
+// but with a few tweaks to make it more suitable for our use case and more compatible horizontally.
 void GraphEditorComponent::autoLayout() {
     if (currentGraph == nullptr)
         return;
@@ -164,8 +165,15 @@ void GraphEditorComponent::autoLayout() {
     }
 
     std::unordered_map<Graph::NodeId, int> rankOf;
-    for (size_t i = 0; i < ordered.size(); ++i)
-        rankOf[ordered[i]] = static_cast<int>(i);
+    for (const auto& n : nodes)
+        rankOf[n.id] = 0;
+    for (Graph::NodeId id : ordered) {
+        auto it = rawChildrenOf.find(id);
+        if (it == rawChildrenOf.end())
+            continue;
+        for (Graph::NodeId child : it->second)
+            rankOf[child] = std::max(rankOf[child], rankOf[id] + 1);
+    }
 
     // Deduplicated children per node (d3-dag's gridChildren is a Set), used for lane assignment.
     std::unordered_map<Graph::NodeId, std::vector<Graph::NodeId>> childrenOf = rawChildrenOf;
@@ -178,10 +186,10 @@ void GraphEditorComponent::autoLayout() {
     // one-sided). laneReservedUntil[lane] is the rank up to which that lane is claimed by an
     // in-flight edge; a lane becomes eligible again once we've passed that rank.
     std::vector<int> laneReservedUntil;
-    auto pickLane = [&](int afterRank, int targetLane) {
+    auto pickLane = [&](int checkAfter, int storeAsRank, int targetLane) {
         int best = -1;
         for (int lane = 0; lane < static_cast<int>(laneReservedUntil.size()); ++lane) {
-            if (laneReservedUntil[static_cast<size_t>(lane)] > afterRank)
+            if (laneReservedUntil[static_cast<size_t>(lane)] > checkAfter)
                 continue;
             const int dist = std::abs(targetLane - lane);
             const int bestDist = best == -1 ? 0 : std::abs(targetLane - best);
@@ -190,16 +198,16 @@ void GraphEditorComponent::autoLayout() {
         }
         const int chosen = best == -1 ? static_cast<int>(laneReservedUntil.size()) : best;
         if (chosen == static_cast<int>(laneReservedUntil.size()))
-            laneReservedUntil.push_back(afterRank);
+            laneReservedUntil.push_back(storeAsRank);
         else
-            laneReservedUntil[static_cast<size_t>(chosen)] = afterRank;
+            laneReservedUntil[static_cast<size_t>(chosen)] = storeAsRank;
         return chosen;
     };
 
     std::unordered_map<Graph::NodeId, int> laneOf;
     for (Graph::NodeId id : ordered) {
         if (laneOf.count(id) == 0)
-            laneOf[id] = pickLane(rankOf[id], 0);
+            laneOf[id] = pickLane(rankOf[id] - 1, rankOf[id], 0);
 
         auto it = childrenOf.find(id);
         if (it == childrenOf.end())
@@ -211,9 +219,7 @@ void GraphEditorComponent::autoLayout() {
         for (Graph::NodeId child : kids) {
             if (laneOf.count(child) > 0)
                 continue;
-            const int childLane = pickLane(rankOf[id], laneOf[id]);
-            laneOf[child] = childLane;
-            laneReservedUntil[static_cast<size_t>(childLane)] = rankOf[child];
+            laneOf[child] = pickLane(rankOf[id], rankOf[child], laneOf[id]);
         }
     }
 

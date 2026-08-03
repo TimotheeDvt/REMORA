@@ -66,7 +66,7 @@ private:
     Graph::NodeGraph* currentGraph = nullptr;
     bool isEditable = false;
     std::set<Graph::NodeGraph*> autoLaidOutGraphs;
-    float rankSep = 40.0f;
+    float rankSep = 60.0f;
     float nodeSep = 24.0f;
 
     std::unordered_map<Graph::NodeGraph*, juce::String> originalSnapshots;
