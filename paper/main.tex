@@ -251,9 +251,9 @@ gives the alignment quaternion $q_{\text{align}}$.
 \coderef{\texttt{computeAlignQuat}}
 \end{flushright}
 
-\textbf{Stage 1 failure modes.} \texttt{computeAlignQuat} now reports failure when the three poses are
+\textbf{Stage 1 failure modes.} \texttt{computeAlignQuat} reports failure when the three poses are
 too close together or nearly coplanar to fix a physical axis with confidence, and the UI surfaces this
-as a "Calibration failed, try again" prompt rather than silently keeping a bad result.
+as a "Calibration failed, try again" prompt.
 
 \textbf{Calibration, stage 2 - fixing the twist.} The sensor could still be rotated around
 $L^\ast$. The measured forward/up/right triad and the ideal instrument-frame triad are each
@@ -314,7 +314,7 @@ valid range so a dropped or duplicated packet can't send the integrators below f
 \coderef{\texttt{calculateDeltaTime}}
 \end{flushright}
 
-\textbf{Tip vector and rotation axis.} The tip direction $p_n = \mathrm{rotate}((1,0,0), q_n)$ is
+\textbf{Tip vector and rotation axis.} The tip direction\\ $p_n = \mathrm{rotate}((1,0,0), q_n)$ is
 buffered over the last three samples to derive tip velocity and, from that, the axis the staff is
 currently spinning around.
 \begin{flushright}
@@ -625,19 +625,56 @@ take notes rather than assume my own playtesting generalises.}
 
 \subsection*{Advantages and Limitations}
 \label{sec:limitations}
-\textit{I want to be honest here about what the generalisation into a graph actually buys versus
-what it costs: expressiveness and shareability of mappings, weighed against the added cognitive step
-of patching for performers used to fixed instruments. Worth folding in the informal playtesting
-observations, and I should be upfront about the current limitations - single-IMU ambiguity, no
-formal user study yet, no perceptual evaluation of the facing/calibration accuracy, and the Wi-Fi
-hotspot dependency noted in Hardware: joining the host's own hotspot instead of a dedicated access
-point trades range and interference robustness for a simpler one-step pairing setup.}
+The generalisation into a graph buys expressiveness and shareability - eleven previously hand-coded
+mappings collapse into presets of one small dataflow language - at the cost of a patching step that
+performers used to fixed instruments do not otherwise have to take. The limitations below are ones
+the current build genuinely carries, not future work described in present tense.
+
+\textbf{Network deployment is manual.} REMORA joins the host device's own Wi-Fi hotspot rather than
+a dedicated access point, trading range and interference robustness for a one-step pairing setup.
+That convenience hides a real cost: the hotspot SSID/password and the OSC destination IP are
+constants compiled into the firmware. A phone hotspot does not guarantee the same IP across
+sessions, and pairing with a different host network means a different SSID and password entirely -
+either case currently requires editing the firmware source and reflashing the microcontroller over
+USB before the staff will talk to the plugin again. There is no runtime Wi-Fi configuration, no
+network discovery of the receiving host, and no feedback if the join fails silently.
+
+\textbf{Single IMU.} All orientation and motion-quality features come from one IMU with no
+magnetometer fusion; heading is deliberately kept relative to the calibration pose rather than
+magnetic north, since the magnetometer is unreliable this close to the staff's own electronics and
+typical stage rigs. That keeps facing free of magnetic interference, but it also means REMORA has no
+absolute reference at all - any yaw drift accumulated since calibration is invisible and
+uncorrected, and the facing feature is only ever as good as that session's calibration. No perceptual
+evaluation of facing or calibration accuracy exists yet.
+
+\textbf{Graph interface complexity.} The node-graph editor is expressive for whoever is building or
+modifying a mapping, but it exposes that same complexity to a performer who only wants to select and
+play an existing preset: there is no simplified performance-only view that hides the graph until
+it's asked for. As it stands, the interface serves instrument-builders and patch-authors more
+directly than first-time performers, and whether that cost is acceptable is exactly the kind of
+question the still-missing formal user study would need to answer.
+
+\textbf{Remaining software robustness gaps.} A few implementation-level issues would need attention
+before REMORA is exposed to inputs beyond the author's own testing: incoming OSC messages are read
+without confirming their argument types match what the receiver expects, dropped or reordered
+packets are not detected as such, and the handoff of a sensor snapshot from the network thread to
+the audio thread retries in a tight spin loop rather than degrading gracefully under contention.
+
+\textbf{Hardware.} The enclosure carries a LiPo battery, but no measured battery life is reported
+anywhere - how long a rehearsal or set REMORA can run unplugged is currently unknown.
 
 \subsection*{Future Improvements}
-\textit{Extensions I keep coming back to: gesture-triggered mode switching, a merged rest/motion
-mapping, a two-IMU dual-tip configuration, further Laban Effort mapping targets, ML-based discrete
-gesture recognition, and eventually exposing the node graph itself as a shareable/community patch
-format.}
+
+\textbf{Wireless transport.} The hotspot-join scheme in \S\ref{sec:limitations} could be replaced
+with ESP-NOW: the staff-mounted ESP32 would send its sensor packets directly, peer-to-peer, to a
+second ESP32 tethered over USB to the host computer, which forwards them to the plugin over serial
+or a loopback OSC bridge. That removes the SSID/password/IP baked into firmware entirely - ESP-NOW
+pairs by MAC address rather than joining a network - and sidesteps the "new hotspot means reflash"
+problem, at the cost of adding a second microcontroller to the setup.
+
+\textbf{Other extensions.} Gesture-triggered mode switching, a merged rest/motion mapping, a two-IMU
+dual-tip configuration, further Laban Effort mapping targets, ML-based discrete gesture recognition,
+and eventually exposing the node graph itself as a shareable/community patch format.
 
 \section{Conclusions}
 \textit{I want to close by making REMORA's real novelty explicit: it's architectural, not just one
