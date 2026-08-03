@@ -21,6 +21,7 @@ constexpr float kMinZoom = 0.1f, kMaxZoom = 3.0f;
 } // namespace
 
 GraphEditorComponent::GraphEditorComponent(REMORAProcessor& p) : processor(p) {
+    setWantsKeyboardFocus(true);
     styleLabel(statusLabel, {}, 13.0f, Palette::textMid, juce::Justification::centredLeft);
     addAndMakeVisible(statusLabel);
 
@@ -558,6 +559,7 @@ void GraphEditorComponent::showWireContextMenu(Graph::NodeId dstNode, int dstPor
 }
 
 void GraphEditorComponent::mouseDown(const juce::MouseEvent& e) {
+    grabKeyboardFocus();
     handleBackgroundMouseDown(e);
 }
 

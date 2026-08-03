@@ -7,7 +7,9 @@ class GraphEditorComponent;
 // The pannable/zoomable surface GraphEditorComponent applies its AffineTransform to (not to itself).
 class GraphCanvasComponent : public juce::Component {
 public:
-    explicit GraphCanvasComponent(GraphEditorComponent& editorIn) : editor(editorIn) {}
+    explicit GraphCanvasComponent(GraphEditorComponent& editorIn) : editor(editorIn) {
+        setWantsKeyboardFocus(true);
+    }
 
     void paint(juce::Graphics& g) override;
     // Panning can put node positions outside this component's nominal size; the default hitTest would block them.

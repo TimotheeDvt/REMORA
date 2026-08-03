@@ -8,6 +8,7 @@ void GraphCanvasComponent::paint(juce::Graphics& g) {
 }
 
 void GraphCanvasComponent::mouseDown(const juce::MouseEvent& e) {
+    grabKeyboardFocus();
     editor.handleBackgroundMouseDown(e.getEventRelativeTo(&editor));
 }
 

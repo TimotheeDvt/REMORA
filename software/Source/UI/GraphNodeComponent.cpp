@@ -25,6 +25,8 @@ GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::No
         addAndMakeVisible(pin);
     }
 
+    setWantsKeyboardFocus(true);
+
     const bool editable = editor.isGraphEditable();
     for (size_t i = 0; i < params.size(); ++i) {
         auto* label = paramNameLabels.add(new juce::Label({}, paramLabelFor(i)));
@@ -190,6 +192,7 @@ juce::Point<int> GraphNodeComponent::getOutputPinCentre(int port) const {
 }
 
 void GraphNodeComponent::mouseDown(const juce::MouseEvent& e) {
+    grabKeyboardFocus();
     if (!e.mods.isPopupMenu() && !e.mods.isCtrlDown() && infoButtonBounds.contains(e.getPosition())) {
         showInfoPopup();
         return;
