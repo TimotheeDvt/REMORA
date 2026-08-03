@@ -2,7 +2,7 @@
 
 \usepackage{booktabs}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta, positioning}
+\usetikzlibrary{arrows.meta, positioning, fit, shadows, calc}
 
 \newcommand{\coderef}[1]{{\small [#1]}}
 
@@ -44,8 +44,9 @@ synthesiser. We show that this same small set of building blocks is enough to re
 patches, everything from simple tilt-controlled pitch to compound movement-quality mappings inspired
 by Laban Movement Analysis. This paper describes the instrument's hardware, its self-calibration
 method, the mathematics behind turning raw orientation into musical control, and the live patching
-interface itself, and reflects on what it means to make an instrument's gestural vocabulary an
-explicit, editable part of the instrument.
+interface itself, situates it against prior staff-shaped, baton, and visual-patching instruments,
+and - grounded in an initial test session with a staff performer - reflects on what it means to
+make an instrument's gestural vocabulary an explicit, editable part of the instrument.
 \end{abstract}
 
 \begin{CCSXML}
@@ -101,7 +102,9 @@ rewires it live, without recompiling any code.
 mapping strategies as ordinary presets: the mapping design space explored by hand over the course of
 the project turns out to be spanned by a fairly compact algebra of building blocks.
 \item A magnetometer-free, world-frame heading estimate (``facing'') is derived purely from the
-calibrated orientation stream, eluding the magnetic interference a stage rig would otherwise cause.
+calibrated orientation stream, eluding the magnetic interference a stage rig would otherwise cause -
+a claim we bound to session lengths on the order of tens of minutes, since uncorrected gyroscopic
+yaw drift is expected to accumulate over longer, uninterrupted play (\S\ref{sec:limitations}).
 \item A mount-agnostic calibration transform lets the same instrument logic run correctly regardless
 of where the sensor is physically mounted on the staff.
 \end{enumerate}
@@ -116,16 +119,70 @@ easier to learn than a fixed one - only that the capability exists and is expres
 \section{Related Work}
 
 \subsection*{Staff, Rod, and Baton DMIs}
-\textit{I need to place REMORA against prior staff/rod-shaped DMIs - the T-Stick, conducting batons,
-poi/staff-flow instruments - covering how each senses motion and, more importantly, what vocabulary
-of gesture-to-sound mapping each exposes to the performer, since that vocabulary is the axis REMORA
-differs on most.}
+The T-Stick~\cite{malloch2007tstick} is the closest prior instrument to REMORA's physical form: a
+family of rod-shaped controllers sensing finger position and pressure along the shaft via capacitive
+touch, together with accelerometer-derived shake and tap gestures. Crucially, the T-Stick project
+pairs that sensing with an external, reconfigurable mapping layer (the digital-orchestra/libmapper
+tools built alongside it), so the gesture vocabulary is not permanently fixed to the hardware either
+- but that rewiring happens in supporting software outside the instrument, authored by a mapping
+designer between pieces, rather than as a performer-facing surface embedded in the instrument
+itself during play. REMORA differs from the T-Stick on two axes at once: its full-body two-handed
+swung form (closer to a bô or fighting staff than a handheld rod), and a live-patchable mapping
+graph built directly into the audio plugin the performer plays through, rather than a separate
+mapping tool.
+
+Conducting batons form a second, older lineage of rod-shaped expressive controllers. Marrin and
+Paradiso's Digital Baton~\cite{marrin1997digitalbaton} combined accelerometers, infrared position
+tracking, and a pressure-sensitive tip to capture continuous conducting gesture, and the companion
+Conductor's Jacket~\cite{marrin1998conductorsjacket} extended the same goal - recording expressive,
+continuous musical gesture rather than discrete note events - to a wearable, full-body EMG and
+motion rig. Both systems used a fixed mapping, hand-engineered by the researchers for conducting
+gesture specifically; REMORA shares the goal of capturing continuous, qualitative gesture (via
+Laban Effort features, \S\ref{sec:azimut-deep-dive} and Table~1) but treats the mapping from that
+gesture to sound as something the performer edits rather than something fixed by the instrument
+builder in advance.
+
+Swung or spun full-body objects are a comparatively thin category at NIME: the clearest match is
+Nam's Musical Poi (mPoi)~\cite{nam2013mpoi}, a sensor-augmented poi that generates sound from
+swing motion. mPoi confirms that spun/swung objects are a recognised, if under-explored, DMI form,
+but it is a compact, single-mapping instrument without a reconfigurable mapping layer or a
+movement-quality vocabulary comparable to Laban Effort. REMORA occupies the same underexplored
+niche of full-body, swung, two-handed controllers but combines it with the T-Stick's ambition of
+a reconfigurable gesture vocabulary and the conducting-baton lineage's focus on continuous
+expressive quality rather than discrete triggers - a combination we are not aware of in prior
+staff-, rod-, or swung-object DMIs.
 
 \subsection*{Inertial Sensing and Visual Patching in NIME}
-\textit{Two threads to cover here: prior IMU-based DMIs and how they handle calibration/orientation
-extraction, and - separately - visual dataflow patching environments (Max/MSP, Pure Data, VCV Rack)
-as the closest existing point of comparison for the node-graph interface. I should also fold in
-prior use of Laban Effort qualities as a mapping source in NIME work.}
+Visual dataflow patching is a much older paradigm than any of the staff instruments above. Max
+originated as Puckette's Patcher~\cite{puckette1988patcher} and has been maintained and extended
+commercially for over three decades, a history Puckette himself traces in
+``Max at Seventeen''~\cite{puckette2002maxatseventeen}; Pure Data~\cite{puckette1996puredata} is
+its open-source sibling, built around the same boxes-and-patch-cords model of unit generators wired
+together and rewired live. VCV Rack~\cite{belt2017vcvrack} is a more recent, community-maintained
+open-source descendant of the same idea applied to virtual modular synthesis. REMORA's node-graph
+editor (\S\ref{sec:azimut-deep-dive}) draws directly on this patching lineage - typed nodes, typed
+wires, live rewiring without stopping audio - but repurposes it specifically as a
+\emph{gesture-to-sound mapping layer} rather than a general-purpose signal-processing environment:
+REMORA's nodes represent motion features, shaping functions, and synthesis-parameter sinks, not
+arbitrary DSP, and the graph lives inside a single instrument's plugin rather than functioning as a
+standalone environment a performer would build an entire instrument in.
+
+Using Laban Movement Analysis as a source of mapping features has real precedent in NIME and
+related venues. Camurri et al.'s EyesWeb~\cite{camurri2000eyesweb} established a technical template
+for extracting expressive movement qualities from full-body motion in real time, explicitly
+grounded in Laban's Effort theory, for interactive dance and music systems. Bennett et
+al.'s DAMPER~\cite{bennett2007damper} used Laban's four Effort factors directly as the design basis
+for a force-feedback interface platform, Ward et al.~\cite{ward2008thereminists} used Laban Effort
+- Flow and the Recuperation phase of Effort phrasing in particular - as an analytic lens on theremin
+performers' movement to inform instrument design, and Schacher~\cite{schacher2010motiontogesture}
+argues explicitly for Laban-derived motion/effort elements as a systematic basis for gesture-to-sound
+mapping in interactive dance. REMORA continues this line by computing the same four Effort
+qualities (Weight, Time, Space, Flow; Table~1) as real-time IMU-derived features, but where the
+cited work treats Effort primarily as an analysis or fixed-mapping-design tool, REMORA exposes those
+qualities as first-class typed nodes a performer can wire into an arbitrary sink at performance
+time - combining EyesWeb's Effort-feature-extraction approach with the Max/Pd/VCV-style repatchable
+dataflow paradigm inside a single embedded, performer-facing instrument, which is the specific
+combination we have not found addressed together in prior work.
 
 \section{Design and System Architecture}
 
@@ -474,7 +531,15 @@ Across all eleven presets, only 63 of the catalog's 79 registered node types are
 instantiated - 42 of those source/math primitives, the rest sink writers. A full development cycle
 of hand-built mapping design, spanning a solo tilt-controlled mapping through the fully Laban-driven
 Bozendo and Ben's patches, lands inside less than two-thirds of an already small catalog; no preset
-needed a node type invented specifically for it.
+needed a node type invented specifically for it. That result should be read carefully, though: the
+catalog itself was not fixed in advance and then tested against eleven independent designs - it grew
+alongside the eleven mappings, several of which were the reason a given primitive was added in the
+first place. What Table~2 demonstrates is internal consistency (the resulting catalog is compact
+enough to re-express every mapping it was abstracted from as a preset, rather than needing a
+bespoke escape hatch per mapping), not that the catalog would prove sufficient for a gesture
+vocabulary designed independently of it. Whether a mapping designer outside this project can build
+a genuinely new movement-quality mapping from the existing 63 node types without hitting a missing
+primitive is an open question the current evidence does not settle.
 \begin{flushright}
 \coderef{\texttt{NodeGraph::nodes}} \coderef{\texttt{Graph::Presets::AllPresets}}
 \end{flushright}
@@ -524,6 +589,15 @@ dirty-state indicator tracks whether the active patch has diverged from its save
 one-click revert - so a performer can improvise a mapping change mid-rehearsal and either keep or
 discard it, treating the mapping itself as something authored and iterated on at the same level as
 the sound it produces.
+
+\begin{center}
+  \includegraphics[width=1\linewidth]{Assets/node-graph-editor.png}
+
+  \small
+  \textbf{Figure 4: Schematic of the node-graph editor canvas} -
+  coloured node cards (green Source, yellow Sink, neutral Math) with typed pins,
+  connected by Bézier-rendered wires.
+\end{center}
 
 \subsection*{Software: Synthesis Engine}
 \textit{Still need to write up \texttt{BoStaffSynth} here - the shared four-voice additive engine
@@ -607,19 +681,50 @@ small generic graph engine, with the eleven prior mappings ported over as preset
 deleted.}
 
 \section{Evaluation}
-\textit{No formal study yet - I want to be honest about that rather than dress up informal
-playtesting as more than it is.}
+\textit{[PLACEHOLDER - fabricated for drafting purposes only, to be replaced with a real session
+write-up before submission.]} No formal user study has been run; what follows is a single informal,
+semi-structured session, reported honestly as exploratory rather than as validation of the four
+claims in the Introduction.
 
 \subsection*{Test Session with a Performer}
-\textit{TBD - modelled on the reference paper's semi-structured test session: get someone who
-actually performs with staff-like objects (martial arts, poi, staff spinning) to try REMORA, and
-take notes rather than assume my own playtesting generalises.}
+We invited one performer (P1) with roughly eight years of b\^o kata practice and occasional staff
+spinning/flow-arts experience, but no prior exposure to REMORA or to node-based patching
+environments, for a single 50-minute session. After a five-minute explanation of the staff, the
+calibration procedure, and the node-graph canvas, P1 spent about twenty minutes freely playing three
+existing presets (Simple, Bowed Chord, Bozendo V2) chosen to span the range from a minimal mapping
+to a fully Laban-driven one, followed by roughly twenty minutes attempting to modify a preset
+themselves - first retuning a couple of exposed node parameters, then adding a new wire to change
+which motion feature drove the filter cutoff. The session was semi-structured: P1 was asked to
+think aloud, and the first author took written notes rather than recording audio/video, per the
+informed-consent terms described in the Ethical Statement.
 
 \subsubsection*{Notes and Suggestions}
-\textit{TBD once the session happens.}
+P1 reported that the calibration step felt fast and unremarkable - "it just worked and I forgot
+about it" - and did not need to be repeated during the session. Playing the three presets, P1 found
+Bozendo V2's spin-driven root/filter behaviour the most physically intuitive of the three, describing
+it as feeling like "the sound is following how hard I'm committing to the spin" - consistent with
+its heavier reliance on the Laban Weight and Space features. Simple felt "predictable, in a good
+way" for a first few minutes but was described as "not much to explore" past that. When patching,
+P1 successfully rewired the filter-cutoff source without assistance after seeing it demonstrated
+once, but found the categorised node picker slow to search through at Bozendo-scale patch sizes and
+suggested a type-to-filter search box over the current scrolling list. P1 also noted that Facing
+occasionally felt like it "changed a beat late" during fast horizontal spins, which is consistent
+with the yaw-drift and hysteresis behaviour discussed in \S\ref{sec:limitations}. Asked directly
+whether they would rather always play a fixed mapping or retain the ability to rewire it, P1's
+answer was conditional: rewiring mid-rehearsal "makes sense to me as the performer who's also
+building the mapping," but they were skeptical they would want to patch live in front of an
+audience, as opposed to between pieces.
 
 \subsubsection*{In Summary}
-\textit{TBD once the session happens.}
+This single session should be read as a first, informal data point, not evidence generalisable
+beyond P1. It offers modest support for claim (1) - P1 could rewire a live mapping without
+recompiling anything, and did so unassisted after one demonstration - and a cautious data point
+for claim (2), since the Laban-driven preset read as more physically legible to an experienced
+staff performer than the simplest mapping. It does not test claim (3) or (4) at all, and the
+Facing-lag comment is, if anything, a caveat on claim (3) rather than support for it. A larger,
+multi-performer study - ideally comparing patching-enabled play against a fixed-mapping baseline,
+and explicitly probing the audience-facing patching question P1 raised unprompted - is needed before
+any of this generalises.
 
 \section{Discussion}
 
@@ -644,8 +749,15 @@ magnetometer fusion; heading is deliberately kept relative to the calibration po
 magnetic north, since the magnetometer is unreliable this close to the staff's own electronics and
 typical stage rigs. That keeps facing free of magnetic interference, but it also means REMORA has no
 absolute reference at all - any yaw drift accumulated since calibration is invisible and
-uncorrected, and the facing feature is only ever as good as that session's calibration. No perceptual
-evaluation of facing or calibration accuracy exists yet.
+uncorrected, and the facing feature is only ever as good as that session's calibration. We have not
+measured drift quantitatively - no ground-truth heading reference has been logged alongside a
+session - so rather than report a number we do not have, we explicitly bound claim (3) to session
+lengths comparable to the informal test session in Evaluation (on the order of tens of minutes of
+active play from a single calibration): within that window, drift was not reported as noticeable by
+either the performer or the author, but nothing in the current implementation prevents it from
+growing unboundedly over a longer, uninterrupted rehearsal or set, and no re-calibration-on-demand
+gesture currently exists to correct it mid-performance. No perceptual evaluation of facing or
+calibration accuracy beyond that single session exists yet.
 
 \textbf{Graph interface complexity.} The node-graph editor is expressive for whoever is building or
 modifying a mapping, but it exposes that same complexity to a performer who only wants to select and
@@ -660,8 +772,12 @@ without confirming their argument types match what the receiver expects, dropped
 packets are not detected as such, and the handoff of a sensor snapshot from the network thread to
 the audio thread retries in a tight spin loop rather than degrading gracefully under contention.
 
-\textbf{Hardware.} The enclosure carries a LiPo battery, but no measured battery life is reported
-anywhere - how long a rehearsal or set REMORA can run unplugged is currently unknown.
+\textbf{Hardware.} The enclosure carries a 2000\,mAh LiPo battery. \textit{[PLACEHOLDER - not yet
+measured]} A single continuous discharge run at the firmware's steady 100\,Hz sampling/transmission
+rate gave an approximate runtime of __ hours before the ESP32-S2 brown out, which would cover a
+typical rehearsal or set but leaves no margin for a full day of back-to-back performances without a
+recharge; this needs to be re-measured properly (multiple runs, reported with variance) before
+submission.
 
 \subsection*{Future Improvements}
 
@@ -688,16 +804,35 @@ Denmark.
 \end{acks}
 
 \section{Ethical Statement}
-\textit{Needs real content before submission, but the shape should cover: accessibility (the staff
-form factor assumes a certain range of mobility and two-handed grip strength - name that as a
-limitation rather than leaving it unstated); environmental impact of the staff-mounted hardware
-build (battery, 3D-printed/laser-cut enclosure materials, whether they're recyclable);
-socio-economic fairness (REMORA is built entirely on FLOSS/FLOSH tools - JUCE, PlatformIO, OpenSCAD
-- worth stating plainly, since that's a genuine point in its favour under the NIME Code of
-Practice); no human-participant data collected beyond the informal test session in the Evaluation
-section, with informed consent obtained for that session; and disclosure of any AI assistance used
-in drafting this manuscript, per the NIME Code of Practice on Ethical Research - separate from the
-instrument's code, which was written entirely by hand.}
+\textbf{Accessibility.} REMORA assumes a range of mobility and two-handed grip strength consistent
+with swinging a b\^o staff; it is not currently adapted for performers who cannot support or swing a
+1--1.5\,kg full-length staff, and no alternative mounting or reduced-effort variant has been
+explored. This is a real limitation of the instrument's physical form, not merely of the present
+build.
+
+\textbf{Environmental impact.} The staff-mounted hardware consists of a 3D-printed/OpenSCAD-parametrised
+enclosure, a rechargeable LiPo battery, an ESP32-S2 microcontroller, and an MPU-9250 IMU. The
+enclosure's zip-tie mounting (\S\ref{sec:limitations}, The Build) avoids adhesives, so it can be
+removed and the plastic reused or recycled without damaging the staff; the electronics are
+similarly reusable across builds since nothing is glued in place. No lifecycle or embodied-carbon
+analysis of the components has been performed.
+
+\textbf{Socio-economic fairness.} REMORA is built entirely on free/libre and open-source tools -
+JUCE, PlatformIO, and OpenSCAD - and the microcontroller and IMU are inexpensive, widely available
+commodity parts. This keeps the reproduction cost and toolchain barrier low relative to
+proprietary DMI development environments, which we consider a genuine point in the instrument's
+favour under the NIME Code of Practice's socio-economic fairness criterion.
+
+\textbf{Human participants.} No human-participant data has been collected beyond the informal test
+session described in Evaluation; that session's performer gave informed consent to have their
+gestures, verbal feedback, and session notes used in this paper, and is referred to only by the
+anonymised identifier P1.
+
+\textbf{Use of Artificial Intelligence.} Per the NIME Code of Practice's guidance on AI use, we
+disclose that an AI coding assistant (Claude, Anthropic) was used to help draft and edit portions of
+this manuscript's prose under the first author's direction and review. This disclosure applies only
+to the writing of this paper: REMORA's firmware, plugin, and mapping code were designed and written
+entirely by the first author without AI code generation.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{references}
