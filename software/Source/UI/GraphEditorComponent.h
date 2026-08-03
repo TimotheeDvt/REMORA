@@ -27,6 +27,9 @@ public:
 
     bool isGraphEditable() const noexcept { return isEditable; }
 
+    // Live value a node is currently outputting on the given port, for hover tooltips. 0 if no graph is live.
+    float liveOutputValue(Graph::NodeId id, int port) const;
+
     std::function<void(bool)> onDirtyStateChanged;
     bool isCurrentGraphDirty() const noexcept { return isDirty; }
     void resetCurrentGraphToOriginal();

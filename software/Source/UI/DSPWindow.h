@@ -118,6 +118,7 @@ private:
     GraphEditorComponent graphEditorComponent;
     DSPTabbedComponent tabs { juce::TabbedButtonBar::Orientation::TabsAtTop };
     DSPRootComponent root { selectorBar, tabs };
+    juce::TooltipWindow tooltipWindow;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DSPWindow)
 };

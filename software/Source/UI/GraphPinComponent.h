@@ -5,7 +5,7 @@
 
 class GraphEditorComponent;
 
-class GraphPinComponent : public juce::Component {
+class GraphPinComponent : public juce::Component, public juce::TooltipClient {
 public:
     GraphPinComponent(GraphEditorComponent& editor, Graph::NodeId nodeId, int port, bool isOutput);
 
@@ -13,6 +13,7 @@ public:
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
     void mouseUp(const juce::MouseEvent& e) override;
+    juce::String getTooltip() override;
 
     Graph::NodeId getNodeId() const noexcept { return nodeId; }
     int getPort() const noexcept { return port; }

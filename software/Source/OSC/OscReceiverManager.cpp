@@ -1,4 +1,12 @@
 #include "OscReceiverManager.h"
+#include <cmath>
+
+namespace {
+void storeIfFinite(std::atomic<float>& dest, float value) {
+  if (std::isfinite(value))
+    dest.store(value, std::memory_order_relaxed);
+}
+}
 
 OscReceiverManager::OscReceiverManager() {}
 
@@ -49,24 +57,24 @@ void OscReceiverManager::oscMessageReceived(const juce::OSCMessage &message) {
       lastMessageReceivedTicks.store(juce::Time::getHighResolutionTicks(), std::memory_order_relaxed);
 
       imuData.seq.fetch_add(1, std::memory_order_release);
-      imuData.ax.store(message[0].getFloat32(), std::memory_order_relaxed);
-      imuData.ay.store(message[1].getFloat32(), std::memory_order_relaxed);
-      imuData.az.store(message[2].getFloat32(), std::memory_order_relaxed);
+      storeIfFinite(imuData.ax, message[0].getFloat32());
+      storeIfFinite(imuData.ay, message[1].getFloat32());
+      storeIfFinite(imuData.az, message[2].getFloat32());
 
-      imuData.gx.store(message[3].getFloat32(), std::memory_order_relaxed);
-      imuData.gy.store(message[4].getFloat32(), std::memory_order_relaxed);
-      imuData.gz.store(message[5].getFloat32(), std::memory_order_relaxed);
+      storeIfFinite(imuData.gx, message[3].getFloat32());
+      storeIfFinite(imuData.gy, message[4].getFloat32());
+      storeIfFinite(imuData.gz, message[5].getFloat32());
 
-      imuData.mx.store(message[6].getFloat32(), std::memory_order_relaxed);
-      imuData.my.store(message[7].getFloat32(), std::memory_order_relaxed);
-      imuData.mz.store(message[8].getFloat32(), std::memory_order_relaxed);
+      storeIfFinite(imuData.mx, message[6].getFloat32());
+      storeIfFinite(imuData.my, message[7].getFloat32());
+      storeIfFinite(imuData.mz, message[8].getFloat32());
 
       // Fallback in case old code sends only 9 floats
       if (message.size() >= 13) {
-        imuData.qw.store(message[9].getFloat32(), std::memory_order_relaxed);
-        imuData.qx.store(message[10].getFloat32(), std::memory_order_relaxed);
-        imuData.qy.store(message[11].getFloat32(), std::memory_order_relaxed);
-        imuData.qz.store(message[12].getFloat32(), std::memory_order_relaxed);
+        storeIfFinite(imuData.qw, message[9].getFloat32());
+        storeIfFinite(imuData.qx, message[10].getFloat32());
+        storeIfFinite(imuData.qy, message[11].getFloat32());
+        storeIfFinite(imuData.qz, message[12].getFloat32());
       }
       imuData.seq.fetch_add(1, std::memory_order_release);
 

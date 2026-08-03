@@ -10,7 +10,7 @@ add_subdirectory(JUCE)
 
 juce_add_plugin(REMORA
     PLUGIN_MANUFACTURER_CODE  Nime      PLUGIN_CODE  Remo
-    FORMATS                   VST3 Standalone
+    FORMATS                   Standalone
     PRODUCT_NAME              "REMORA"
     COMPANY_NAME              "NIME Project"
     BUNDLE_ID                 com.NIMEProject.REMORA

@@ -7,7 +7,7 @@
 
 class GraphEditorComponent;
 
-class GraphNodeComponent : public juce::Component {
+class GraphNodeComponent : public juce::Component, public juce::TooltipClient {
 public:
     static constexpr int kWidth = 140;
     static constexpr int kHeaderHeight = 22;
@@ -24,6 +24,7 @@ public:
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
     void mouseUp(const juce::MouseEvent& e) override;
+    juce::String getTooltip() override;
 
     Graph::NodeId getNodeId() const noexcept { return nodeId; }
     static int preferredHeight(const Graph::NodeTypeInfo& typeInfo);

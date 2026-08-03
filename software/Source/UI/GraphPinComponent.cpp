@@ -15,6 +15,12 @@ void GraphPinComponent::paint(juce::Graphics& g) {
     g.drawEllipse(bounds, 1.5f);
 }
 
+juce::String GraphPinComponent::getTooltip() {
+    if (!output || !editor.isGraphEditable())
+        return {};
+    return juce::String(editor.liveOutputValue(nodeId, port), 4);
+}
+
 void GraphPinComponent::mouseDown(const juce::MouseEvent& e) {
     if (e.mods.isCtrlDown())
         editor.handleCanvasMouseDown(e.getEventRelativeTo(&editor));

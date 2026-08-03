@@ -51,6 +51,10 @@ void GraphEditorComponent::onMappingChanged() {
     syncFromModel();
 }
 
+float GraphEditorComponent::liveOutputValue(Graph::NodeId id, int port) const {
+    return currentGraph != nullptr ? currentGraph->outputOf(id, port) : 0.0f;
+}
+
 void GraphEditorComponent::markDirty() {
     if (currentGraph == nullptr)
         return;

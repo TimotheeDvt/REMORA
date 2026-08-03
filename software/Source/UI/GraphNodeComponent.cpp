@@ -221,6 +221,20 @@ void GraphNodeComponent::mouseUp(const juce::MouseEvent&) {
     editor.handleCanvasMouseUp();
 }
 
+juce::String GraphNodeComponent::getTooltip() {
+    if (!editor.isGraphEditable())
+        return {};
+
+    juce::String text = typeInfo.displayName;
+    for (int i = 0; i < typeInfo.numOutputs; ++i) {
+        const juce::String label = typeInfo.outputNames.size() > static_cast<size_t>(i)
+            ? typeInfo.outputNames[static_cast<size_t>(i)]
+            : (typeInfo.numOutputs > 1 ? ("out" + juce::String(i)) : juce::String("out"));
+        text << "\n" << label << ": " << juce::String(editor.liveOutputValue(nodeId, i), 4);
+    }
+    return text;
+}
+
 void GraphNodeComponent::showInfoPopup() {
     juce::String text;
     text << typeInfo.displayName;
