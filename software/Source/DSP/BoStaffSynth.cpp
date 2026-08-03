@@ -149,8 +149,7 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
         return;
     }
 
-    // Only AzimutReverbMapping sets this - reset so switching away from it doesn't leave a stale wet level stuck on.
-    mappingOut.reverbWetLevel = 0.0f;
+    mappingOut = MappingOutput{};
 
     int activeIndex = activeMappingIndex.load();
     if (activeIndex >= 0 && activeIndex < static_cast<int>(mappings.size())) {

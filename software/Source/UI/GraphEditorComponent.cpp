@@ -13,8 +13,10 @@
 #include <vector>
 
 namespace {
-constexpr int kCanvasWidth = 22000;
-constexpr int kCanvasHeight = 22000;
+constexpr int kCanvasWidth = 100000;
+constexpr int kCanvasHeight = 100000;
+constexpr float kCanvasOriginX = kCanvasWidth * 0.5f;
+constexpr float kCanvasOriginY = kCanvasHeight * 0.5f;
 constexpr float kMinZoom = 0.1f, kMaxZoom = 3.0f;
 } // namespace
 
@@ -25,6 +27,9 @@ GraphEditorComponent::GraphEditorComponent(REMORAProcessor& p) : processor(p) {
     canvas.setSize(kCanvasWidth, kCanvasHeight);
     canvas.setBufferedToImage(false);
     addAndMakeVisible(canvas);
+
+    panOffset = { -kCanvasOriginX, -kCanvasOriginY };
+    updateTransform();
 }
 
 void GraphEditorComponent::onMappingChanged() {
@@ -231,7 +236,7 @@ void GraphEditorComponent::syncFromModel() {
         if (info == nullptr)
             continue;
         auto* comp = nodeComponents.add(new GraphNodeComponent(*this, n.id, *info, n.params));
-        comp->setTopLeftPosition(static_cast<int>(n.x), static_cast<int>(n.y));
+        comp->setTopLeftPosition(static_cast<int>(n.x + kCanvasOriginX), static_cast<int>(n.y + kCanvasOriginY));
         canvas.addAndMakeVisible(comp);
         nodeComponentById[n.id] = comp;
     }
@@ -287,9 +292,10 @@ void GraphEditorComponent::showAddNodeMenu(juce::Point<int> position) {
 void GraphEditorComponent::addNodeAt(const juce::String& typeId, juce::Point<int> position) {
     if (currentGraph == nullptr)
         return;
-    const auto worldPos = canvas.getLocalPoint(this, position);
+    const auto canvasPos = canvas.getLocalPoint(this, position);
     const Graph::NodeId id = currentGraph->addNode(typeId);
-    currentGraph->setNodePosition(id, static_cast<float>(worldPos.x), static_cast<float>(worldPos.y));
+    currentGraph->setNodePosition(id, static_cast<float>(canvasPos.x) - kCanvasOriginX,
+                                   static_cast<float>(canvasPos.y) - kCanvasOriginY);
     markDirty();
     syncFromModel();
 }
@@ -305,7 +311,7 @@ void GraphEditorComponent::deleteNode(Graph::NodeId id) {
 void GraphEditorComponent::nodeMoved(Graph::NodeId id, float x, float y) {
     if (currentGraph == nullptr)
         return;
-    currentGraph->setNodePosition(id, x, y);
+    currentGraph->setNodePosition(id, x - kCanvasOriginX, y - kCanvasOriginY);
     fixupOrderingAround(id);
     markDirty();
     canvas.repaint();
@@ -473,25 +479,22 @@ void GraphEditorComponent::mouseDrag(const juce::MouseEvent& e) {
 }
 
 void GraphEditorComponent::handleBackgroundMouseDown(const juce::MouseEvent& e) {
-    if (e.mods.isCtrlDown()) {
-        handleCanvasMouseDown(e);
+    if (e.mods.isPopupMenu()) {
+        Graph::NodeId dstNode = Graph::kInvalidNodeId;
+        int dstPort = 0;
+        const auto posInCanvas = canvas.getLocalPoint(this, e.getPosition()).toFloat();
+        if (isEditable && findConnectionAt(posInCanvas, dstNode, dstPort))
+            showWireContextMenu(dstNode, dstPort);
+        else
+            showAddNodeMenu(e.getPosition());
         return;
     }
-    if (!e.mods.isPopupMenu())
-        return;
-
-    Graph::NodeId dstNode = Graph::kInvalidNodeId;
-    int dstPort = 0;
-    const auto posInCanvas = canvas.getLocalPoint(this, e.getPosition()).toFloat();
-    if (isEditable && findConnectionAt(posInCanvas, dstNode, dstPort))
-        showWireContextMenu(dstNode, dstPort);
-    else
-        showAddNodeMenu(e.getPosition());
+    // Plain click+drag on empty canvas pans - no modifier key needed.
+    handleCanvasMouseDown(e);
 }
 
 void GraphEditorComponent::handleBackgroundMouseDrag(const juce::MouseEvent& e) {
-    if (e.mods.isCtrlDown())
-        handleCanvasMouseDrag(e);
+    handleCanvasMouseDrag(e);
 }
 
 void GraphEditorComponent::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) {
