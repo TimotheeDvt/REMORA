@@ -72,6 +72,12 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
     resetButton.setVisible(false);
     addAndMakeVisible(resetButton);
 
+    styleButton(layoutButton, "Auto Layout", Palette::ButtonTheme::secondary, [this] {
+        if (onLayoutRequested)
+            onLayoutRequested();
+    });
+    addAndMakeVisible(layoutButton);
+
     startTimerHz(10);
 }
 
@@ -98,6 +104,8 @@ void MappingSelectorBar::timerCallback() {
 void MappingSelectorBar::resized() {
     auto bounds = getLocalBounds().reduced(10, 4);
     resetButton.setBounds(bounds.removeFromRight(110));
+    bounds.removeFromRight(10);
+    layoutButton.setBounds(bounds.removeFromRight(100));
     bounds.removeFromRight(10);
     mappingCombo.setBounds(bounds.removeFromLeft(100));
     bounds.removeFromLeft(5);

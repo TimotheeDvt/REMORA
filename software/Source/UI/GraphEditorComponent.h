@@ -34,6 +34,8 @@ public:
     bool isCurrentGraphDirty() const noexcept { return isDirty; }
     void resetCurrentGraphToOriginal();
 
+    void rerunAutoLayout();
+
     // Called by GraphNodeComponent's inline param TextEditors as they're edited.
     void updateNodeParam(Graph::NodeId id, int index, float value);
 

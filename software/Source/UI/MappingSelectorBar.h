@@ -14,6 +14,7 @@ public:
 
     std::function<void()> onMappingChanged;
     std::function<void()> onResetRequested;
+    std::function<void()> onLayoutRequested;
     void setResetButtonVisible(bool shouldBeVisible);
 
 private:
@@ -23,6 +24,7 @@ private:
     juce::TextButton prevMapButton;
     juce::TextButton nextMapButton;
     juce::TextButton resetButton;
+    juce::TextButton layoutButton;
     juce::Slider globalVolumeSlider;
     juce::Label globalVolumeLabel;
 

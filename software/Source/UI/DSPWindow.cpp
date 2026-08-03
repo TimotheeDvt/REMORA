@@ -242,6 +242,7 @@ DSPWindow::DSPWindow(REMORAProcessor& p)
 
     selectorBar.onMappingChanged = [this] { graphEditorComponent.onMappingChanged(); };
     selectorBar.onResetRequested = [this] { graphEditorComponent.resetCurrentGraphToOriginal(); };
+    selectorBar.onLayoutRequested = [this] { graphEditorComponent.rerunAutoLayout(); };
     graphEditorComponent.onDirtyStateChanged = [this](bool dirty) { selectorBar.setResetButtonVisible(dirty); };
     graphEditorComponent.onMappingChanged();
 

@@ -93,74 +93,246 @@ void GraphEditorComponent::resetCurrentGraphToOriginal() {
     canvas.repaint();
 }
 
+void GraphEditorComponent::rerunAutoLayout() {
+    if (currentGraph == nullptr || !isEditable)
+        return;
+
+    autoLayout();
+    markDirty();
+
+    nodeComponents.clear();
+    nodeComponentById.clear();
+    syncFromModel();
+    canvas.repaint();
+}
+
 void GraphEditorComponent::autoLayout() {
     if (currentGraph == nullptr)
         return;
 
-    std::unordered_map<Graph::NodeId, int> depthById;
-    std::function<int(Graph::NodeId)> depthOf = [&](Graph::NodeId id) -> int {
-        auto it = depthById.find(id);
-        if (it != depthById.end())
-            return it->second;
-        depthById[id] = 0; // breaks any (unexpected) recursive lookup before it can loop forever
-        int depth = 0;
-        for (const auto& n : currentGraph->nodes()) {
-            if (n.id != id)
-                continue;
-            for (const auto& slot : n.inputs)
-                if (slot.sourceNode != Graph::kInvalidNodeId)
-                    depth = juce::jmax(depth, depthOf(slot.sourceNode) + 1);
-            break;
+    const auto& nodes = currentGraph->nodes();
+    if (nodes.empty())
+        return;
+
+    std::unordered_map<Graph::NodeId, int> fanOutCount;
+    std::unordered_map<Graph::NodeId, Graph::NodeId> soleConsumer;
+    for (const auto& n : nodes)
+        for (const auto& slot : n.inputs)
+            if (slot.sourceNode != Graph::kInvalidNodeId) {
+                fanOutCount[slot.sourceNode]++;
+                soleConsumer[slot.sourceNode] = n.id;
+            }
+
+    std::unordered_map<Graph::NodeId, Graph::NodeId> satelliteConsumer; // satellite id -> consumer id
+    std::unordered_map<Graph::NodeId, std::vector<Graph::NodeId>> satellitesOf; // consumer id -> its satellites
+    for (const auto& n : nodes) {
+        if (n.typeId != "math.constant" || !n.inputs.empty() || fanOutCount[n.id] != 1)
+            continue;
+        const Graph::NodeId consumer = soleConsumer[n.id];
+        satelliteConsumer[n.id] = consumer;
+        satellitesOf[consumer].push_back(n.id);
+    }
+
+    std::unordered_map<Graph::NodeId, std::vector<Graph::NodeId>> predecessors, successors;
+    for (const auto& n : nodes)
+        for (const auto& slot : n.inputs)
+            if (slot.sourceNode != Graph::kInvalidNodeId && satelliteConsumer.count(slot.sourceNode) == 0) {
+                predecessors[n.id].push_back(slot.sourceNode);
+                successors[slot.sourceNode].push_back(n.id);
+            }
+
+    std::unordered_map<Graph::NodeId, Graph::NodeId> parent;
+    for (const auto& n : nodes)
+        if (satelliteConsumer.count(n.id) == 0)
+            parent[n.id] = n.id;
+    std::function<Graph::NodeId(Graph::NodeId)> find = [&](Graph::NodeId id) {
+        while (parent[id] != id) {
+            parent[id] = parent[parent[id]];
+            id = parent[id];
         }
-        depthById[id] = depth;
-        return depth;
+        return id;
+    };
+    for (const auto& [id, preds] : predecessors)
+        for (Graph::NodeId p : preds) {
+            const Graph::NodeId a = find(id), b = find(p);
+            if (a != b)
+                parent[a] = b;
+        }
+
+    std::vector<Graph::NodeId> componentOrder;
+    std::unordered_map<Graph::NodeId, std::vector<Graph::NodeId>> componentNodes;
+    for (const auto& n : nodes) {
+        if (satelliteConsumer.count(n.id) > 0)
+            continue;
+        const Graph::NodeId root = find(n.id);
+        if (componentNodes.count(root) == 0)
+            componentOrder.push_back(root);
+        componentNodes[root].push_back(n.id);
+    }
+
+    constexpr int columnWidth = 160, marginX = 20, marginY = 20, rowGap = 24, blockGap = 60;
+    const Graph::NodeTypeRegistry& registry = Graph::NodeTypeRegistry::instance();
+    auto heightOf = [&](Graph::NodeId id) -> int {
+        const Graph::NodeInstance* n = findNode(id);
+        const Graph::NodeTypeInfo* info = (n != nullptr) ? registry.find(n->typeId) : nullptr;
+        return info != nullptr ? GraphNodeComponent::preferredHeight(*info) : GraphNodeComponent::kHeaderHeight;
     };
 
-    std::unordered_map<Graph::NodeId, int> laneById;
-    int nextLane = 0;
-    std::function<int(Graph::NodeId)> laneOf = [&](Graph::NodeId id) -> int {
-        auto it = laneById.find(id);
-        if (it != laneById.end())
-            return it->second;
-        laneById[id] = -1;
-        int lane = -1;
-        for (const auto& n : currentGraph->nodes()) {
-            if (n.id != id)
-                continue;
-            for (const auto& slot : n.inputs) {
-                if (slot.sourceNode != Graph::kInvalidNodeId) {
-                    lane = laneOf(slot.sourceNode);
-                    break;
+    float blockY = static_cast<float>(marginY);
+    for (Graph::NodeId root : componentOrder) {
+        const std::vector<Graph::NodeId>& members = componentNodes[root];
+
+        // Column = longest path from any source (unconnected-input) node - standard layered-graph placement.
+        std::unordered_map<Graph::NodeId, int> layerById;
+        std::function<int(Graph::NodeId)> layerOf = [&](Graph::NodeId id) -> int {
+            auto it = layerById.find(id);
+            if (it != layerById.end())
+                return it->second;
+            layerById[id] = 0; // breaks any (unexpected) recursive lookup before it can loop forever
+            int layer = 0;
+            if (const Graph::NodeInstance* n = findNode(id))
+                for (const auto& slot : n->inputs)
+                    if (slot.sourceNode != Graph::kInvalidNodeId)
+                        layer = juce::jmax(layer, layerOf(slot.sourceNode) + 1);
+            layerById[id] = layer;
+            return layer;
+        };
+
+        int numLayers = 0;
+        for (Graph::NodeId id : members)
+            numLayers = juce::jmax(numLayers, layerOf(id) + 1);
+
+        // Rows start in creation order within each column...
+        std::vector<std::vector<Graph::NodeId>> layers(static_cast<size_t>(numLayers));
+        for (Graph::NodeId id : members)
+            layers[static_cast<size_t>(layerById[id])].push_back(id);
+
+        std::unordered_map<Graph::NodeId, float> rowOf;
+        for (auto& layer : layers)
+            for (size_t r = 0; r < layer.size(); ++r)
+                rowOf[layer[r]] = static_cast<float>(r);
+
+        auto barycenterOf = [&](Graph::NodeId id, const std::unordered_map<Graph::NodeId, std::vector<Graph::NodeId>>& neighbours) -> float {
+            auto it = neighbours.find(id);
+            if (it == neighbours.end() || it->second.empty())
+                return rowOf[id]; // no anchor in the adjacent column - hold position
+            float sum = 0.0f;
+            for (Graph::NodeId nb : it->second)
+                sum += rowOf[nb];
+            return sum / static_cast<float>(it->second.size());
+        };
+
+        constexpr int kSweeps = 8;
+        for (int sweep = 0; sweep < kSweeps; ++sweep) {
+            if ((sweep % 2) == 0) {
+                for (int l = 1; l < numLayers; ++l) {
+                    auto& layer = layers[static_cast<size_t>(l)];
+                    std::stable_sort(layer.begin(), layer.end(), [&](Graph::NodeId a, Graph::NodeId b) {
+                        return barycenterOf(a, predecessors) < barycenterOf(b, predecessors);
+                    });
+                    for (size_t r = 0; r < layer.size(); ++r)
+                        rowOf[layer[r]] = static_cast<float>(r);
+                }
+            } else {
+                for (int l = numLayers - 2; l >= 0; --l) {
+                    auto& layer = layers[static_cast<size_t>(l)];
+                    std::stable_sort(layer.begin(), layer.end(), [&](Graph::NodeId a, Graph::NodeId b) {
+                        return barycenterOf(a, successors) < barycenterOf(b, successors);
+                    });
+                    for (size_t r = 0; r < layer.size(); ++r)
+                        rowOf[layer[r]] = static_cast<float>(r);
                 }
             }
-            break;
         }
-        if (lane < 0)
-            lane = nextLane++;
-        laneById[id] = lane;
-        return lane;
-    };
 
-    std::vector<Graph::NodeId> order;
-    order.reserve(currentGraph->nodes().size());
-    for (const auto& n : currentGraph->nodes()) {
-        depthOf(n.id);
-        laneOf(n.id);
-        order.push_back(n.id);
+        auto crossingsIfOrdered = [&](Graph::NodeId left, Graph::NodeId right) {
+            int crossings = 0;
+            for (const auto* neighbours : { &predecessors, &successors }) {
+                auto lit = neighbours->find(left);
+                auto rit = neighbours->find(right);
+                if (lit == neighbours->end() || rit == neighbours->end())
+                    continue;
+                for (Graph::NodeId a : lit->second)
+                    for (Graph::NodeId b : rit->second)
+                        if (rowOf[a] > rowOf[b])
+                            ++crossings;
+            }
+            return crossings;
+        };
+
+        constexpr int kTransposePasses = 4;
+        for (int pass = 0; pass < kTransposePasses; ++pass) {
+            bool improved = false;
+            for (auto& layer : layers) {
+                for (size_t r = 0; r + 1 < layer.size(); ++r) {
+                    if (crossingsIfOrdered(layer[r], layer[r + 1]) > crossingsIfOrdered(layer[r + 1], layer[r])) {
+                        std::swap(layer[r], layer[r + 1]);
+                        rowOf[layer[r]] = static_cast<float>(r);
+                        rowOf[layer[r + 1]] = static_cast<float>(r + 1);
+                        improved = true;
+                    }
+                }
+            }
+            if (!improved)
+                break;
+        }
+
+        std::vector<float> nextYInColumn(static_cast<size_t>(numLayers), blockY);
+        for (int l = 0; l < numLayers; ++l) {
+            auto& layer = layers[static_cast<size_t>(l)];
+            for (Graph::NodeId id : layer) {
+                const float x = static_cast<float>(marginX + l * columnWidth);
+                const float y = nextYInColumn[static_cast<size_t>(l)];
+                currentGraph->setNodePosition(id, x, y);
+                nextYInColumn[static_cast<size_t>(l)] = y + static_cast<float>(heightOf(id) + rowGap);
+            }
+        }
+
+        constexpr int kAlignPasses = 4;
+        for (int pass = 0; pass < kAlignPasses; ++pass) {
+            for (int l = 0; l < numLayers; ++l) {
+                auto& layer = layers[static_cast<size_t>(l)];
+                const float x = static_cast<float>(marginX + l * columnWidth);
+                float minY = blockY;
+                for (Graph::NodeId id : layer) {
+                    float sum = 0.0f;
+                    int count = 0;
+                    for (const auto* neighbours : { &predecessors, &successors }) {
+                        auto it = neighbours->find(id);
+                        if (it == neighbours->end())
+                            continue;
+                        for (Graph::NodeId nb : it->second)
+                            if (const Graph::NodeInstance* n = findNode(nb)) {
+                                sum += n->y;
+                                ++count;
+                            }
+                    }
+                    const Graph::NodeInstance* self = findNode(id);
+                    const float target = count > 0 ? sum / static_cast<float>(count) : (self != nullptr ? self->y : minY);
+                    const float y = juce::jmax(target, minY);
+                    currentGraph->setNodePosition(id, x, y);
+                    minY = y + static_cast<float>(heightOf(id) + rowGap);
+                }
+            }
+        }
+
+        float blockBottom = blockY;
+        for (Graph::NodeId id : members)
+            if (const Graph::NodeInstance* n = findNode(id))
+                blockBottom = juce::jmax(blockBottom, n->y + static_cast<float>(heightOf(id)));
+        blockY = blockBottom + static_cast<float>(blockGap);
     }
-    std::stable_sort(order.begin(), order.end(), [&](Graph::NodeId a, Graph::NodeId b) {
-        if (laneById[a] != laneById[b])
-            return laneById[a] < laneById[b];
-        return depthById[a] < depthById[b];
-    });
 
-    constexpr int columnWidth = 160, rowHeight = 130, marginX = 20, marginY = 20;
-    std::unordered_map<int, int> nextFreeRowInColumn;
-    for (Graph::NodeId id : order) {
-        const int column = depthById[id];
-        const int row = nextFreeRowInColumn[column]++;
-        currentGraph->setNodePosition(id, static_cast<float>(marginX + column * columnWidth),
-                                      static_cast<float>(marginY + row * rowHeight));
+    // Dock each constant satellite just to the left of its consumer, stacked if it has more than one.
+    constexpr float satelliteXOffset = static_cast<float>(GraphNodeComponent::kWidth) + 20.0f;
+    constexpr float satelliteYStride = 94.0f;
+    for (auto& [consumerId, satellites] : satellitesOf) {
+        const Graph::NodeInstance* consumer = findNode(consumerId);
+        if (consumer == nullptr)
+            continue;
+        for (size_t i = 0; i < satellites.size(); ++i)
+            currentGraph->setNodePosition(satellites[i], consumer->x - satelliteXOffset,
+                                          consumer->y + static_cast<float>(i) * satelliteYStride);
     }
 }
 
