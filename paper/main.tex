@@ -45,8 +45,9 @@ patches, everything from simple tilt-controlled pitch to compound movement-quali
 by Laban Movement Analysis. This paper describes the instrument's hardware, its self-calibration
 method, the mathematics behind turning raw orientation into musical control, and the live patching
 interface itself, situates it against prior staff-shaped, baton, and visual-patching instruments,
-and - grounded in an initial test session with a staff performer - reflects on what it means to
-make an instrument's gestural vocabulary an explicit, editable part of the instrument.
+and - grounded in implementation-level evidence together with a protocol for the performer
+evaluation still to be run - reflects on what it means to make an instrument's gestural vocabulary
+an explicit, editable part of the instrument.
 \end{abstract}
 
 \begin{CCSXML}
@@ -95,17 +96,17 @@ combination this paper investigates.
 \subsection*{Objectives of the Study}
 This article supports four claims, each argued based on the system as it currently operates rather than being proposed as future work:
 \begin{enumerate}
-\item A small dataflow language - source, math, and sink node primitives - is embedded directly in
+\item \label{claim:dag} A small dataflow language - source, math, and sink node primitives - is embedded directly in
 the audio plugin and evaluated once per audio block as a directed acyclic graph (DAG); the performer
 rewires it live, without recompiling any code.
-\item That same handful of primitives is expressive enough to reproduce eleven previously hand-coded
+\item \label{claim:presets} That same handful of primitives is expressive enough to reproduce eleven previously hand-coded
 mapping strategies as ordinary presets: the mapping design space explored by hand over the course of
 the project turns out to be spanned by a fairly compact algebra of building blocks.
-\item A magnetometer-free, world-frame heading estimate (``facing'') is derived purely from the
+\item \label{claim:facing} A magnetometer-free, world-frame heading estimate (``facing'') is derived purely from the
 calibrated orientation stream, eluding the magnetic interference a stage rig would otherwise cause -
 a claim we bound to session lengths on the order of tens of minutes, since uncorrected gyroscopic
 yaw drift is expected to accumulate over longer, uninterrupted play (\S\ref{sec:limitations}).
-\item A mount-agnostic calibration transform lets the same instrument logic run correctly regardless
+\item \label{claim:calibration} A mount-agnostic calibration transform lets the same instrument logic run correctly regardless
 of where the sensor is physically mounted on the staff.
 \end{enumerate}
 
@@ -577,9 +578,8 @@ primitive defined earlier.
 \end{flushright}
 
 \subsection*{Graphical Interface: Live Patching as Performance Practice}
-\textit{This is probably the subsection I want to spend the most space on after the mathematics.} I
-want to present the node-graph editor as the instrument's primary authoring surface, not a debug
-tool: a pannable, zoomable canvas on which each node renders as a coloured card - green for Source,
+The node-graph editor is the instrument's primary authoring surface, not a debug tool: a pannable,
+zoomable canvas on which each node renders as a coloured card - green for Source,
 yellow for Sink, neutral for Math - labelled with its category and inline, live-editable parameter
 fields; typed input/output pins along each card's edges accept click-and-drag connections rendered
 as cubic-B\'ezier wires, colour-highlighted while dragging and hit-testable afterward for rewiring
@@ -600,9 +600,11 @@ the sound it produces.
 \end{center}
 
 \subsection*{Software: Synthesis Engine}
-\textit{Still need to write up \texttt{BoStaffSynth} here - the shared four-voice additive engine
-and its mapping-agnostic parameter surface (gain, drive, noise, filter, pan, reverb send) that every
-graph's sink nodes write into.}
+Every mapping graph, regardless of preset, writes into the same \texttt{BoStaffSynth}: a shared
+four-voice additive engine exposing one mapping-agnostic parameter surface (gain, drive, noise,
+filter cutoff, pan, reverb send) that sink nodes address by name. Keeping the synthesis engine
+itself ignorant of which preset is driving it is what lets a graph be swapped or rewired live
+without reinitialising audio.
 
 \subsubsection*{Additive Synthesis Engine} \
 \begin{flushright}
@@ -655,76 +657,97 @@ signed offset applied to it, giving the equal-tempered result $f$.
 \end{flushright}
 
 \section{Development Iterations}
-\textit{Modelled on the reference paper's iteration log rather than presenting the final
-architecture as if it arrived fully formed. Mine reads roughly: (1) firmware + OSC transport + a
-single hardcoded tilt-to-pitch mapping, just to prove the sensor-to-sound pipeline worked at all;
-(2) hand-building the full progression of named mappings - Bowed Chord through Bozendo to Azimut and
-its variants - each one a bespoke C++ class; (3) noticing the hand-built mappings were all reducible
-to the same handful of primitives, and generalising that into the node-graph engine so every prior
-mapping became a preset instead of a class.}
+REMORA's architecture did not arrive fully formed; the node-graph engine described in
+\S\ref{sec:azimut-deep-dive} is the result of three iterations, summarised below, in which
+generalisation followed rather than preceded hand-built mapping design.
 
 \subsection*{Iteration 1: Sensing Pipeline}
-\textit{Firmware reading the IMU and streaming OSC, a minimal receiver on the plugin side, and one
-hardcoded tilt-to-pitch mapping - the goal here was purely proving the pipeline end to end, not
-expressivity.}
+The first iteration was firmware reading the IMU and streaming OSC, a minimal receiver on the
+plugin side, and a single hardcoded tilt-to-pitch mapping. The goal was purely to prove the
+sensor-to-sound pipeline end to end, not to explore expressivity.
 
 \subsection*{Iteration 2: Hand-Built Mapping Library}
-\textit{The eleven named mappings built one at a time as their own C++ classes - Simple, Bowed
-Chord, Lead+Drone, Spin Filter, Bozendo V1/V2, Azimut and its variants, Ben's, Spin Voices - each
+The eleven named mappings - Simple, Bowed Chord, Lead+Drone, Spin Filter, Bozendo V1/V2, Azimut and
+its variants, Ben's, Spin Voices - were then built one at a time as their own C++ classes, each
 adding a new gesture vocabulary (chords, Laban Effort, world-frame facing, transient detection) on
-top of the shared \texttt{StaffMotionAnalyzer}.}
+top of the shared \texttt{StaffMotionAnalyzer}.
 
 \subsection*{Iteration 3: Generalising into the Node Graph}
-\textit{Recognising that every hand-built mapping was really just arithmetic, shaping, and a few
-stateful primitives wired together in a fixed pattern - and rebuilding the whole mapping layer as a
-small generic graph engine, with the eleven prior mappings ported over as presets rather than
-deleted.}
+Once eleven mappings existed as separate classes, a pattern became visible: every one of them was
+really just arithmetic, shaping, and a handful of stateful primitives wired together in a fixed
+pattern. The third iteration rebuilt the mapping layer as the small generic graph engine described
+in \S\ref{sec:azimut-deep-dive}, porting all eleven prior mappings over as presets rather than
+deleting them.
 
 \section{Evaluation}
-\textit{[PLACEHOLDER - fabricated for drafting purposes only, to be replaced with a real session
-write-up before submission.]} No formal user study has been run; what follows is a single informal,
-semi-structured session, reported honestly as exploratory rather than as validation of the four
-claims in the Introduction.
+\label{sec:evaluation}
+No performer evaluation has been run yet. This section separates what the current claims actually
+rest on - implementation-level evidence internal to the system itself - from a protocol for the
+performer session that would be needed to test the remaining, human-facing parts of those claims.
+Table~3 summarises this split per claim; the subsections below explain each row.
 
-\subsection*{Test Session with a Performer}
-We invited one performer (P1) with roughly eight years of b\^o kata practice and occasional staff
-spinning/flow-arts experience, but no prior exposure to REMORA or to node-based patching
-environments, for a single 50-minute session. After a five-minute explanation of the staff, the
-calibration procedure, and the node-graph canvas, P1 spent about twenty minutes freely playing three
-existing presets (Simple, Bowed Chord, Bozendo V2) chosen to span the range from a minimal mapping
-to a fully Laban-driven one, followed by roughly twenty minutes attempting to modify a preset
-themselves - first retuning a couple of exposed node parameters, then adding a new wire to change
-which motion feature drove the filter cutoff. The session was semi-structured: P1 was asked to
-think aloud, and the first author took written notes rather than recording audio/video, per the
-informed-consent terms described in the Ethical Statement.
+\begin{center}
+\small
+\textbf{Table 3: Claims, current evidence, and open questions.}\par\smallskip
+\begin{tabular}{@{}p{0.09\linewidth}p{0.44\linewidth}p{0.4\linewidth}@{}}
+\toprule
+Claim & Current evidence & What is still untested \\
+\midrule
+(\ref{claim:dag}) live graph, no recompile & DAG evaluation/rewiring is implemented and exercised continuously
+during development (\S\ref{sec:azimut-deep-dive}) & whether a performer other than the author can
+rewire it unaided \\
+(\ref{claim:presets}) 11 mappings as presets & Table~2: all eleven hand-built mappings rebuilt as presets from the
+same catalog & whether a mapping designed independently of the catalog fits without a new
+primitive \\
+(\ref{claim:facing}) magnetometer-free facing & derivation is implemented and used throughout development sessions
+& drift has not been measured against a ground-truth heading; bounded to short sessions by
+assumption, not measurement \\
+(\ref{claim:calibration}) mount-agnostic calibration & the correction transform is mount-independent by construction
+(\S\ref{sec:limitations}) & not yet tested across multiple physical mount positions on hardware \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-\subsubsection*{Notes and Suggestions}
-P1 reported that the calibration step felt fast and unremarkable - "it just worked and I forgot
-about it" - and did not need to be repeated during the session. Playing the three presets, P1 found
-Bozendo V2's spin-driven root/filter behaviour the most physically intuitive of the three, describing
-it as feeling like "the sound is following how hard I'm committing to the spin" - consistent with
-its heavier reliance on the Laban Weight and Space features. Simple felt "predictable, in a good
-way" for a first few minutes but was described as "not much to explore" past that. When patching,
-P1 successfully rewired the filter-cutoff source without assistance after seeing it demonstrated
-once, but found the categorised node picker slow to search through at Bozendo-scale patch sizes and
-suggested a type-to-filter search box over the current scrolling list. P1 also noted that Facing
-occasionally felt like it "changed a beat late" during fast horizontal spins, which is consistent
-with the yaw-drift and hysteresis behaviour discussed in \S\ref{sec:limitations}. Asked directly
-whether they would rather always play a fixed mapping or retain the ability to rewire it, P1's
-answer was conditional: rewiring mid-rehearsal "makes sense to me as the performer who's also
-building the mapping," but they were skeptical they would want to patch live in front of an
-audience, as opposed to between pieces.
+\subsection*{Evidence from the Implemented System}
+Claims (\ref{claim:dag}), (\ref{claim:presets}), and (\ref{claim:calibration}) are, at present, supported by the system as built and run by the author
+during development rather than by an outside observer. The graph evaluator provisionally adds and
+removes edges, recomputes a topological order, and drives synthesis every audio block without
+recompilation or an audio dropout - this is exercised every time a preset is loaded or a wire is
+changed during development, not a claim about untested code. Table~2's per-preset node counts are
+read directly off the constructed graphs, so claim (\ref{claim:presets})'s "eleven mappings, one catalog" result is a
+property of the code, not a reported impression. Claim (\ref{claim:calibration})'s mount-independence follows from the
+two-stage calibration derivation (\S\ref{sec:azimut-deep-dive}) holding for any physically valid
+sensor placement, which is a property we can state mathematically but have not yet stress-tested
+by physically remounting the enclosure at several positions and re-running calibration at each.
+Claim (\ref{claim:facing}) is the weakest of the four on current evidence: the facing heuristic runs correctly in
+every development session, but "correctly" here means "matched the author's own sense of where the
+staff was pointing," which is not a substitute for a logged, ground-truth comparison.
 
-\subsubsection*{In Summary}
-This single session should be read as a first, informal data point, not evidence generalisable
-beyond P1. It offers modest support for claim (1) - P1 could rewire a live mapping without
-recompiling anything, and did so unassisted after one demonstration - and a cautious data point
-for claim (2), since the Laban-driven preset read as more physically legible to an experienced
-staff performer than the simplest mapping. It does not test claim (3) or (4) at all, and the
-Facing-lag comment is, if anything, a caveat on claim (3) rather than support for it. A larger,
-multi-performer study - ideally comparing patching-enabled play against a fixed-mapping baseline,
-and explicitly probing the audience-facing patching question P1 raised unprompted - is needed before
-any of this generalises.
+\subsection*{Planned Performer Evaluation}
+To test the parts of these claims that are inherently about performer experience rather than code
+behaviour - whether the graph is rewireable by someone other than its author, whether a
+Laban-driven preset reads as more physically legible than a simple one, whether the node picker
+scales to larger patches - we plan a semi-structured session with performers who have some staff,
+baton, or movement-flow background but no prior exposure to REMORA. The intended structure: a short
+calibration walkthrough; free play across a small span of existing presets chosen to range from a
+minimal mapping to a fully Laban-driven one; a guided patching task (retuning an exposed parameter,
+then rewiring which motion feature drives a sink); and a closing semi-structured interview.
+Candidate measures include calibration time, time to complete the guided rewire unassisted, think-
+aloud commentary during free play, a preference judgement between at least two presets with a
+reason, and any node-picker search difficulties observed or reported. Each measure is chosen to
+speak to a specific claim in Table~3 rather than to general usability. This protocol - not results -
+is what we currently have; running it, with informed consent handled as described in the Ethical
+Statement, is the immediate next step for this work.
+
+\subsection*{Current Evidentiary Limitations}
+To be explicit: no human-subject data has been collected for this instrument. Claims (\ref{claim:dag}), (\ref{claim:presets}), and
+(\ref{claim:calibration}) currently rest on implementation-level evidence - the graph's own structure and behaviour under
+the author's use - not on an independent performer's experience. Claim (\ref{claim:presets})'s catalog was grown
+alongside the eleven mappings it reproduces, so its sufficiency for a mapping designed independently
+of the project remains open (\S\ref{sec:azimut-deep-dive}). Claim (\ref{claim:facing}) is bounded to short sessions
+by assumption pending a measurement that has not yet been made. None of the four claims should be
+read as validated by user testing until the protocol above, or something like it, has actually been
+run.
 
 \section{Discussion}
 
@@ -751,13 +774,15 @@ typical stage rigs. That keeps facing free of magnetic interference, but it also
 absolute reference at all - any yaw drift accumulated since calibration is invisible and
 uncorrected, and the facing feature is only ever as good as that session's calibration. We have not
 measured drift quantitatively - no ground-truth heading reference has been logged alongside a
-session - so rather than report a number we do not have, we explicitly bound claim (3) to session
-lengths comparable to the informal test session in Evaluation (on the order of tens of minutes of
-active play from a single calibration): within that window, drift was not reported as noticeable by
-either the performer or the author, but nothing in the current implementation prevents it from
-growing unboundedly over a longer, uninterrupted rehearsal or set, and no re-calibration-on-demand
-gesture currently exists to correct it mid-performance. No perceptual evaluation of facing or
-calibration accuracy beyond that single session exists yet.
+session - so rather than report a number we do not have, we explicitly bound claim (\ref{claim:facing}) to session
+lengths on the order of tens of minutes of active play from a single calibration, matching the
+durations used during development. That bound is an assumption carried over from informal use
+during development, not a measured guarantee: nothing in the current implementation prevents drift
+from growing unboundedly over a longer, uninterrupted rehearsal or set, and no
+re-calibration-on-demand gesture currently exists to correct it mid-performance. No quantitative or
+perceptual evaluation of facing or calibration accuracy has been carried out yet; it is one of the
+open items the planned performer evaluation (\S\ref{sec:evaluation}) does not yet address either,
+since ground-truth heading logging would need to be added to the protocol first.
 
 \textbf{Graph interface complexity.} The node-graph editor is expressive for whoever is building or
 modifying a mapping, but it exposes that same complexity to a performer who only wants to select and
@@ -772,12 +797,13 @@ without confirming their argument types match what the receiver expects, dropped
 packets are not detected as such, and the handoff of a sensor snapshot from the network thread to
 the audio thread retries in a tight spin loop rather than degrading gracefully under contention.
 
-\textbf{Hardware.} The enclosure carries a 2000\,mAh LiPo battery. \textit{[PLACEHOLDER - not yet
-measured]} A single continuous discharge run at the firmware's steady 100\,Hz sampling/transmission
-rate gave an approximate runtime of __ hours before the ESP32-S2 brown out, which would cover a
-typical rehearsal or set but leaves no margin for a full day of back-to-back performances without a
-recharge; this needs to be re-measured properly (multiple runs, reported with variance) before
-submission.
+\textbf{Hardware.} The enclosure carries a 2000\,mAh LiPo battery, sized to comfortably outlast a
+single rehearsal or set at the firmware's steady 100\,Hz sampling/transmission rate based on the
+ESP32-S2's typical current draw, but runtime under REMORA's actual firmware has not been measured:
+no discharge test has been logged to date. That measurement - ideally several runs to a defined
+cutoff voltage, reported with variance rather than a single number - is needed before any runtime
+claim can be made, and before the battery can be sized with confidence for a full day of
+back-to-back performances without a recharge.
 
 \subsection*{Future Improvements}
 
@@ -793,10 +819,24 @@ dual-tip configuration, further Laban Effort mapping targets, ML-based discrete 
 and eventually exposing the node graph itself as a shareable/community patch format.
 
 \section{Conclusions}
-\textit{I want to close by making REMORA's real novelty explicit: it's architectural, not just one
-more instrument - collapsing eleven hand-built gesture mappings into presets of one small,
-live-patchable dataflow language embedded in the plugin, grounded in an explicit mathematical
-account of calibration, orientation, and movement-quality extraction.}
+REMORA is a wireless, IMU-driven b\^o staff instrument, but its contribution is architectural rather
+than being one more fixed gesture-to-sound mapping: the same small dataflow language - source,
+math, and sink node primitives, evaluated as a DAG once per audio block and rewireable without
+recompiling - is expressive enough to reproduce all eleven mapping strategies developed over the
+course of the project as ordinary, live-editable presets (Table~2), from a minimal tilt-to-pitch
+patch to the fully Laban-driven Bozendo and Ben's mappings. That claim is grounded in an explicit,
+code-traceable account of mount-agnostic calibration, orientation tracking, and movement-quality
+extraction (\S\ref{sec:azimut-deep-dive}), not asserted in the abstract alone.
+
+What remains uncertain is exactly what \S\ref{sec:evaluation} makes explicit: whether a performer
+other than the author finds the graph rewireable and the Laban-driven presets more legible, whether
+the 63-type primitive catalog holds up against a mapping designed independently of it, and how much
+heading drift accumulates beyond the session lengths used during development are all open questions
+that implementation-level evidence alone cannot settle. The most important next step for this work
+is therefore not another architectural extension but running the performer evaluation protocol
+outlined in \S\ref{sec:evaluation}, so that the claims this paper makes about live-patchable,
+Laban-grounded gestural control can be tested against use by someone other than the instrument's
+own builder.
 
 \begin{acks}
 This work was carried out during the first author's internship at CREATE, Aalborg University,
@@ -823,10 +863,11 @@ commodity parts. This keeps the reproduction cost and toolchain barrier low rela
 proprietary DMI development environments, which we consider a genuine point in the instrument's
 favour under the NIME Code of Practice's socio-economic fairness criterion.
 
-\textbf{Human participants.} No human-participant data has been collected beyond the informal test
-session described in Evaluation; that session's performer gave informed consent to have their
-gestures, verbal feedback, and session notes used in this paper, and is referred to only by the
-anonymised identifier P1.
+\textbf{Human participants.} No human-participant data has been collected to date; all reported
+observations of the system in use are the first author's own. The performer evaluation outlined in
+\S\ref{sec:evaluation} has not yet been conducted. When it is run, participants will give informed
+consent before any session, be referred to only by anonymised identifiers, and be free to withdraw
+at any point, consistent with this statement's other commitments.
 
 \textbf{Use of Artificial Intelligence.} Per the NIME Code of Practice's guidance on AI use, we
 disclose that a locally-run large language model (Mistral 7B) was used to help draft and edit
