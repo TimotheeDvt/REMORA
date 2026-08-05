@@ -17,6 +17,13 @@ struct NodeInstance {
     float x = 0.0f, y = 0.0f;            // canvas position, for the graph editor
 };
 
+struct NodeCounts {
+    int total = 0;
+    int source = 0;
+    int math = 0;
+    int sink = 0;
+};
+
 // A DAG of typed nodes wired together, evaluated once per audio block
 class NodeGraph {
 public:
@@ -47,6 +54,8 @@ public:
     bool resetFromXml(const juce::XmlElement& xml);
 
     const std::vector<NodeInstance>& nodes() const { return nodes_; }
+
+    NodeCounts countNodesByCategory() const;
 
 private:
     std::vector<NodeInstance> nodes_;

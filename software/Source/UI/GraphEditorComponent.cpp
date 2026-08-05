@@ -2,6 +2,7 @@
 #include "../DSP/Graph/GraphMappingStrategy.h"
 #include "../DSP/Graph/NodeTypeRegistry.h"
 #include "../PluginProcessor.h"
+#include "DebugLog.h"
 #include "GraphPinComponent.h"
 #include "Palette.h"
 #include "StyleHelpers.h"
@@ -42,6 +43,12 @@ void GraphEditorComponent::onMappingChanged() {
     isEditable = graphMapping != nullptr;
 
     statusLabel.setText(isEditable ? "Editing: " + name : "Viewing: " + name, juce::dontSendNotification);
+
+    if (currentGraph != nullptr) {
+        const Graph::NodeCounts counts = currentGraph->countNodesByCategory();
+        debug.print.cyan("Preset '" + name + "' node counts - total:", counts.total, "source:", counts.source,
+                          "math:", counts.math, "sink:", counts.sink);
+    }
 
     if (currentGraph != nullptr && autoLaidOutGraphs.insert(currentGraph).second) {
         autoLayout();

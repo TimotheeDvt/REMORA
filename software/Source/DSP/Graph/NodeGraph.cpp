@@ -226,6 +226,26 @@ void NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
     }
 }
 
+NodeCounts NodeGraph::countNodesByCategory() const {
+    const juce::ScopedLock sl(lock_);
+    const NodeTypeRegistry& registry = NodeTypeRegistry::instance();
+
+    NodeCounts counts;
+    for (const auto& n : nodes_) {
+        const NodeTypeInfo* info = registry.find(n.typeId);
+        if (info == nullptr)
+            continue;
+
+        ++counts.total;
+        switch (info->category) {
+            case NodeCategory::Source: ++counts.source; break;
+            case NodeCategory::Math:   ++counts.math;   break;
+            case NodeCategory::Sink:   ++counts.sink;   break;
+        }
+    }
+    return counts;
+}
+
 float NodeGraph::outputOf(NodeId id, int port) const {
     const juce::ScopedLock sl(lock_);
     const int idx = indexOf(id);
