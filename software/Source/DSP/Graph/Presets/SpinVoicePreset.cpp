@@ -66,12 +66,8 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
     for (int i = 0; i < 6; ++i)
         toSink(b, constantNode(b, partials[i]), "sink.partialAmp", { static_cast<float>(i) });
 
-    toSink(b, constantNode(b, 0.0f), "sink.driveAmt");
-    toSink(b, constantNode(b, 0.0f), "sink.vibratoDepth");
     toSink(b, constantNode(b, 5.0f), "sink.vibratoRateHz");
-    toSink(b, constantNode(b, 0.0f), "sink.tremoloDepth");
     toSink(b, constantNode(b, 4.0f), "sink.tremoloRateHz");
-    toSink(b, constantNode(b, 0.0f), "sink.noiseAmount");
     toSink(b, constantNode(b, 0.5f), "sink.noiseLpCoef");
     toSink(b, constantNode(b, 20000.0f), "sink.lpfCutoffHz");
 

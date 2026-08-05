@@ -30,7 +30,7 @@ std::unique_ptr<NodeGraph> buildSpinFilter() {
     toSink(b, rootHz, "sink.rootHz");
 
     toSink(b, constantNode(b, 2.0f), "sink.numVoices");
-    toSink(b, constantNode(b, 0.0f), "sink.chordSemitone", { 0.0f });
+    b.add("sink.chordSemitone", { 0.0f }); // unwired - defaults to 0.0
     toSink(b, constantNode(b, 7.0f), "sink.chordSemitone", { 1.0f });
 
     NodeId pitch = b.add("source.pitch");

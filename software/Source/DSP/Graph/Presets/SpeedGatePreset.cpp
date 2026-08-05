@@ -62,9 +62,7 @@ std::unique_ptr<NodeGraph> buildSpeedGate() {
         toSink(b, crossfadeNodes(b, constantNode(b, simplePartials[i]), azimut.partialAmp[i], azimutAmount), "sink.partialAmp", { static_cast<float>(i) });
     toSink(b, crossfadeNodes(b, zero, azimut.driveAmt, azimutAmount), "sink.driveAmt");
 
-    toSink(b, crossfadeNodes(b, zero, zero, azimutAmount), "sink.vibratoDepth");
     toSink(b, crossfadeNodes(b, constantNode(b, 5.0f), zero, azimutAmount), "sink.vibratoRateHz");
-    toSink(b, crossfadeNodes(b, zero, zero, azimutAmount), "sink.tremoloDepth");
     toSink(b, crossfadeNodes(b, constantNode(b, 4.0f), zero, azimutAmount), "sink.tremoloRateHz");
 
     toSink(b, crossfadeNodes(b, zero, azimut.noiseAmount, azimutAmount), "sink.noiseAmount");

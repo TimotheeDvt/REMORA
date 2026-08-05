@@ -25,10 +25,8 @@ void wireCoreToSinks(GraphBuilder& b, const AzimutCoreOutputs& core) {
         toSink(b, core.panL[i], "sink.panL", { static_cast<float>(i) });
         toSink(b, core.panR[i], "sink.panR", { static_cast<float>(i) });
     }
-    toSink(b, constantNode(b, 0.0f), "sink.vibratoDepth");
-    toSink(b, constantNode(b, 0.0f), "sink.vibratoRateHz");
-    toSink(b, constantNode(b, 0.0f), "sink.tremoloDepth");
-    toSink(b, constantNode(b, 0.0f), "sink.tremoloRateHz");
+    b.add("sink.vibratoRateHz");
+    b.add("sink.tremoloRateHz");
 }
 
 } // namespace
@@ -39,7 +37,6 @@ std::unique_ptr<NodeGraph> buildAzimut() {
     AzimutCoreOutputs core = buildAzimutCore(b);
     wireCoreToSinks(b, core);
     toSink(b, buildSpinCountLpfHz(b, core), "sink.lpfCutoffHz");
-    toSink(b, constantNode(b, 0.0f), "sink.reverbWetLevel");
     return graph;
 }
 
@@ -58,7 +55,6 @@ std::unique_ptr<NodeGraph> buildAzimutPlus() {
     NodeId target = b.add("math.mapRange", { 0.0f, 1.0f, 400.0f, 20000.0f });
     b.wire(speedNorm, target);
     toSink(b, onePole(b, target, 0.03f), "sink.lpfCutoffHz");
-    toSink(b, constantNode(b, 0.0f), "sink.reverbWetLevel");
     return graph;
 }
 
