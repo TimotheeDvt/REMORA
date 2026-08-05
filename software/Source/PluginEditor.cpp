@@ -201,10 +201,37 @@ void REMORAEditor::resized() {
   layoutRow(currentY, {&titleLabel});
   currentY += itemH + padding;
 
-  layoutRow(currentY, {&connectButton, &soundButton, &latencyValueLabel});
+  {
+    const float connectWeight = 1.5f;
+    const float soundWeight = 1.5f;
+    const float showDataWeight = 0.7f;
+    const float debugWeight = 0.7f;
+    const float latencyWeight = 0.6f;
+    const float totalWeight = connectWeight + soundWeight + showDataWeight +
+                              debugWeight + latencyWeight;
+    const int n = 5;
+    const int availableW = w - padding * (n + 1);
+
+    int currentX = padding;
+    auto placeWeighted = [&](juce::Component &c, float weight) {
+      int itemW = static_cast<int>(availableW * (weight / totalWeight));
+      c.setBounds(currentX, currentY, itemW, itemH);
+      currentX += itemW + padding;
+    };
+
+    placeWeighted(connectButton, connectWeight);
+    placeWeighted(soundButton, soundWeight);
+    placeWeighted(showDataButton, showDataWeight);
+    placeWeighted(debugButton, debugWeight);
+
+    const int latencyW = static_cast<int>(availableW * (latencyWeight / totalWeight));
+    const int halfH = itemH / 2;
+    latencyValueLabel.setBounds(currentX, currentY, latencyW, halfH);
+    latencyLabel.setBounds(currentX, currentY + halfH, latencyW, itemH - halfH);
+  }
   currentY += itemH + padding;
 
-  layoutRow(currentY, {&showDataButton, &dspButton, &debugButton, &latencyLabel});
+  layoutRow(currentY, {&dspButton});
   currentY += itemH + padding;
 
   layoutRow(currentY, {&calibrateButton});
