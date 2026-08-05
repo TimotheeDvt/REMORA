@@ -87,9 +87,10 @@ the paper's real starting point - not which single mapping best suits a staff, b
 instrument's gestural vocabulary could instead be something the performer authors and revises live,
 the way a modular-synthesis patch is built and rebuilt on a rack.
 
-The b\^o staff itself sits in a gap NIME has left largely unexplored: a full-body, swung, two-handed
-controller with its own rotational inertia and reach, distinct from the small handheld or
-body-mounted objects most inertial-sensor DMIs use. Pairing that underused controller form with a
+The b\^o staff itself sits in a gap the New Interfaces for Musical Expression (NIME) community has
+left largely unexplored: a full-body, swung, two-handed controller with its own rotational inertia
+and reach, distinct from the small handheld or body-mounted objects most inertial-sensor Digital
+Musical Instruments (DMIs) use. Pairing that underused controller form with a
 mapping layer that can be reshaped at performance time, rather than fixed at design time, is the
 combination this paper investigates.
 
@@ -111,7 +112,8 @@ of where the sensor is physically mounted on the staff.
 \end{enumerate}
 
 \subsection*{Scope and Applications}
-\textit{REMORA targets solo live performance with a single staff and a single IMU - not an
+\textit{REMORA targets solo live performance with a single staff and a single Inertial Measurement
+Unit (IMU) - not an
 installation piece, not a multi-performer controller (at least not yet, see Future Improvements).
 Worth being upfront about what's out of scope for this paper too: no formal user study, no
 controlled comparison against other staff instruments, and no claim that patching a mapping is
@@ -136,8 +138,8 @@ Conducting batons form a second, older lineage of rod-shaped expressive controll
 Paradiso's Digital Baton~\cite{marrin1997digitalbaton} combined accelerometers, infrared position
 tracking, and a pressure-sensitive tip to capture continuous conducting gesture, and the companion
 Conductor's Jacket~\cite{marrin1998conductorsjacket} extended the same goal - recording expressive,
-continuous musical gesture rather than discrete note events - to a wearable, full-body EMG and
-motion rig. Both systems used a fixed mapping, hand-engineered by the researchers for conducting
+continuous musical gesture rather than discrete note events - to a wearable, full-body
+electromyography (EMG) and motion rig. Both systems used a fixed mapping, hand-engineered by the researchers for conducting
 gesture specifically; REMORA shares the goal of capturing continuous, qualitative gesture (via
 Laban Effort features, \S\ref{sec:azimut-deep-dive} and Table~1) but treats the mapping from that
 gesture to sound as something the performer edits rather than something fixed by the instrument
@@ -165,7 +167,8 @@ editor (\S\ref{sec:azimut-deep-dive}) draws directly on this patching lineage - 
 wires, live rewiring without stopping audio - but repurposes it specifically as a
 \emph{gesture-to-sound mapping layer} rather than a general-purpose signal-processing environment:
 REMORA's nodes represent motion features, shaping functions, and synthesis-parameter sinks, not
-arbitrary DSP, and the graph lives inside a single instrument's plugin rather than functioning as a
+arbitrary digital signal processing (DSP), and the graph lives inside a single instrument's plugin
+rather than functioning as a
 standalone environment a performer would build an entire instrument in.
 
 Using Laban Movement Analysis as a source of mapping features has real precedent in NIME and
@@ -208,8 +211,8 @@ allowed to take.
 
 \subsection*{Architecture Overview}
 REMORA's architecture has two parts, matching the physical split between staff and host: firmware
-handles sensing and transport, and the plugin handles everything downstream of the incoming OSC
-stream, from calibration through to the audio it produces. Figure~1 lays out that split directly,
+handles sensing and transport, and the plugin handles everything downstream of the incoming Open
+Sound Control (OSC) stream, from calibration through to the audio it produces. Figure~1 lays out that split directly,
 left to right: IMU sampling and OSC transmission on the staff, feeding the plugin's own
 reception-to-synthesis pipeline on the host.
 
@@ -262,9 +265,10 @@ electronics in place so nothing shifts under swing.
 \end{center}
 
 \subsection*{Hardware}
-Inside the enclosure, a SparkFun ESP32-S2 Thing Plus reads a 9-DOF MPU-9250 IMU over I2C
-(Inter-Integrated Circuit) at 100~Hz and packs orientation, acceleration, and gyroscope readings into
-an OSC packet sent over UDP (User Datagram Protocol) on port 8000. The firmware joins the host
+Inside the enclosure, a SparkFun ESP32-S2 Thing Plus reads a 9-degrees-of-freedom (9-DOF) MPU-9250
+IMU over the Inter-Integrated Circuit (I2C) bus at 100~Hz and packs orientation, acceleration, and
+gyroscope readings into an OSC packet sent over the User Datagram Protocol (UDP) on port 8000. The
+firmware joins the host
 computer's own Wi-Fi hotspot directly rather than a dedicated access point, which keeps setup to a
 single pairing step at the cost of the range and interference sensitivity Discussion returns to
 (\S\ref{sec:limitations}).
@@ -310,7 +314,8 @@ gives the alignment quaternion $q_{\text{align}}$.
 \end{flushright}
 
 \textbf{Stage 1 failure modes.} \texttt{computeAlignQuat} reports failure when the three poses are
-too close together or nearly coplanar to fix a physical axis with confidence, and the UI surfaces this
+too close together or nearly coplanar to fix a physical axis with confidence, and the User Interface
+(UI) surfaces this
 as a "Calibration failed, try again" prompt.
 
 \textbf{Calibration, stage 2 - fixing the twist.} The sensor could still be rotated around
@@ -420,7 +425,8 @@ one-pole-smoothed rotation axis from above. The spin is classified vertical when
 \[
 \sqrt{\mathrm{axis}_x^2 + \mathrm{axis}_y^2}\ \gtrless\ |\mathrm{axis}_z|\,,
 \]
-i.e.\ when the horizontal-plane component outweighs the $z$ component. Spin direction (CW/CCW) then
+i.e.\ when the horizontal-plane component outweighs the $z$ component. Spin direction
+(clockwise/counter-clockwise, CW/CCW) then
 comes either from the sign of the dominant in-plane axis component, or - in the Bozendo mappings -
 from the sign of that axis's dot product against a reference heading latched once, the first time a
 qualifying vertical spin happens after the mapping loads.
@@ -471,7 +477,8 @@ evaluation.
 \subsection*{Software: Mapping Architecture}
 \textit{\texttt{NodeGraph}/\texttt{NodeTypeRegistry}: three node categories - Source (IMU,\\
 Laban features), Math (arithmetic, shaping, dynamics, lookup tables), Sink (synth parameters) - each a
-small typed function registered once. A graph is nodes plus typed wiring, serialised to/from XML as
+small typed function registered once. A graph is nodes plus typed wiring, serialised to/from the
+Extensible Markup Language (XML) as
 a preset; \texttt{GraphMappingStrategy} makes the graph the only mapping path the synth talks to,
 with no separate hand-written path.}
 
@@ -549,7 +556,7 @@ primitive is an open question the current evidence does not settle.
 \textit{Shared by every Azimut-family preset.}
 
 \textbf{Root-note table.} The spin-plane/direction/facing root-note table above is not an if/else
-chain - it is literally an 8-entry lookup table indexed by three booleans (\texttt{isVertical},
+chain - it is literally an 8-entry lookup table (LUT) indexed by three booleans (\texttt{isVertical},
 \texttt{isCCW}, \texttt{isFacingEast}) through the graph's generic 3-selector LUT node.
 
 \textbf{Root morph.} The target semitone value is chased by a variable-rate one-pole filter whose
@@ -633,14 +640,16 @@ f' = f\,\big(1+\text{depth}\cdot\sin\phi_v\big)
 g' = g\,\big(1-\text{depth}\cdot(0.5+0.5\sin\phi_t)\big)
 \]
 where $f, g$ are the fundamental frequency and master gain before modulation, $f', g'$ the modulated
-values actually used, and $\phi_v, \phi_t$ the vibrato and tremolo LFO phase accumulators (radians),
+values actually used, and $\phi_v, \phi_t$ the vibrato and tremolo Low-Frequency Oscillator (LFO)
+phase accumulators (radians),
 each advancing by its own rate every sample. A per-voice phase-offset sine (depth $0.003$, rate
 $0.3$\,Hz) adds chorus detuning; chord changes cross-fade linearly between old and new semitone
 offsets over $200$\,ms rather than jumping.
 
-\textbf{Noise and filtering.} An xorshift32 PRNG feeds a one-pole lowpass (coefficient
-\texttt{noiseLpCoef}) before being mixed in at \texttt{noiseAmount}; the summed stereo output passes
-through a JUCE state-variable TPT lowpass, its cutoff set directly each block from the graph's
+\textbf{Noise and filtering.} An xorshift32 pseudo-random number generator (PRNG) feeds a one-pole
+lowpass (coefficient \texttt{noiseLpCoef}) before being mixed in at \texttt{noiseAmount}; the summed
+stereo output passes through a JUCE state-variable Topology-Preserving Transform (TPT) lowpass, its
+cutoff set directly each block from the graph's
 \texttt{sink.lpfCutoffHz} (only range-clamped, not ramped), and an optional Schroeder-style
 \texttt{juce::dsp::Reverb} send whose wet level \emph{is} ramped through a per-sample
 \texttt{SmoothedValue} to avoid zippering when the active mapping changes.
@@ -760,11 +769,13 @@ the current build genuinely carries, not future work described in present tense.
 
 \textbf{Network deployment is manual.} REMORA joins the host device's own Wi-Fi hotspot rather than
 a dedicated access point, trading range and interference robustness for a one-step pairing setup.
-That convenience hides a real cost: the hotspot SSID/password and the OSC destination IP are
-constants compiled into the firmware. A phone hotspot does not guarantee the same IP across
-sessions, and pairing with a different host network means a different SSID and password entirely -
+That convenience hides a real cost: the hotspot's Service Set Identifier (SSID)/password and the OSC
+destination IP address are constants compiled into the firmware. A phone hotspot
+does not guarantee the same IP across sessions, and pairing with a different host network means a
+different SSID and password entirely -
 either case currently requires editing the firmware source and reflashing the microcontroller over
-USB before the staff will talk to the plugin again. There is no runtime Wi-Fi configuration, no
+the USB before the staff will talk to the plugin again. There is no runtime
+Wi-Fi configuration, no
 network discovery of the receiving host, and no feedback if the join fails silently.
 
 \textbf{Single IMU.} All orientation and motion-quality features come from one IMU with no
@@ -811,11 +822,13 @@ back-to-back performances without a recharge.
 with ESP-NOW: the staff-mounted ESP32 would send its sensor packets directly, peer-to-peer, to a
 second ESP32 tethered over USB to the host computer, which forwards them to the plugin over serial
 or a loopback OSC bridge. That removes the SSID/password/IP baked into firmware entirely - ESP-NOW
-pairs by MAC address rather than joining a network - and sidesteps the "new hotspot means reflash"
+pairs by MAC address rather than joining a network - and sidesteps the "new
+hotspot means reflash"
 problem, at the cost of adding a second microcontroller to the setup.
 
 \textbf{Other extensions.} Gesture-triggered mode switching, a merged rest/motion mapping, a two-IMU
-dual-tip configuration, further Laban Effort mapping targets, ML-based discrete gesture recognition,
+dual-tip configuration, further Laban Effort mapping targets, machine learning based discrete
+gesture recognition,
 and eventually exposing the node graph itself as a shareable/community patch format.
 
 \section{Conclusions}
@@ -875,8 +888,8 @@ observations of the system in use are the first author's own. The performer eval
 consent before any session, be referred to only by anonymised identifiers, and be free to withdraw
 at any point, consistent with this statement's other commitments.
 
-\textbf{Use of Artificial Intelligence.} Per the NIME Code of Practice's guidance on AI use, we
-disclose that a locally-run large language model (Mistral 7B) was used to help draft and edit
+\textbf{Use of Artificial Intelligence.} Per the NIME Code of Practice's guidance on Artificial
+Intelligence use, we disclose that a locally-run large language model (Mistral 7B) was used to help draft and edit
 portions of this manuscript's prose under the first author's direction and review. This disclosure
 applies only to the writing of this paper: REMORA's firmware, plugin, and mapping code were designed
 and written entirely by the first author without AI code generation.
