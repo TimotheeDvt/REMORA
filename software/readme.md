@@ -6,15 +6,37 @@ A real-time, dynamic **JUCE-based audio plugin** (VST3 and Standalone) engineere
 ## Core Features
 
 * **Multi-Format Support:** Compiles as both a VST3 plugin and a standalone desktop application.
-* **Modular Mapping Architecture:** Driven by a base `IMappingStrategy` class, making it easy to hot-swap or add new sensor-to-DSP strategies.
+* **Visual Node Graph Editor:** Every mapping - built-in or your own - is a `NodeGraph`: a DAG of Source/Math/Sink nodes evaluated once per audio block. Open the DSP window's **Graph** tab to inspect, rewire, or build one from scratch on a live patching canvas, with instant audio feedback and no recompiling required.
+* **Preset Management:** Create, save, and load node graphs as presets from a preset folder you configure once (via the **Options** button) and that persists across sessions - your own patches live right alongside the built-in mappings.
 * **Integrated Synth Engine:** Features a built-in algorithmic synthesis framework (`BoStaffSynth`) designed specifically for performance interaction.
 * **Visual Diagnostic Windows:** Includes dedicated GUI interfaces for viewing live raw IMU data streams, debugging console logs, and visually monitoring spatial movements.
 
 ---
 
+## Node Graph Editor
+
+At the heart of REMORA's mapping engine is a **visual, node-based patching system**. Instead of hardcoded mapping classes, every performance mapping - from the simplest pitch/roll patch to the full Azimut engine - is a `Graph::NodeGraph`: a directed acyclic graph of small typed nodes, wired together and re-evaluated once per audio block.
+
+* **Node Categories:**
+  * **Source nodes** read live sensor/motion data (raw IMU channels, or derived motion features like gyroscopic magnitude, Laban weight/time/space/flow, facing angle, spin count).
+  * **Math nodes** transform values in between - scaling, quantizing to a scale, gating, smoothing, crossfading, and more.
+  * **Sink nodes** write the final result into a synth parameter (pitch, gain, filter cutoff, drive, reverb send, etc.), and automatically get a live-value monitor knob in the DSP window.
+* **Live Patching Canvas:** Right-click empty canvas to add a node, drag from an output pin to an input pin to connect, right-click a node to delete it, right-click a wire to disconnect it. Pan by dragging the background, zoom with the mouse wheel. Hovering a pin shows its current live output value.
+* **Auto Layout:** One click tidies the whole graph into ranked columns (flow direction) and lanes (parallel branches), with adjustable **Rank Sep** / **Node Sep** spacing sliders.
+* **Non-Destructive Editing:** Edits are tracked per-graph; a **Reset Changes** button reverts the currently open graph back to how it looked when it was last loaded or saved, so experimenting with a built-in preset is always safe to undo.
+* **Preset Workflow:** The selector bar above the canvas manages presets directly:
+  * **New** starts a blank graph under a name you choose.
+  * **Save** writes the current graph back to its file;
+  * **Load** lists every `.xml` preset found in your preset folder and opens the one you pick.
+  * **Options** lets you point the preset folder at any location on disk - the choice is remembered across sessions.
+
+Because every mapping in this project - including all of the ones documented below - is implemented as a graph, none of them are fixed in stone: open any preset in the Graph tab to see exactly how it works, tweak it, or use it as the starting point for your own.
+
+---
+
 ## Performance Mapping Strategies
 
-This technical section details how physical movements stream into the base `IMappingStrategy` classes and directly manipulate the parameters of the synthesizer engine. Ten strategies are registered in `BoStaffSynth`, in the order below, from the simplest direct mappings up to the full Azimut engine and its variants.
+This technical section details how physical movements stream through each mapping's node graph and directly manipulate the parameters of the synthesizer engine. Eleven presets ship built into `BoStaffSynth`, in the order below, from the simplest direct mappings up to the full Azimut engine and its variants - every one of them a `NodeGraph` you can open, study, and remix in the [Node Graph Editor](#node-graph-editor).
 
 ---
 
