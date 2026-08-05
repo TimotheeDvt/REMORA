@@ -93,7 +93,7 @@ inline NodeId threshold(GraphBuilder& b, NodeId src, float t) {
     return n;
 }
 
-// Shared by the Azimut and Bozendo families, which duplicated these exact formulas in the original C++.
+// Shared by the Azimut and Martial families, which duplicated these exact formulas in the original C++.
 
 // motionGate = clamp(mapRange(gyroMag, floor*0.5, floor*2, 0, 1), 0, 1)
 inline NodeId standardMotionGate(GraphBuilder& b, NodeId gyroMag, float gyroscopeFloor) {

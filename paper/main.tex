@@ -427,7 +427,7 @@ one-pole-smoothed rotation axis from above. The spin is classified vertical when
 \]
 i.e.\ when the horizontal-plane component outweighs the $z$ component. Spin direction
 (clockwise/counter-clockwise, CW/CCW) then
-comes either from the sign of the dominant in-plane axis component, or - in the Bozendo mappings -
+comes either from the sign of the dominant in-plane axis component, or - in the Martial mappings -
 from the sign of that axis's dot product against a reference heading latched once, the first time a
 qualifying vertical spin happens after the mapping loads.
 \begin{flushright}
@@ -511,7 +511,7 @@ derivative, latched smoother).
 \label{sec:azimut-deep-dive}
 Table~2 shows the generalisation claim directly: each of the eleven mappings - Simple, Lead+Drone,
 Spin Filter, Bowed Chord, the Azimut family (facing-based root table, spin-count filter sweep, axial
-thrust transients), Bozendo V1/V2, Spin Voices, and Ben's - is built once via \texttt{GraphBuilder}
+thrust transients), Martial Effort/Momentum, Spin Voices, and Speed Gate - is built once via \texttt{GraphBuilder}
 and is structurally just a particular wiring of the same node catalog. Counts are read directly off
 the constructed graphs (\texttt{NodeGraph::nodes()}).
 \begin{center}
@@ -528,17 +528,17 @@ Bowed Chord    & 116 & 25 & 60  & 31 & 36 \\
 Azimut         & 126 & 37 & 56  & 33 & 40 \\
 Azimut+        & 126 & 37 & 56  & 33 & 39 \\
 Azimut Reverb  & 134 & 37 & 62  & 35 & 42 \\
-Bozendo V1     & 210 & 46 & 133 & 31 & 41 \\
-Bozendo V2     & 120 & 37 & 51  & 32 & 35 \\
-Spin Voices    & 117 & 42 & 38  & 37 & 33 \\
-Ben's          & 197 & 58 & 107 & 32 & 46 \\
+Martial Effort   & 210 & 46 & 133 & 31 & 41 \\
+Martial Momentum & 120 & 37 & 51  & 32 & 35 \\
+Spin Voices      & 117 & 42 & 38  & 37 & 33 \\
+Speed Gate       & 197 & 58 & 107 & 32 & 46 \\
 \bottomrule
 \end{tabular}
 \end{center}
 Across all eleven presets, only 63 of the catalog's 79 registered node types are ever
 instantiated - 42 of those source/math primitives, the rest sink writers. A full development cycle
 of hand-built mapping design, spanning a solo tilt-controlled mapping through the fully Laban-driven
-Bozendo and Ben's patches, lands inside less than two-thirds of an already small catalog; no preset
+Martial and Speed Gate patches, lands inside less than two-thirds of an already small catalog; no preset
 needed a node type invented specifically for it. That result should be read carefully, though: the
 catalog itself was not fixed in advance and then tested against eleven independent designs - it grew
 alongside the eleven mappings, several of which were the reason a given primitive was added in the
@@ -676,8 +676,8 @@ plugin side, and a single hardcoded tilt-to-pitch mapping. The goal was purely t
 sensor-to-sound pipeline end to end, not to explore expressivity.
 
 \subsection*{Iteration 2: Hand-Built Mapping Library}
-The eleven named mappings - Simple, Bowed Chord, Lead+Drone, Spin Filter, Bozendo V1/V2, Azimut and
-its variants, Ben's, Spin Voices - were then built one at a time as their own C++ classes, each
+The eleven named mappings - Simple, Bowed Chord, Lead+Drone, Spin Filter, Martial Effort/Momentum, Azimut and
+its variants, Speed Gate, Spin Voices - were then built one at a time as their own C++ classes, each
 adding a new gesture vocabulary (chords, Laban Effort, world-frame facing, transient detection) on
 top of the shared \texttt{StaffMotionAnalyzer}.
 
@@ -837,7 +837,7 @@ than being one more fixed gesture-to-sound mapping: the same small dataflow lang
 math, and sink node primitives, evaluated as a DAG once per audio block and rewireable without
 recompiling - is expressive enough to reproduce all eleven mapping strategies developed over the
 course of the project as ordinary, live-editable presets (Table~2), from a minimal tilt-to-pitch
-patch to the fully Laban-driven Bozendo and Ben's mappings. That claim is grounded in an explicit,
+patch to the fully Laban-driven Martial and Speed Gate mappings. That claim is grounded in an explicit,
 code-traceable account of mount-agnostic calibration, orientation tracking, and movement-quality
 extraction (\S\ref{sec:azimut-deep-dive}), not asserted in the abstract alone.
 
@@ -863,7 +863,7 @@ with swinging a b\^o staff; it is not currently adapted for performers who canno
 explored. This is a real limitation of the instrument's physical form, not merely of the present
 build. That said, the skill barrier is not uniform across the preset catalog: presets such as Simple
 ask only for basic tilt and roll and do not assume any prior staff-handling technique, while the
-Laban-driven presets (Bozendo, Azimut) reward accumulated skill with the instrument's physical
+Laban-driven presets (Martial, Azimut) reward accumulated skill with the instrument's physical
 vocabulary. Because every preset is authored in the same shared patching language
 (\S\ref{sec:azimut-deep-dive}), a facilitator or performer can also build or select a reduced-effort
 mapping for someone without a staff background, rather than being limited to the eleven built-in

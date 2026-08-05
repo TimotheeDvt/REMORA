@@ -169,12 +169,12 @@ All mappings implement the `IMappingStrategy` interface and can be switched at r
 | **Bowed Chord** | Gyroscope speed = bow pressure. Yaw selects one of 4 chords, roll overrides into a secondary set past a threshold, acceleration transients add a physical-modeling-style noise stroke. |
 | **Lead + Drone** | Tilt drives a major-scale melody. Three drone voices stay harmonically locked below it; yaw crossfades and pans them. |
 | **Spin Filter** | Rotation speed climbs a pentatonic scale (root + fifth). Roll sweeps a movable low-pass "ceiling" over 6 harmonic partials. |
-| **Bozendo (V1)** | Full Laban Effort framework (Weight, Time, Space, Flow) extracted from the motion. Weight opens up to 4 polyphonic voices playing Major/Minor/7th/Diminished chords based on spin plane and direction. |
-| **Bozendo 2 (V2)** | Shifts from scale-quantization to trajectory-driven momentum: spin plane/direction picks a root note, accumulated spin count sweeps a filter, and axial jerk detection triggers percussive thrusts. |
-| **Azimut** | Finishes what Bozendo V2 started with a true world-frame facing direction, combined with spin plane + direction for an 8-way root note table. Keeps V2's filter sweep and thrust detection. |
+| **Martial Effort** | Full Laban Effort framework (Weight, Time, Space, Flow) extracted from the motion. Weight opens up to 4 polyphonic voices playing Major/Minor/7th/Diminished chords based on spin plane and direction. |
+| **Martial Momentum** | Shifts from scale-quantization to trajectory-driven momentum: spin plane/direction picks a root note, accumulated spin count sweeps a filter, and axial jerk detection triggers percussive thrusts. |
+| **Azimut** | Finishes what Martial Momentum started with a true world-frame facing direction, combined with spin plane + direction for an 8-way root note table. Keeps Martial Momentum's filter sweep and thrust detection. |
 | **Azimut+** | Azimut variant where the filter cutoff tracks instantaneous rotation speed directly instead of the accumulated spin-count sweep. |
 | **Azimut Reverb** | Azimut variant where Laban Flow - previously computed and discarded - drives a reverb send instead of vibrato. Free, loose motion (flow_free) opens a longer, brighter tail; bound, tense motion collapses it back toward a short, damped, near-dry space. |
-| **Ben's Mapping** | Speed-gated crossfade: a simple pentatonic melody below ~120°/s, the full Azimut engine above ~180°/s, linearly interpolated in between. |
+| **Speed Gate** | Speed-gated crossfade: a simple pentatonic melody below ~120°/s, the full Azimut engine above ~180°/s, linearly interpolated in between. |
 | **Spin Voices** | Builds a sustained chord one note at a time - each of the 4 spin-plane/direction combos permanently owns one voice, which freezes in place until that combo is revisited. |
 
 ---
@@ -202,7 +202,7 @@ After recording all three poses the plugin computes an orthonormal rotation matr
 - **Gesture-triggered mode switching** - detect specific motion signatures (e.g. a sharp axial tap while stationary) to cycle between mappings without touching the UI.
 - **Merged rest/motion mapping** - blend Azimut's root-note logic with a pitch/roll-driven mode while the staff is at rest, rather than switching mappings outright.
 - **Two-IMU configuration** - mount sensors at both ends of the staff to independently track each tip and derive bow speed, contact point, and crossing angle.
-- **Laban Effort extensions** - the current Bozendo/Azimut mappings extract Weight, Time, Space, and Flow. Mapping it to other targets (e.g. filter resonance) remains unexplored.
+- **Laban Effort extensions** - the current Martial/Azimut mappings extract Weight, Time, Space, and Flow. Mapping it to other targets (e.g. filter resonance) remains unexplored.
 - **Machine learning gesture recognition** - train a lightweight classifier on recorded gesture sequences to trigger discrete musical events (note attacks, chord changes, FX toggles) alongside the continuous mappings.
 
 ---

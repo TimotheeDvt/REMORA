@@ -76,7 +76,7 @@ public:
     void updateLabanFlow(float dynamic_acceleration_magnitude,
                           float &flow_bound, float &flow_free);
 
-    // Two interchangeable direction conventions: ByAbsoluteComponent (Azimut family) vs ByReferenceAzimuth (Bozendo family).
+    // Two interchangeable direction conventions: ByAbsoluteComponent (Azimut family) vs ByReferenceAzimuth (Martial family).
     bool updateSpinClassificationByAbsoluteComponent(float axis_x,
                                                        float axis_y,
                                                        float axis_z);
@@ -164,7 +164,7 @@ private:
     bool was_rotation_axis_vertical_ = false;
     float previous_rotation_spin_direction_ = 1.f;
 
-    // Reference-azimuth spin convention state (Bozendo family only).
+    // Reference-azimuth spin convention state (Martial family only).
     float reference_azimuth_x_ = 1.f;
     float reference_azimuth_y_ = 0.f;
     bool is_reference_azimuth_set_ = false;

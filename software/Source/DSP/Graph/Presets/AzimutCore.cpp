@@ -33,7 +33,7 @@ AzimutCoreOutputs buildAzimutCore(GraphBuilder& b) {
 
     AzimutCoreOutputs core{};
 
-    // ByAbsoluteComponent - matches the majority of the Azimut/Bens family.
+    // ByAbsoluteComponent - matches the majority of the Azimut/Speed Gate family.
     NodeId spinClass = b.add("source.spinClassification", { 0.0f });
     NodeId isVertical = tapPort(b, spinClass, 0);
     NodeId spinDirection = tapPort(b, spinClass, 1);

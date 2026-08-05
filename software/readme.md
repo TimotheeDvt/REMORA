@@ -57,7 +57,7 @@ This technical section details how physical movements stream into the base `IMap
 
 ---
 
-### 5. Bozendo Mapping (V1)
+### 5. Martial Effort Mapping
 
 * **Movement Inputs:** Laban Movement Analysis features (Weight, Time, Space, Flow), calculated from dynamic linear acceleration ($\text{Accel} - \text{Gravity}$) and angular differences.
 * **DSP Transformation:**
@@ -66,9 +66,9 @@ This technical section details how physical movements stream into the base `IMap
 
 ---
 
-### 6. Bozendo Mapping (V2)
+### 6. Martial Momentum Mapping
 
-The V2 Bozendo mapping shifts the paradigm from scale-quantization to trajectory-driven momentum tracking and gesture triggers. It shares its Laban engine (weight/time/space/flow) with V1, but replaces scale-stepping with a spin-plane root note, a spin-count-driven filter sweep, and axial thrust detection. Its rotation-direction classifier resolves CW/CCW *relative to the direction first captured when the gesture began* rather than a true world-frame compass - that absolute-compass feature is what the **Azimut Mapping** below completes.
+Martial Momentum shifts the paradigm from scale-quantization to trajectory-driven momentum tracking and gesture triggers. It shares its Laban engine (weight/time/space/flow) with Martial Effort, but replaces scale-stepping with a spin-plane root note, a spin-count-driven filter sweep, and axial thrust detection. Its rotation-direction classifier resolves CW/CCW *relative to the direction first captured when the gesture began* rather than a true world-frame compass - that absolute-compass feature is what the **Azimut Mapping** below completes.
 
 * **Root Note by Spin Plane + Direction:** The rotation axis is classified as Vertical or Horizontal, and CW/CCW relative to the first spin direction observed. This selects a fixed pitch class (C / E for Vertical CW / CCW, G / A for Horizontal CW / CCW) instead of scale steps, played as bare octaves and fifths rather than a full chord.
 * **Continuous Rotational Velocity (Filter Sweep):** The mapping accumulates rotational degrees over time; every full $360^\circ$ loop increments `continuous_spin_count_`, resetting whenever the spin plane or direction changes. The spin count drives a phase modulator ($\text{Phase} = \text{Count} \times 1.5$), whose sine output sweeps a global Low-Pass Filter between $400\text{ Hz}$ and $20{,}000\text{ Hz}$.
@@ -78,7 +78,7 @@ The V2 Bozendo mapping shifts the paradigm from scale-quantization to trajectory
 
 ## Deep Dive: Azimut Mapping
 
-**Azimut** is the mapping that finishes what Bozendo V2 started: instead of a relative CW/CCW reference, it computes a true world-frame **facing direction** and combines it with spin plane + spin direction for an 8-way root note table. It keeps V2's Laban engine, spin-count filter sweep, and axial thrust detection, and adds the facing axis on top. It ships in two flavors - `AzimutMapping` (`"Azimut"`) and a variant, `AzimutPlusMapping` (`"Azimut+"`) - described at the end of this section.
+**Azimut** is the mapping that finishes what Martial Momentum started: instead of a relative CW/CCW reference, it computes a true world-frame **facing direction** and combines it with spin plane + spin direction for an 8-way root note table. It keeps V2's Laban engine, spin-count filter sweep, and axial thrust detection, and adds the facing axis on top. It ships in two flavors - `AzimutMapping` (`"Azimut"`) and a variant, `AzimutPlusMapping` (`"Azimut+"`) - described at the end of this section.
 
 #### A. The Directional Angular Compass (Facing + Root Note Selection)
 
@@ -124,7 +124,7 @@ The V2 Bozendo mapping shifts the paradigm from scale-quantization to trajectory
 
 ---
 
-### Ben's Mapping
+### Speed Gate Mapping
 
 A speed-gated crossfade between a simple melody and the full Azimut engine, so slow, deliberate gestures and fast, dynamic ones each get a purpose-built sound.
 

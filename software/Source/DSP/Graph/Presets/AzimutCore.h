@@ -2,7 +2,7 @@
 
 #include "../GraphBuilder.h"
 
-// Shared by Azimut/Azimut+/Azimut Reverb/Ben's - returns node ids so callers can wire to sinks or crossfade first.
+// Shared by Azimut/Azimut+/Azimut Reverb/Speed Gate - returns node ids so callers can wire to sinks or crossfade first.
 namespace Graph::Presets {
 
 struct AzimutCoreOutputs {

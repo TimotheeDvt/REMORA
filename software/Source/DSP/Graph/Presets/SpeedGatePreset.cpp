@@ -5,7 +5,7 @@
 // A pentatonic melody cross-faded against buildAzimutCore() by speed, clickless via a gate band.
 namespace Graph::Presets {
 
-std::unique_ptr<NodeGraph> buildBens() {
+std::unique_ptr<NodeGraph> buildSpeedGate() {
     constexpr float kPi = 3.14159265f;
     constexpr float kRootFrequencyHz = 130.81f; // matches AzimutMapping's C3
     constexpr float kGateSpeedThresholdDegPerSec = 150.0f;
@@ -15,11 +15,11 @@ std::unique_ptr<NodeGraph> buildBens() {
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
 
-    // azimutAmount: Ben's own gyro smoother, independent of Azimut's internal analyzer-smoothed magnitude.
+    // azimutAmount: this preset's own gyro smoother, independent of Azimut's internal analyzer-smoothed magnitude.
     NodeId gyroRaw = b.add("source.gyroMagnitudeRaw");
-    NodeId bensSmoothedGyro = onePole(b, gyroRaw, 0.35f);
+    NodeId smoothedGyro = onePole(b, gyroRaw, 0.35f);
     constexpr float kBandStart = kGateSpeedThresholdDegPerSec - kGateSpeedBandDegPerSec * 0.5f;
-    NodeId azimutAmount = clampNode(b, scale(b, subNodes(b, bensSmoothedGyro, constantNode(b, kBandStart)), 1.0f / kGateSpeedBandDegPerSec), 0.0f, 1.0f);
+    NodeId azimutAmount = clampNode(b, scale(b, subNodes(b, smoothedGyro, constantNode(b, kBandStart)), 1.0f / kGateSpeedBandDegPerSec), 0.0f, 1.0f);
 
     // --- simple melody branch ---
     NodeId pitch = b.add("source.pitch");

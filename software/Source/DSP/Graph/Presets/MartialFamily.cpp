@@ -2,7 +2,7 @@
 #include "PresetHelpers.h"
 #include <vector>
 
-// Bozendo and Bozendo2 differ too much (pitch/chord/pan logic) to share a "core" like the Azimut family does
+// Martial Effort and Martial Momentum differ too much (pitch/chord/pan logic) to share a "core" like the Azimut family does
 namespace Graph::Presets {
 
 namespace {
@@ -17,7 +17,7 @@ NodeId lut3Node(GraphBuilder& b, NodeId in0, NodeId in1, NodeId in2, std::vector
 
 } // namespace
 
-std::unique_ptr<NodeGraph> buildBozendo() {
+std::unique_ptr<NodeGraph> buildMartialEffort() {
     constexpr float kGyroscopeFloor = 30.0f, kGyroscopeCeiling = 750.0f;
     constexpr float kRootFrequencyHz = 146.83f;
     constexpr float kPi = 3.14159265f;
@@ -129,7 +129,7 @@ std::unique_ptr<NodeGraph> buildBozendo() {
     return graph;
 }
 
-std::unique_ptr<NodeGraph> buildBozendo2() {
+std::unique_ptr<NodeGraph> buildMartialMomentum() {
     constexpr float kRootFrequencyHz = 130.81f; // C3
 
     auto graph = std::make_unique<NodeGraph>();

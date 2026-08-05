@@ -28,12 +28,12 @@ BoStaffSynth::BoStaffSynth() {
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBowedChord(), "Bowed Chord"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildLeadDrone(), "Lead + Drone"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinFilter(), "Spin Filter"));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBozendo(), "Bozendo"));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBozendo2(), "Bozendo 2"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildMartialEffort(), "Martial Effort"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildMartialMomentum(), "Martial Momentum"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimut(), "Azimut"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutPlus(), "Azimut+"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutReverb(), "Azimut Reverb"));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBens(), "Ben's"));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpeedGate(), "Speed Gate"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoice(), "Spin Voices"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(std::make_unique<Graph::NodeGraph>(), "Custom"));
 }
