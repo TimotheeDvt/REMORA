@@ -235,10 +235,10 @@ DSPWindow::DSPWindow(REMORAProcessor& p)
     tabs.setOutline(0);
 
     tabs.onTabChanged = [this](int newCurrentTabIndex) {
-        dspComponent.setActive(newCurrentTabIndex == 0);
+        dspComponent.setActive(newCurrentTabIndex == 1);
     };
-    tabs.addTab("Knobs + FFT", Palette::bg, &dspComponent, false);
     tabs.addTab("Graph", Palette::bg, &graphEditorComponent, false);
+    tabs.addTab("Knobs + FFT", Palette::bg, &dspComponent, false);
 
     selectorBar.onMappingChanged = [this] { graphEditorComponent.onMappingChanged(); };
     selectorBar.onResetRequested = [this] { graphEditorComponent.resetCurrentGraphToOriginal(); };
