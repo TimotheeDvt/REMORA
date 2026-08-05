@@ -94,6 +94,16 @@ void GraphEditorComponent::resetCurrentGraphToOriginal() {
     canvas.repaint();
 }
 
+void GraphEditorComponent::markCurrentGraphAsSaved() {
+    if (currentGraph == nullptr)
+        return;
+    originalSnapshots[currentGraph] = currentGraph->toXml()->toString();
+    dirtyByGraph[currentGraph] = false;
+    isDirty = false;
+    if (onDirtyStateChanged)
+        onDirtyStateChanged(false);
+}
+
 void GraphEditorComponent::setLayoutSpacing(float newRankSep, float newNodeSep) {
     rankSep = newRankSep;
     nodeSep = newNodeSep;

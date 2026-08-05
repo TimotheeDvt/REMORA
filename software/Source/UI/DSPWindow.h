@@ -89,7 +89,7 @@ private:
 
 class DSPRootComponent : public juce::Component {
 public:
-    static constexpr int kSelectorBarHeight = 34;
+    static constexpr int kSelectorBarHeight = 64;
 
     DSPRootComponent(MappingSelectorBar& barIn, DSPTabbedComponent& tabsIn) : bar(barIn), tabs(tabsIn) {
         addAndMakeVisible(bar);

@@ -44,8 +44,11 @@ void BoStaffSynth::prepareToPlay(double sampleRate, int samplesPerBlock) {
     currentSampleRate = static_cast<float>(sampleRate);
     sampleRateRecip   = 1.0f / currentSampleRate;
 
-    for (auto& mapping : mappings) {
-        mapping->prepare(sampleRate);
+    {
+        const juce::ScopedLock sl(mappingsLock);
+        for (auto& mapping : mappings) {
+            mapping->prepare(sampleRate);
+        }
     }
 
     masterGain.reset(sampleRate, 0.010);
@@ -98,19 +101,30 @@ int BoStaffSynth::getMappingStrategy() const noexcept {
 }
 
 const char* BoStaffSynth::getMappingName(int index) const {
+    const juce::ScopedLock sl(mappingsLock);
     if (index >= 0 && index < static_cast<int>(mappings.size()))
         return mappings[static_cast<size_t>(index)]->getName();
     return nullptr;
 }
 
 int BoStaffSynth::getMappingCount() const noexcept {
+    const juce::ScopedLock sl(mappingsLock);
     return static_cast<int>(mappings.size());
 }
 
 IMappingStrategy* BoStaffSynth::getMapping(int index) const noexcept {
+    const juce::ScopedLock sl(mappingsLock);
     if (index >= 0 && index < static_cast<int>(mappings.size()))
         return mappings[static_cast<size_t>(index)].get();
     return nullptr;
+}
+
+int BoStaffSynth::addGraphMapping(const juce::String& name, std::unique_ptr<Graph::NodeGraph> graph) {
+    auto mapping = std::make_unique<Graph::GraphMappingStrategy>(std::move(graph), name);
+    mapping->prepare(currentSampleRate);
+    const juce::ScopedLock sl(mappingsLock);
+    mappings.push_back(std::move(mapping));
+    return static_cast<int>(mappings.size()) - 1;
 }
 
 void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
@@ -152,8 +166,10 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
     mappingOut = MappingOutput{};
 
     int activeIndex = activeMappingIndex.load();
-    if (activeIndex >= 0 && activeIndex < static_cast<int>(mappings.size())) {
-        mappings[static_cast<size_t>(activeIndex)]->process(params, mappingOut);
+    {
+        const juce::ScopedLock sl(mappingsLock);
+        if (activeIndex >= 0 && activeIndex < static_cast<int>(mappings.size()))
+            mappings[static_cast<size_t>(activeIndex)]->process(params, mappingOut);
     }
 
     rootFreq.setTargetValue(mappingOut.rootHz);

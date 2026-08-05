@@ -34,6 +34,8 @@ public:
     bool isCurrentGraphDirty() const noexcept { return isDirty; }
     void resetCurrentGraphToOriginal();
 
+    void markCurrentGraphAsSaved();
+
     void rerunAutoLayout();
 
     // ranksep: gap between columns (rank axis, flow direction). nodesep: gap between lanes (rows).

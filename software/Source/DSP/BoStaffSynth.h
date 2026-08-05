@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstdint>
 
+#include "Graph/NodeGraph.h"
 #include "IMappingStrategy.h"
 #include <memory>
 #include <vector>
@@ -111,6 +112,8 @@ public:
 
   IMappingStrategy* getMapping(int index) const noexcept;
 
+  int addGraphMapping(const juce::String& name, std::unique_ptr<Graph::NodeGraph> graph);
+
 private:
   static constexpr int kNumVoices  = 4;
 
@@ -120,6 +123,8 @@ private:
   SynthVoice voices[kNumVoices];
 
   std::vector<std::unique_ptr<IMappingStrategy>> mappings;
+
+  mutable juce::CriticalSection mappingsLock;
 
   std::atomic<int> activeMappingIndex{1};
 
