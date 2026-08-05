@@ -273,8 +273,8 @@ void MappingSelectorBar::showOptionsMenu() {
 void MappingSelectorBar::changePresetFolder() {
     auto chooser = std::make_shared<juce::FileChooser>("Choose a preset folder",
                                                          Graph::PresetManager::instance().getPresetFolder());
-    constexpr auto flags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories;
-    chooser->launchAsync(flags, [chooser](const juce::FileChooser& fc) {
+    constexpr auto chooserFlags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories;
+    chooser->launchAsync(chooserFlags, [chooser](const juce::FileChooser& fc) {
         const auto result = fc.getResult();
         if (result != juce::File{})
             Graph::PresetManager::instance().setPresetFolder(result);

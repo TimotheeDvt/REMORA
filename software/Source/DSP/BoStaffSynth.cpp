@@ -35,7 +35,6 @@ BoStaffSynth::BoStaffSynth() {
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutReverb(), "Azimut Reverb"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpeedGate(), "Speed Gate"));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoice(), "Spin Voices"));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(std::make_unique<Graph::NodeGraph>(), "Custom"));
 }
 
 BoStaffSynth::~BoStaffSynth() {}
