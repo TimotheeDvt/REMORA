@@ -26,6 +26,7 @@ std::vector<float> buildScaleTable(const int* scaleDegrees, int scaleLength, int
 } // namespace
 
 std::unique_ptr<NodeGraph> buildLeadDrone() {
+    constexpr float kPi = 3.14159265f;
     constexpr int kMinStep = -24, kMaxStep = 24; // generous margin over the realistic pitch range
     static const int kMajorScale[7] = { 0, 2, 4, 5, 7, 9, 11 };
 
@@ -51,8 +52,8 @@ std::unique_ptr<NodeGraph> buildLeadDrone() {
     NodeId accelMag = b.add("source.accelMagnitudeRaw");
     NodeId yaw = b.add("source.yaw");
 
-    // Mixes degrees (yaw) despite pitch/roll being radians elsewhere - ported faithfully, not "corrected".
-    NodeId yawNorm = clampNode(b, scale(b, addConst(b, yaw, 180.0f), 1.0f / 360.0f), 0.0f, 1.0f);
+    // yaw is in radians ([-pi,pi]) like pitch/roll; normalize to [0,1].
+    NodeId yawNorm = clampNode(b, scale(b, addConst(b, yaw, kPi), 1.0f / (2.0f * kPi)), 0.0f, 1.0f);
 
     toSink(b, addConst(b, clampNode(b, scale(b, gyroMag, 0.01f), 0.0f, 0.2f), 0.8f), "sink.masterGain");
 

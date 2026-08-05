@@ -98,13 +98,13 @@ std::vector<NodeTypeInfo> buildAllNodes() {
 
     // Raw sensor
     nodes.push_back(source("source.pitch", "Pitch", "Raw Sensor",
-        "Calibrated pitch angle of the staff, in degrees. Sign/zero-point depend on the calibration pose captured at startup.",
+        "Calibrated pitch angle of the staff, in radians. Sign/zero-point depend on the calibration pose captured at startup.",
         REMORA_RAW_EVAL(sf.raw.pitch)));
     nodes.push_back(source("source.roll", "Roll", "Raw Sensor",
-        "Calibrated roll angle of the staff, in degrees. Sign/zero-point depend on the calibration pose captured at startup.",
+        "Calibrated roll angle of the staff, in radians. Sign/zero-point depend on the calibration pose captured at startup.",
         REMORA_RAW_EVAL(sf.raw.roll)));
     nodes.push_back(source("source.yaw", "Yaw", "Raw Sensor",
-        "Calibrated yaw (heading) angle of the staff, in degrees. Sign/zero-point depend on the calibration pose captured at startup.",
+        "Calibrated yaw (heading) angle of the staff, in radians. Sign/zero-point depend on the calibration pose captured at startup.",
         REMORA_RAW_EVAL(sf.raw.yaw)));
     nodes.push_back(source("source.gyroX", "Gyro X", "Raw Sensor",
         "Raw angular velocity around the sensor's X axis, in degrees/second. Unfiltered, straight from the IMU.",
