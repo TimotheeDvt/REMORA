@@ -1,31 +1,22 @@
 #include "AllPresets.h"
 #include "PresetHelpers.h"
 
-// Spin plane+direction selects 1 of 4 voices; the other 3 freeze in place.
 namespace Graph::Presets {
 
 std::unique_ptr<NodeGraph> buildSpinVoice() {
+    constexpr float kPi = 3.14159265f;
     constexpr float kRootFrequencyHz = 130.81f; // C3
-    constexpr float kGyroscopeFloor = 30.0f, kGyroscopeCeiling = 750.0f;
     static const float kVoiceBaseSemitones[4] = { 0.f, 7.f, 12.f, 19.f };
 
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
 
-    NodeId spinClass = b.add("source.spinClassification", { 0.0f }); // ByAbsoluteComponent
-    NodeId isCCW = threshold(b, spinClass, 1, 0.0f); // spinDirection
+    NodeId roll = b.add("source.roll");
+    NodeId activeVoiceIndex = addConst(b, scale(b, roll, 2.0f / kPi), 1.5f);
 
-    // activeVoiceIndex = (1-isVertical)*2 + isCCW: 0=vert+CW, 1=vert+CCW, 2=horiz+CW, 3=horiz+CCW
-    NodeId planeIndex = subNodes(b, constantNode(b, 1.0f), spinClass); // isVertical (port 0, the default)
-    NodeId activeVoiceIndex = addNodes(b, scale(b, planeIndex, 2.0f), isCCW);
-
-    NodeId isMoving = b.add("source.isMoving");
-    NodeId gyroMag = b.add("source.gyroMagnitude");
-    NodeId speedNorm = clampNode(b, [&] {
-        NodeId n = b.add("math.mapRange", { kGyroscopeFloor, kGyroscopeCeiling, 0.0f, 1.0f });
-        b.wire(gyroMag, n);
-        return n;
-    }(), 0.0f, 1.0f);
+    NodeId pitch = b.add("source.pitch");
+    NodeId pitchOffset = b.add("math.mapRange", { -kPi * 0.5f, kPi * 0.5f, -12.0f, 12.0f });
+    b.wire(pitch, pitchOffset);
 
     NodeId labanWeight = b.add("source.labanWeight");
     NodeId targetGain = clampNode(b, scale(b, labanWeight, 1.2f), 0.0f, 1.0f);
@@ -35,12 +26,11 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
         b.wire(activeVoiceIndex, voiceGate, 0);
         b.wire(constantNode(b, static_cast<float>(v)), voiceGate, 1);
 
-        NodeId pitchGate = mulNodes(b, voiceGate, isMoving);
-        NodeId pitchTarget = addConst(b, scale(b, speedNorm, 12.0f), kVoiceBaseSemitones[v]);
+        NodeId pitchTarget = addConst(b, pitchOffset, kVoiceBaseSemitones[v]);
         // Starts at 0 semitones, not kVoiceBaseSemitones[v] - a minor one-time glide-up transient, not a persistent bug.
         NodeId pitchNode = b.add("math.latchedSmoother", { 0.08f });
         b.wire(pitchTarget, pitchNode, 0);
-        b.wire(pitchGate, pitchNode, 1);
+        b.wire(voiceGate, pitchNode, 1);
 
         NodeId gainNode = b.add("math.latchedSmoother", { 0.15f });
         b.wire(targetGain, gainNode, 0);
