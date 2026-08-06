@@ -98,107 +98,132 @@ std::vector<NodeTypeInfo> buildAllNodes() {
 
     // Raw sensor
     nodes.push_back(source("source.pitch", "Pitch", "Raw Sensor",
-        "Calibrated pitch angle of the staff, in radians. Sign/zero-point depend on the calibration pose captured at startup.",
+        "Calibrated pitch angle of the staff, in radians. Range: -pi/2 to pi/2 (asin-derived, mathematically "
+        "cannot exceed this). Sign/zero-point depend on the calibration pose captured at startup.",
         REMORA_RAW_EVAL(sf.raw.pitch)));
     nodes.push_back(source("source.roll", "Roll", "Raw Sensor",
-        "Calibrated roll angle of the staff, in radians. Sign/zero-point depend on the calibration pose captured at startup.",
+        "Calibrated roll angle of the staff, in radians. Range: -pi to pi (atan2-derived, mathematically cannot "
+        "exceed this). Sign/zero-point depend on the calibration pose captured at startup.",
         REMORA_RAW_EVAL(sf.raw.roll)));
     nodes.push_back(source("source.yaw", "Yaw", "Raw Sensor",
-        "Calibrated yaw (heading) angle of the staff, in radians. Sign/zero-point depend on the calibration pose captured at startup.",
+        "Calibrated yaw (heading) angle of the staff, in radians. Range: -pi to pi (atan2-derived, mathematically "
+        "cannot exceed this). Sign/zero-point depend on the calibration pose captured at startup.",
         REMORA_RAW_EVAL(sf.raw.yaw)));
     nodes.push_back(source("source.gyroX", "Gyro X", "Raw Sensor",
-        "Raw angular velocity around the sensor's X axis, in degrees/second. Unfiltered, straight from the IMU.",
+        "Raw angular velocity around the sensor's X axis, in degrees/second. Signed; no fixed software range - "
+        "bounded only by the IMU's hardware full-scale setting. Unfiltered, straight from the IMU.",
         REMORA_RAW_EVAL(sf.raw.gx)));
     nodes.push_back(source("source.gyroY", "Gyro Y", "Raw Sensor",
-        "Raw angular velocity around the sensor's Y axis, in degrees/second. Unfiltered, straight from the IMU.",
+        "Raw angular velocity around the sensor's Y axis, in degrees/second. Signed; no fixed software range - "
+        "bounded only by the IMU's hardware full-scale setting. Unfiltered, straight from the IMU.",
         REMORA_RAW_EVAL(sf.raw.gy)));
     nodes.push_back(source("source.gyroZ", "Gyro Z", "Raw Sensor",
-        "Raw angular velocity around the sensor's Z axis, in degrees/second. Unfiltered, straight from the IMU.",
+        "Raw angular velocity around the sensor's Z axis, in degrees/second. Signed; no fixed software range - "
+        "bounded only by the IMU's hardware full-scale setting. Unfiltered, straight from the IMU.",
         REMORA_RAW_EVAL(sf.raw.gz)));
     nodes.push_back(source("source.accelX", "Accel X", "Raw Sensor",
-        "Raw linear acceleration along the sensor's X axis, in g. Includes gravity - not gravity-removed.",
+        "Raw linear acceleration along the sensor's X axis, in g. Signed; no fixed software range - includes "
+        "gravity, so roughly -1 to 1 at rest and wider under motion. Includes gravity - not gravity-removed.",
         REMORA_RAW_EVAL(sf.raw.ax)));
     nodes.push_back(source("source.accelY", "Accel Y", "Raw Sensor",
-        "Raw linear acceleration along the sensor's Y axis, in g. Includes gravity - not gravity-removed.",
+        "Raw linear acceleration along the sensor's Y axis, in g. Signed; no fixed software range - includes "
+        "gravity, so roughly -1 to 1 at rest and wider under motion. Includes gravity - not gravity-removed.",
         REMORA_RAW_EVAL(sf.raw.ay)));
     nodes.push_back(source("source.accelZ", "Accel Z", "Raw Sensor",
-        "Raw linear acceleration along the sensor's Z axis, in g. Includes gravity - not gravity-removed.",
+        "Raw linear acceleration along the sensor's Z axis, in g. Signed; no fixed software range - includes "
+        "gravity, so roughly -1 to 1 at rest and wider under motion. Includes gravity - not gravity-removed.",
         REMORA_RAW_EVAL(sf.raw.az)));
     nodes.push_back(source("source.magX", "Mag X", "Raw Sensor",
-        "Raw magnetometer reading along the sensor's X axis, in microtesla (uT).", REMORA_RAW_EVAL(sf.raw.mx)));
+        "Raw magnetometer reading along the sensor's X axis, in microtesla (uT). Signed; no fixed software "
+        "range - depends on the local magnetic environment.", REMORA_RAW_EVAL(sf.raw.mx)));
     nodes.push_back(source("source.magY", "Mag Y", "Raw Sensor",
-        "Raw magnetometer reading along the sensor's Y axis, in microtesla (uT).", REMORA_RAW_EVAL(sf.raw.my)));
+        "Raw magnetometer reading along the sensor's Y axis, in microtesla (uT). Signed; no fixed software "
+        "range - depends on the local magnetic environment.", REMORA_RAW_EVAL(sf.raw.my)));
     nodes.push_back(source("source.magZ", "Mag Z", "Raw Sensor",
-        "Raw magnetometer reading along the sensor's Z axis, in microtesla (uT).", REMORA_RAW_EVAL(sf.raw.mz)));
+        "Raw magnetometer reading along the sensor's Z axis, in microtesla (uT). Signed; no fixed software "
+        "range - depends on the local magnetic environment.", REMORA_RAW_EVAL(sf.raw.mz)));
     nodes.push_back(source("source.quatW", "Quat W", "Raw Sensor",
-        "W component of the calibrated orientation quaternion. Combine with Quat X/Y/Z to rotate vectors into world frame without reconstructing Euler angles.",
+        "W component of the calibrated orientation quaternion. Range: -1 to 1 (unit-quaternion component). "
+        "Combine with Quat X/Y/Z to rotate vectors into world frame without reconstructing Euler angles.",
         REMORA_RAW_EVAL(sf.raw.qw)));
     nodes.push_back(source("source.quatX", "Quat X", "Raw Sensor",
-        "X component of the calibrated orientation quaternion. Combine with Quat W/Y/Z to rotate vectors into world frame without reconstructing Euler angles.",
+        "X component of the calibrated orientation quaternion. Range: -1 to 1 (unit-quaternion component). "
+        "Combine with Quat W/Y/Z to rotate vectors into world frame without reconstructing Euler angles.",
         REMORA_RAW_EVAL(sf.raw.qx)));
     nodes.push_back(source("source.quatY", "Quat Y", "Raw Sensor",
-        "Y component of the calibrated orientation quaternion. Combine with Quat W/X/Z to rotate vectors into world frame without reconstructing Euler angles.",
+        "Y component of the calibrated orientation quaternion. Range: -1 to 1 (unit-quaternion component). "
+        "Combine with Quat W/X/Z to rotate vectors into world frame without reconstructing Euler angles.",
         REMORA_RAW_EVAL(sf.raw.qy)));
     nodes.push_back(source("source.quatZ", "Quat Z", "Raw Sensor",
-        "Z component of the calibrated orientation quaternion. Combine with Quat W/X/Y to rotate vectors into world frame without reconstructing Euler angles.",
+        "Z component of the calibrated orientation quaternion. Range: -1 to 1 (unit-quaternion component). "
+        "Combine with Quat W/X/Y to rotate vectors into world frame without reconstructing Euler angles.",
         REMORA_RAW_EVAL(sf.raw.qz)));
     nodes.push_back(source("source.isReceivingValidData", "Valid Data", "Raw Sensor",
-        "1.0 while the staff sensor is sending valid data; 0.0 if the connection is stale or lost.",
+        "Range: 0.0 or 1.0 (boolean as float). 1.0 while the staff sensor is sending valid data; 0.0 if the "
+        "connection is stale or lost.",
         REMORA_RAW_EVAL(sf.raw.isReceivingValidData ? 1.0f : 0.0f)));
 
     // Bypasses the shared analyzer - LeadDrone/SpinFilter/BowedChord want instantaneous raw magnitude, not smoothed.
     nodes.push_back(source("source.gyroMagnitudeRaw", "Gyro Magnitude (Raw)", "Raw Sensor",
-        "Instantaneous magnitude of the raw gyro vector, in degrees/second (sqrt(gx^2+gy^2+gz^2)). Unsmoothed - jitters block to block.",
+        "Instantaneous magnitude of the raw gyro vector, in degrees/second (sqrt(gx^2+gy^2+gz^2)). Range: 0 and "
+        "up, no fixed upper bound. Unsmoothed - jitters block to block.",
         REMORA_RAW_EVAL(std::sqrt(sf.raw.gx * sf.raw.gx + sf.raw.gy * sf.raw.gy + sf.raw.gz * sf.raw.gz))));
     nodes.push_back(source("source.accelMagnitudeRaw", "Accel Magnitude (Raw)", "Raw Sensor",
-        "Instantaneous magnitude of the raw accel vector, in g (sqrt(ax^2+ay^2+az^2)). Includes gravity; unsmoothed - jitters block to block.",
+        "Instantaneous magnitude of the raw accel vector, in g (sqrt(ax^2+ay^2+az^2)). Range: 0 and up, no fixed "
+        "upper bound - typically around 1.0 at rest (gravity) and higher under motion. Includes gravity; "
+        "unsmoothed - jitters block to block.",
         REMORA_RAW_EVAL(std::sqrt(sf.raw.ax * sf.raw.ax + sf.raw.ay * sf.raw.ay + sf.raw.az * sf.raw.az))));
 
     // Derived motion
     nodes.push_back(source("source.gyroMagnitude", "Gyro Magnitude", "Derived Motion",
-        "Smoothed gyroscope magnitude, in degrees/second. Roughly 0-750+; also feeds the isMoving gate (moving once above 30 deg/s).",
+        "Smoothed gyroscope magnitude, in degrees/second. Range: 0 and up, no fixed upper bound - typically "
+        "0-750+; also feeds the isMoving gate (moving once above 30 deg/s).",
         REMORA_RAW_EVAL(sf.derived.smoothedGyroscopeMagnitude)));
     nodes.push_back(source("source.labanWeight", "Laban Weight", "Derived Motion",
-        "Laban effort 'Weight' quality: how forceful the motion is. 0.0 = light, 1.0 = strong. Derived from integrated dynamic acceleration.",
+        "Laban effort 'Weight' quality: how forceful the motion is. Range: 0.0 to 1.0. 0.0 = light, 1.0 = strong. Derived from integrated dynamic acceleration.",
         REMORA_RAW_EVAL(sf.derived.labanWeight)));
     nodes.push_back(source("source.labanTimeSuddenness", "Laban Time (Suddenness)", "Derived Motion",
-        "Laban effort 'Time' quality: how sudden vs sustained the motion is. 0.0 = sustained, 1.0 = sudden. Derived from gyro-magnitude jumps.",
+        "Laban effort 'Time' quality: how sudden vs sustained the motion is. Range: 0.0 to 1.0. 0.0 = sustained, 1.0 = sudden. Derived from gyro-magnitude jumps.",
         REMORA_RAW_EVAL(sf.derived.labanTimeSuddenness)));
     nodes.push_back(source("source.labanSpaceFocus", "Laban Space Focus", "Derived Motion",
-        "Laban effort 'Space' quality: direct vs flexible pathing. 0.0 = flexible/indirect, 1.0 = direct/focused.",
+        "Laban effort 'Space' quality: direct vs flexible pathing. Range: 0.0 to 1.0. 0.0 = flexible/indirect, 1.0 = direct/focused.",
         REMORA_RAW_EVAL(sf.derived.labanSpaceFocus)));
     nodes.push_back(source("source.labanFlowBound", "Laban Flow Bound", "Derived Motion",
-        "Laban effort 'Flow' quality (bound side): 0.0 = free, 1.0 = fully bound/controlled. Derived from jerk (rate of change of acceleration). Roughly complements Laban Flow Free.",
+        "Laban effort 'Flow' quality (bound side): Range: 0.0 to 1.0. 0.0 = free, 1.0 = fully bound/controlled. Derived from jerk (rate of change of acceleration). Roughly complements Laban Flow Free.",
         REMORA_RAW_EVAL(sf.derived.labanFlowBound)));
     nodes.push_back(source("source.labanFlowFree", "Laban Flow Free", "Derived Motion",
-        "Laban effort 'Flow' quality (free side): 0.0 = bound, 1.0 = fully free/fluid. Roughly complements Laban Flow Bound (the two sum to ~1.0).",
+        "Laban effort 'Flow' quality (free side): Range: 0.0 to 1.0. 0.0 = bound, 1.0 = fully free/fluid. Roughly complements Laban Flow Bound (the two sum to ~1.0).",
         REMORA_RAW_EVAL(sf.derived.labanFlowFree)));
     nodes.push_back(source("source.thrustPeakEnvelope", "Thrust Peak Envelope", "Derived Motion",
-        "Envelope that spikes toward 1.0 on a sharp axial thrust/jab gesture and decays back to 0.0 afterwards. 0.0 = no recent thrust.",
+        "Envelope that spikes toward 1.0 on a sharp axial thrust/jab gesture and decays back to 0.0 afterwards. Range: 0.0 to 1.0. 0.0 = no recent thrust.",
         REMORA_RAW_EVAL(sf.derived.axialThrustPeakEnvelope)));
     nodes.push_back(source("source.rotationAxisX", "Rotation Axis X", "Derived Motion",
-        "X component of the current (smoothed) world-frame rotation axis, roughly -1..1. (0, 0) on both X/Y means spinning about the vertical (Z) axis.",
+        "X component of the current (smoothed) world-frame rotation axis. Range: roughly -1 to 1 (unit vector "
+        "component). (0, 0) on both X/Y means spinning about the vertical (Z) axis.",
         REMORA_RAW_EVAL(sf.derived.rotationAxisX)));
     nodes.push_back(source("source.rotationAxisY", "Rotation Axis Y", "Derived Motion",
-        "Y component of the current (smoothed) world-frame rotation axis, roughly -1..1. (0, 0) on both X/Y means spinning about the vertical (Z) axis.",
+        "Y component of the current (smoothed) world-frame rotation axis. Range: roughly -1 to 1 (unit vector "
+        "component). (0, 0) on both X/Y means spinning about the vertical (Z) axis.",
         REMORA_RAW_EVAL(sf.derived.rotationAxisY)));
     nodes.push_back(source("source.deltaTime", "Delta Time (s)", "Derived Motion",
-        "Time elapsed since the previous audio block, in seconds. Use to make custom per-block integration/smoothing frame-rate independent.",
+        "Time elapsed since the previous audio block, in seconds. Range: greater than 0, typically well under "
+        "0.1s but with no fixed upper bound (can spike on a scheduling stall). Use to make custom per-block "
+        "integration/smoothing frame-rate independent.",
         REMORA_RAW_EVAL(sf.derived.deltaTimeSeconds)));
     nodes.push_back(source("source.isMoving", "Is Moving", "Derived Motion",
-        "1.0 if the smoothed gyro magnitude is above the moving threshold (30 deg/s), 0.0 if the staff is considered still. Not true/false text - a float 1.0/0.0.",
+        "Range: 0.0 or 1.0 (boolean as float). 1.0 if the smoothed gyro magnitude is above the moving threshold (30 deg/s), 0.0 if the staff is considered still.",
         REMORA_RAW_EVAL(sf.derived.isMoving ? 1.0f : 0.0f)));
 
     // Has side effects (calls back into the live analyzer) since its behavior needs a per-node convention param.
     nodes.push_back(source("source.spinClassification", "Spin Classification", "Derived Motion",
         "Classifies the current spin plane/direction. Only updates while isMoving is true - holds its "
         "last classification while the staff is still.\n"
-        "vertical: 1.0 if spinning about a vertical axis, 0.0 if horizontal.\n"
-        "spin: spin direction, +1.0 or -1.0 (never 0). Sign convention is set by the 'convention' param: "
+        "vertical: range 0.0 or 1.0. 1.0 if spinning about a vertical axis, 0.0 if horizontal.\n"
+        "spin: range +1.0 or -1.0 (never 0). Spin direction; sign convention is set by the 'convention' param: "
         "0 = by absolute axis component, 1 = by reference azimuth.\n"
-        "count: signed count of full 360-degree rotations completed in the current spin plane/direction; "
-        "resets to 0 whenever the classification changes.\n"
-        "facing: 1.0 if the staff tip currently faces the calibrated 'north' direction, 0.0 otherwise.",
+        "count: signed integer, no fixed bound. Count of full 360-degree rotations completed in the current "
+        "spin plane/direction; resets to 0 whenever the classification changes.\n"
+        "facing: range 0.0 or 1.0. 1.0 if the staff tip currently faces the calibrated 'north' direction, 0.0 otherwise.",
         [](const SourceFrame& sf, const std::vector<float>& params, NodeState*, float* out) {
             const auto& d = sf.derived;
             bool spinChanged = false;
@@ -385,7 +410,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
 
     // Output Scalar
     nodes.push_back(sink("sink.rootHz", "Root Hz", "Scalar",
-        "Sets the synth's root/fundamental frequency, in Hz. All voices and chord semitones are computed relative to this.",
+        "Sets the synth's root/fundamental frequency, in Hz. Wanted input range: 20 Hz to 2000 Hz. All voices and chord semitones are computed relative to this.",
         20.0f, 2000.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.rootHz = in[0]; }));
     nodes.push_back(sink("sink.numVoices", "Num Voices", "Scalar",
         "How many of the 4 chord voices are active, 0-4. Rounded to the nearest whole number and clamped to [0, 4].",
@@ -395,15 +420,15 @@ std::vector<NodeTypeInfo> buildAllNodes() {
     nodes.push_back(sink("sink.masterGain", "Master Gain", "Scalar", "Overall output level, 0.0 (silent) to 1.0 (full).",
         0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.masterGain = in[0]; }));
     nodes.push_back(sink("sink.driveAmt", "Drive Amount", "Scalar",
-        "Amount of waveshaping/saturation drive applied to the voices, 0.0 (clean) upward - values above ~1 push into audible distortion.",
+        "Amount of waveshaping/saturation drive applied to the voices, 0.0 (clean) upward - values above ~1 push into audible distortion. Wanted input range: 0.0 to 4.0.",
         0.0f, 4.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.driveAmt = in[0]; }));
     nodes.push_back(sink("sink.vibratoDepth", "Vibrato Depth", "Scalar", "Depth of pitch vibrato, 0.0 (none) to 1.0 (max).",
         0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.vibratoDepth = in[0]; }));
-    nodes.push_back(sink("sink.vibratoRateHz", "Vibrato Rate (Hz)", "Scalar", "Speed of the pitch vibrato LFO, in Hz.",
+    nodes.push_back(sink("sink.vibratoRateHz", "Vibrato Rate (Hz)", "Scalar", "Speed of the pitch vibrato LFO, in Hz. Wanted input range: 0 Hz to 20 Hz.",
         0.0f, 20.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.vibratoRateHz = in[0]; }));
     nodes.push_back(sink("sink.tremoloDepth", "Tremolo Depth", "Scalar", "Depth of amplitude tremolo, 0.0 (none) to 1.0 (max).",
         0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.tremoloDepth = in[0]; }));
-    nodes.push_back(sink("sink.tremoloRateHz", "Tremolo Rate (Hz)", "Scalar", "Speed of the amplitude tremolo LFO, in Hz.",
+    nodes.push_back(sink("sink.tremoloRateHz", "Tremolo Rate (Hz)", "Scalar", "Speed of the amplitude tremolo LFO, in Hz. Wanted input range: 0 Hz to 20 Hz.",
         0.0f, 20.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.tremoloRateHz = in[0]; }));
     nodes.push_back(sink("sink.noiseAmount", "Noise Amount", "Scalar",
         "Amount of broadband noise mixed into the voices, 0.0 (none) to 1.0 (max).",
@@ -411,10 +436,10 @@ std::vector<NodeTypeInfo> buildAllNodes() {
     nodes.push_back(sink("sink.noiseLpCoef", "Noise LP Coefficient", "Scalar",
         "One-pole lowpass coefficient applied to the noise before mixing, 0.0 (darkest/most filtered) to 1.0 (brightest/unfiltered).",
         0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.noiseLpCoef = in[0]; }));
-    nodes.push_back(sink("sink.lpfCutoffHz", "LPF Cutoff (Hz)", "Scalar", "Cutoff frequency of the output lowpass filter, in Hz.",
+    nodes.push_back(sink("sink.lpfCutoffHz", "LPF Cutoff (Hz)", "Scalar", "Cutoff frequency of the output lowpass filter, in Hz. Wanted input range: 20 Hz to 20000 Hz.",
         20.0f, 20000.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.lpfCutoffHz = in[0]; }));
     nodes.push_back(sink("sink.useIndependentVoicePitch", "Independent Voice Pitch", "Scalar",
-        "Boolean switch: value > 0.5 makes each voice use its own Voice Hz[i] instead of Root Hz + chord semitones.",
+        "Boolean switch: value > 0.5 makes each voice use its own Voice Hz[i] instead of Root Hz + chord semitones. Wanted input range: 0.0 to 1.0.",
         0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.useIndependentVoicePitch = in[0] > 0.5f; }));
     nodes.push_back(sink("sink.reverbWetLevel", "Reverb Wet Level", "Scalar", "Reverb mix: 0.0 = fully dry/bypassed, 1.0 = fully wet.",
         0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.reverbWetLevel = in[0]; }));
@@ -425,7 +450,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
 
     // Output Indexed Array
     nodes.push_back(sink("sink.chordSemitone", "Chord Semitone[i]", "Indexed Array",
-        "Semitone offset from Root Hz for chord voice 'index' (0-2), signed. index is rounded and clamped to [0, 2].",
+        "Semitone offset from Root Hz for chord voice 'index' (0-2), signed. Wanted input range: -24 to 24 semitones. index is rounded and clamped to [0, 2].",
         -24.0f, 24.0f, [](const float* in, const std::vector<float>& p, MappingOutput& out) { out.chordSemitones[arrayIndex<3>(p)] = in[0]; },
         { 0.0f }, { "index" }));
     nodes.push_back(sink("sink.voiceGain", "Voice Gain[i]", "Indexed Array",
@@ -445,7 +470,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         0.0f, 1.0f, [](const float* in, const std::vector<float>& p, MappingOutput& out) { out.panR[arrayIndex<4>(p)] = in[0]; },
         { 0.0f }, { "index" }));
     nodes.push_back(sink("sink.voiceHz", "Voice Hz[i]", "Indexed Array",
-        "Independent frequency in Hz for voice 'index' (0-3). Only used when Independent Voice Pitch is on. index is rounded and clamped to [0, 3].",
+        "Independent frequency in Hz for voice 'index' (0-3). Wanted input range: 20 Hz to 2000 Hz. Only used when Independent Voice Pitch is on. index is rounded and clamped to [0, 3].",
         20.0f, 2000.0f, [](const float* in, const std::vector<float>& p, MappingOutput& out) { out.voiceHz[arrayIndex<4>(p)] = in[0]; },
         { 0.0f }, { "index" }));
 
