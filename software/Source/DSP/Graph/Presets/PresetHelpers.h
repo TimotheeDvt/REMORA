@@ -16,6 +16,14 @@ inline NodeId scale(GraphBuilder& b, NodeId src, float factor) {
     return n;
 }
 
+// Same, but reads a specific output port of `src` (e.g. spinClassification) - avoids a passthrough node
+// to fake a single-output NodeId just for tapping a non-zero port.
+inline NodeId scale(GraphBuilder& b, NodeId src, int srcPort, float factor) {
+    NodeId n = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, factor });
+    b.wire(src, srcPort, n, 0);
+    return n;
+}
+
 inline NodeId addConst(GraphBuilder& b, NodeId src, float value) {
     NodeId n = b.add("math.add");
     b.wire(src, n, 0);
@@ -34,13 +42,6 @@ inline NodeId subConst(GraphBuilder& b, NodeId src, float value) {
 inline NodeId clampNode(GraphBuilder& b, NodeId src, float lo, float hi) {
     NodeId n = b.add("math.clamp", { lo, hi });
     b.wire(src, n);
-    return n;
-}
-
-// Reads one output port of a multi-output node (e.g. spinClassification) as its own single-output node.
-inline NodeId tapPort(GraphBuilder& b, NodeId src, int port) {
-    NodeId n = b.add("math.passthrough");
-    b.wire(src, port, n, 0);
     return n;
 }
 
@@ -90,6 +91,13 @@ inline NodeId onePoleVariableRate(GraphBuilder& b, NodeId target, NodeId coeffSr
 inline NodeId threshold(GraphBuilder& b, NodeId src, float t) {
     NodeId n = b.add("math.threshold", { t });
     b.wire(src, n);
+    return n;
+}
+
+// Same, but reads a specific output port of `src` - see the port-aware scale() above for why.
+inline NodeId threshold(GraphBuilder& b, NodeId src, int srcPort, float t) {
+    NodeId n = b.add("math.threshold", { t });
+    b.wire(src, srcPort, n, 0);
     return n;
 }
 

@@ -34,9 +34,7 @@ std::unique_ptr<NodeGraph> buildMartialEffort() {
     GraphBuilder b(*graph);
 
     NodeId spinClass = b.add("source.spinClassification", { 1.0f }); // ByReferenceAzimuth
-    NodeId isVertical = tapPort(b, spinClass, 0);
-    NodeId spinDirection = tapPort(b, spinClass, 1);
-    NodeId isCCW = threshold(b, spinDirection, 0.0f);
+    NodeId isCCW = threshold(b, spinClass, 1, 0.0f); // spinDirection
     NodeId zero = constantNode(b, 0.0f);
 
     NodeId gyroMag = b.add("source.gyroMagnitude");
@@ -50,16 +48,16 @@ std::unique_ptr<NodeGraph> buildMartialEffort() {
     NodeId baseSemitones = b.add("math.lookupTable", std::vector<float>(kPentatonicMinorScale, kPentatonicMinorScale + 10));
     b.wire(currentStep, baseSemitones);
 
-    NodeId planeOffset = scale(b, isVertical, 12.0f);
+    NodeId planeOffset = scale(b, spinClass, 12.0f); // isVertical (port 0, the default)
     NodeId directionOffset = scale(b, subNodes(b, constantNode(b, 1.0f), isCCW), -7.0f);
     NodeId semitones = addNodes(b, addNodes(b, baseSemitones, planeOffset), directionOffset);
     NodeId rootHz = b.add("math.semitonesToHz", { kRootFrequencyHz });
     b.wire(semitones, rootHz);
     toSink(b, rootHz, "sink.rootHz");
 
-    toSink(b, lut3Node(b, isVertical, isCCW, zero, std::vector<float>(kChordCol0, kChordCol0 + 8)), "sink.chordSemitone", { 0.0f });
-    toSink(b, lut3Node(b, isVertical, isCCW, zero, std::vector<float>(kChordCol1, kChordCol1 + 8)), "sink.chordSemitone", { 1.0f });
-    toSink(b, lut3Node(b, isVertical, isCCW, zero, std::vector<float>(kChordCol2, kChordCol2 + 8)), "sink.chordSemitone", { 2.0f });
+    toSink(b, lut3Node(b, spinClass, isCCW, zero, std::vector<float>(kChordCol0, kChordCol0 + 8)), "sink.chordSemitone", { 0.0f });
+    toSink(b, lut3Node(b, spinClass, isCCW, zero, std::vector<float>(kChordCol1, kChordCol1 + 8)), "sink.chordSemitone", { 1.0f });
+    toSink(b, lut3Node(b, spinClass, isCCW, zero, std::vector<float>(kChordCol2, kChordCol2 + 8)), "sink.chordSemitone", { 2.0f });
 
     NodeId labanWeight = b.add("source.labanWeight");
     NodeId isMoving = b.add("source.isMoving");
@@ -135,13 +133,10 @@ std::unique_ptr<NodeGraph> buildMartialMomentum() {
     GraphBuilder b(*graph);
 
     NodeId spinClass = b.add("source.spinClassification", { 1.0f }); // ByReferenceAzimuth
-    NodeId isVertical = tapPort(b, spinClass, 0);
-    NodeId spinDirection = tapPort(b, spinClass, 1);
-    NodeId continuousSpinCount = tapPort(b, spinClass, 2);
-    NodeId isCCW = threshold(b, spinDirection, 0.0f);
+    NodeId isCCW = threshold(b, spinClass, 1, 0.0f); // spinDirection
 
     // idx0=horiz+CW=G, idx2=horiz+CCW=A, idx4=vert+CW=C, idx6=vert+CCW=E - matches the original if/else.
-    NodeId targetSemitones = lut3Node(b, isVertical, isCCW, constantNode(b, 0.0f),
+    NodeId targetSemitones = lut3Node(b, spinClass, isCCW, constantNode(b, 0.0f),
         { 7.0f, 0.0f, 9.0f, 0.0f, 0.0f, 0.0f, 4.0f, 0.0f });
 
     NodeId gyroMag = b.add("source.gyroMagnitude");
@@ -199,7 +194,7 @@ std::unique_ptr<NodeGraph> buildMartialMomentum() {
     }
 
     // Same spin-count-driven sine oscillator as plain Azimut/Azimut Reverb.
-    NodeId spinPhase = scale(b, continuousSpinCount, 1.5f);
+    NodeId spinPhase = scale(b, spinClass, 2, 1.5f); // continuous spin count
     NodeId sineVal = b.add("math.sine");
     b.wire(spinPhase, sineVal);
     NodeId targetLpf = b.add("math.mapRange", { -1.0f, 1.0f, 400.0f, 20000.0f });

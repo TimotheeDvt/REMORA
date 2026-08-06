@@ -35,17 +35,17 @@ AzimutCoreOutputs buildAzimutCore(GraphBuilder& b) {
 
     // ByAbsoluteComponent - matches the majority of the Azimut/Speed Gate family.
     NodeId spinClass = b.add("source.spinClassification", { 0.0f });
-    NodeId isVertical = tapPort(b, spinClass, 0);
-    NodeId spinDirection = tapPort(b, spinClass, 1);
-    core.continuousSpinCount = tapPort(b, spinClass, 2);
-    NodeId isFacingNorth = tapPort(b, spinClass, 3);
+    core.spinClassNode = spinClass;
 
     NodeId isCCW = b.add("math.threshold", { 0.0f });
-    b.wire(spinDirection, isCCW);
-    NodeId isEast = subNodes(b, constantNode(b, 1.0f), isFacingNorth);
+    b.wire(spinClass, 1, isCCW, 0); // spinDirection
+
+    NodeId isEast = b.add("math.subtract");
+    b.wire(constantNode(b, 1.0f), isEast, 0);
+    b.wire(spinClass, 3, isEast, 1); // isFacingNorth
 
     NodeId targetSemitones = b.add("math.lut3", buildRootLut(kRootSemitoneTable));
-    b.wire(isVertical, targetSemitones, 0);
+    b.wire(spinClass, targetSemitones, 0); // isVertical (port 0, the default)
     b.wire(isCCW, targetSemitones, 1);
     b.wire(isEast, targetSemitones, 2);
 
@@ -118,7 +118,7 @@ AzimutCoreOutputs buildAzimutCore(GraphBuilder& b) {
 }
 
 NodeId buildSpinCountLpfHz(GraphBuilder& b, const AzimutCoreOutputs& core) {
-    NodeId spinPhase = scale(b, core.continuousSpinCount, 1.5f);
+    NodeId spinPhase = scale(b, core.spinClassNode, 2, 1.5f); // continuous spin count
     NodeId sineVal = b.add("math.sine");
     b.wire(spinPhase, sineVal);
     NodeId target = b.add("math.mapRange", { -1.0f, 1.0f, 400.0f, 20000.0f });

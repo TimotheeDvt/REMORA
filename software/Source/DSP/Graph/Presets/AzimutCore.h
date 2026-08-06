@@ -23,7 +23,7 @@ struct AzimutCoreOutputs {
     NodeId flowBound;
     NodeId flowFree;
     NodeId gyroMagnitude;
-    NodeId continuousSpinCount;
+    NodeId spinClassNode; // source.spinClassification node; port 2 is the continuous spin count.
 };
 
 AzimutCoreOutputs buildAzimutCore(GraphBuilder& b);

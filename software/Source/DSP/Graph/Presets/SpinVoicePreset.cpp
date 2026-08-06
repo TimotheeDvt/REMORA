@@ -13,12 +13,10 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
     GraphBuilder b(*graph);
 
     NodeId spinClass = b.add("source.spinClassification", { 0.0f }); // ByAbsoluteComponent
-    NodeId isVertical = tapPort(b, spinClass, 0);
-    NodeId spinDirection = tapPort(b, spinClass, 1);
-    NodeId isCCW = threshold(b, spinDirection, 0.0f);
+    NodeId isCCW = threshold(b, spinClass, 1, 0.0f); // spinDirection
 
     // activeVoiceIndex = (1-isVertical)*2 + isCCW: 0=vert+CW, 1=vert+CCW, 2=horiz+CW, 3=horiz+CCW
-    NodeId planeIndex = subNodes(b, constantNode(b, 1.0f), isVertical);
+    NodeId planeIndex = subNodes(b, constantNode(b, 1.0f), spinClass); // isVertical (port 0, the default)
     NodeId activeVoiceIndex = addNodes(b, scale(b, planeIndex, 2.0f), isCCW);
 
     NodeId isMoving = b.add("source.isMoving");
