@@ -14,6 +14,10 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
     NodeId roll = b.add("source.roll");
     NodeId activeVoiceIndex = addConst(b, scale(b, roll, 2.0f / kPi), 1.5f);
 
+    NodeId activeVoiceRounded = b.add("math.quantizeSteps", { 1.0f });
+    b.wire(activeVoiceIndex, activeVoiceRounded);
+    b.wire(activeVoiceRounded, b.add("display.value"));
+
     NodeId pitch = b.add("source.pitch");
     NodeId pitchOffset = b.add("math.mapRange", { -kPi * 0.5f, kPi * 0.5f, -12.0f, 12.0f });
     b.wire(pitch, pitchOffset);
