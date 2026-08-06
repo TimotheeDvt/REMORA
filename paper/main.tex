@@ -112,12 +112,20 @@ of where the sensor is physically mounted on the staff.
 \end{enumerate}
 
 \subsection*{Scope and Applications}
-\textit{REMORA targets solo live performance with a single staff and a single Inertial Measurement
-Unit (IMU) - not an
-installation piece, not a multi-performer controller (at least not yet, see Future Improvements).
-Worth being upfront about what's out of scope for this paper too: no formal user study, no
-controlled comparison against other staff instruments, and no claim that patching a mapping is
-easier to learn than a fixed one - only that the capability exists and is expressive.}
+The instrument's intended context follows directly from its origin: a solo performer with some
+staff or martial-arts background, playing a set built from one or more presets rather than a fixed,
+single-piece score. The preset catalog (Table~2) is deliberately graded rather than uniform - Simple
+asks only for basic tilt and roll, while the Laban-driven Martial and Azimut presets reward
+staff-handling vocabulary the performer already has from bo practice - so the same instrument can
+serve a newcomer exploring gesture-to-sound relationships and a martial artist bringing an existing
+physical vocabulary onto a stage. Because the mapping itself is authored in the same visual
+language a modular-synthesis performer would recognise, we also see REMORA as being of interest to
+patch-based electronic musicians looking for a full-body controller to wire into an existing
+practice, not only to staff practitioners looking for a way into live electronics. We do not,
+however, claim REMORA is suited to ensemble or accompanied performance in its current form: the
+single-IMU, single-staff design in \S\ref{sec:limitations} means the instrument has no notion of a
+second performer's motion, and no mapping in the current catalog was designed with an ensemble
+context in mind.
 
 \section{Related Work}
 
@@ -188,6 +196,25 @@ time - combining EyesWeb's Effort-feature-extraction approach with the Max/Pd/VC
 dataflow paradigm inside a single embedded, performer-facing instrument, which is the specific
 combination we have not found addressed together in prior work.
 
+\subsection*{Mapping Strategies}
+REMORA's reconfigurable graph is one answer to a design question the mapping literature has
+approached from several other directions. Hunt and Wanderley~\cite{hunt2002mapping} categorise
+gesture-to-synthesis mappings by complexity - one-to-one, one-to-many, many-to-one - and argue that
+richer, many-to-many mappings are what make an interface feel like an instrument rather than a
+remote control; REMORA's graph does not choose a mapping complexity in advance so much as let the
+performer construct any point on that spectrum from primitives, with the eleven presets (Table~2)
+occupying different, empirically observed positions on it rather than a single designed one.
+Fiebrink and Cook's Wekinator~\cite{fiebrink2010wekinator} takes a different route entirely to the
+same underlying problem of authoring a gesture-to-sound relationship without hand-coding it: a
+performer or designer supplies example gestures and desired outputs, and interactive machine
+learning regresses a mapping from those examples. REMORA's graph is authored explicitly rather than
+learned - every wire and node parameter is placed and readable by the performer, at the cost of
+requiring that placement by hand rather than a handful of training examples. The two approaches are
+complementary rather than competing: a learned Wekinator-style regression could plausibly sit inside
+REMORA as a single opaque node type wired between existing source and sink nodes, trading the
+graph's transparency for the ability to demonstrate a mapping instead of construct it, which we
+leave to future work (\S\ref{sec:limitations}).
+
 \section{Design and System Architecture}
 
 \subsection*{Initial Design Requirements}
@@ -212,7 +239,7 @@ allowed to take.
 \subsection*{Architecture Overview}
 REMORA's architecture has two parts, matching the physical split between staff and host: firmware
 handles sensing and transport, and the plugin handles everything downstream of the incoming Open
-Sound Control (OSC) stream, from calibration through to the audio it produces. Figure~1 lays out that split directly,
+Sound Control (OSC) stream, from calibration through to the audio it produces. Figure~\ref{fig:architecture} lays out that split directly,
 left to right: IMU sampling and OSC transmission on the staff, feeding the plugin's own
 reception-to-synthesis pipeline on the host.
 
@@ -243,7 +270,8 @@ reception-to-synthesis pipeline on the host.
 \end{tikzpicture}
 
 \small
-\textbf{Figure 1: REMORA's signal flow}, from IMU sampling on the staff to synthesis on the host.
+\refstepcounter{figure}\label{fig:architecture}
+\textbf{Figure \thefigure: REMORA's signal flow}, from IMU sampling on the staff to synthesis on the host.
 \end{center}
 
 \section{Implementation}
@@ -260,7 +288,8 @@ electronics in place so nothing shifts under swing.
   \includegraphics[width=0.6\linewidth]{Assets/openscad_casing.png}
 
   \small
-  \textbf{Figure 2: The parametric OpenSCAD enclosure}, sized to the staff diameter and secured with
+  \refstepcounter{figure}\label{fig:enclosure}
+  \textbf{Figure \thefigure: The parametric OpenSCAD enclosure}, sized to the staff diameter and secured with
   zip ties.
 \end{center}
 
@@ -276,7 +305,8 @@ single pairing step at the cost of the range and interference sensitivity Discus
   \includegraphics[angle=270, width=0.6\linewidth]{Assets/TEMP_hardware_wiring.png}
 
   \small
-  \textbf{Figure 3: Component arrangement inside the enclosure} - ESP32-S2, MPU-9250 IMU, and LiPo
+  \refstepcounter{figure}\label{fig:hardware}
+  \textbf{Figure \thefigure: Component arrangement inside the enclosure} - ESP32-S2, MPU-9250 IMU, and LiPo
   battery, wired as described in Hardware.
 \end{center}
 
@@ -610,7 +640,8 @@ the sound it produces.
   \includegraphics[width=1\linewidth]{Assets/node-graph-editor.png}
 
   \small
-  \textbf{Figure 4: Schematic of the node-graph editor canvas} -
+  \refstepcounter{figure}\label{fig:editor}
+  \textbf{Figure \thefigure: Schematic of the node-graph editor canvas} -
   coloured node cards (green Source, yellow Sink, purple Display, neutral Math) with typed pins,
   connected by Bézier-rendered wires.
 \end{center}
@@ -865,6 +896,14 @@ This work was carried out during the first author's internship at CREATE, Aalbor
 Denmark.
 \end{acks}
 
+\section{Supplementary Material}
+% TODO before submission: replace with the actual video URLs.
+A video demonstration of REMORA, showing the staff, the calibration procedure, and several presets
+played live, is available at \url{https://youtu.be/PLACEHOLDER-REMORA-DEMO}. Firmware, plugin
+source, OpenSCAD enclosure files, and all eleven presets described in \S\ref{sec:azimut-deep-dive}
+are published at \url{https://github.com/TimotheeDvt/2026_NIME_TD}, consistent with the socio-economic
+fairness commitment in the Ethical Statement below.
+
 \section{Ethical Statement}
 \textbf{Accessibility.} REMORA assumes a range of mobility and two-handed grip strength consistent
 with swinging a b\^o staff; it is not currently adapted for performers who cannot support or swing a
@@ -889,7 +928,8 @@ analysis of the components has been performed.
 JUCE, PlatformIO, and OpenSCAD - and the microcontroller and IMU are inexpensive, widely available
 commodity parts. This keeps the reproduction cost and toolchain barrier low relative to
 proprietary DMI development environments, which we consider a genuine point in the instrument's
-favour under the NIME Code of Practice's socio-economic fairness criterion.
+favour under the NIME Code of Practice's socio-economic fairness criterion; the source and design
+files referenced in Supplementary Material are what make that reproduction actually possible.
 
 \textbf{Human participants.} No human-participant data has been collected to date; all reported
 observations of the system in use are the first author's own. The performer evaluation outlined in
