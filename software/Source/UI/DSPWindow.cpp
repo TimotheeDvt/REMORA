@@ -228,7 +228,8 @@ DSPWindow::DSPWindow(REMORAProcessor& p)
     : juce::DocumentWindow("DSP Panel", Palette::bg, juce::DocumentWindow::allButtons),
       selectorBar(p),
       dspComponent(p),
-      graphEditorComponent(p)
+      graphEditorComponent(p),
+      tooltipWindow(this, 300)
 {
     tabs.setColour(juce::TabbedComponent::backgroundColourId, Palette::bg);
     tabs.setColour(juce::TabbedButtonBar::tabOutlineColourId, Palette::border);
