@@ -564,15 +564,38 @@ void GraphEditorComponent::showWireContextMenu(Graph::NodeId dstNode, int dstPor
     if (!isEditable || currentGraph == nullptr)
         return;
 
+    const Graph::NodeInstance* dstInst = findNode(dstNode);
+    const Graph::NodeId srcNode = (dstInst != nullptr && dstPort < static_cast<int>(dstInst->inputs.size()))
+        ? dstInst->inputs[static_cast<size_t>(dstPort)].sourceNode : Graph::kInvalidNodeId;
+
     juce::PopupMenu menu;
     menu.addItem(1, "Remove Connection");
-    menu.showMenuAsync(juce::PopupMenu::Options{}, [this, dstNode, dstPort](int result) {
+    menu.addItem(2, "Go to Source", srcNode != Graph::kInvalidNodeId);
+    menu.addItem(3, "Go to Destination");
+    menu.showMenuAsync(juce::PopupMenu::Options{}, [this, dstNode, dstPort, srcNode](int result) {
         if (result == 1 && currentGraph != nullptr) {
             currentGraph->disconnectInput(dstNode, dstPort);
             markDirty();
             canvas.repaint();
+        } else if (result == 2) {
+            goToNode(srcNode);
+        } else if (result == 3) {
+            goToNode(dstNode);
         }
     });
+}
+
+void GraphEditorComponent::goToNode(Graph::NodeId id) {
+    auto it = nodeComponentById.find(id);
+    if (it == nodeComponentById.end())
+        return;
+
+    const auto nodeCentre = it->second->getBounds().getCentre().toFloat();
+    const auto editorCentre = getLocalBounds().getCentre().toFloat();
+    panOffset = editorCentre - nodeCentre * zoom;
+    updateTransform();
+    canvas.repaint();
+    it->second->startHighlight();
 }
 
 void GraphEditorComponent::mouseDown(const juce::MouseEvent& e) {

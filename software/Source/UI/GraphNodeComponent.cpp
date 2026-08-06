@@ -3,6 +3,9 @@
 #include "Palette.h"
 
 namespace {
+constexpr double kHighlightDurationMs = 1400.0;
+constexpr double kHighlightBlinkHz = 3.0;
+
 juce::Colour categoryColour(Graph::NodeCategory category) {
     switch (category) {
         case Graph::NodeCategory::Source: return Palette::green;
@@ -137,6 +140,17 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
     g.setColour(Palette::border);
     g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 4.0f, 1.0f);
 
+    if (highlightActive) {
+        const double elapsedMs = juce::Time::getMillisecondCounterHiRes() - highlightStartMs;
+        const float envelope = juce::jlimit(0.0f, 1.0f, 1.0f - static_cast<float>(elapsedMs / kHighlightDurationMs));
+        const float blink = 0.5f - 0.5f * std::cos(elapsedMs * (juce::MathConstants<double>::twoPi * kHighlightBlinkHz / 1000.0));
+        const float alpha = envelope * static_cast<float>(blink);
+        if (alpha > 0.01f) {
+            g.setColour(Palette::yellow.withAlpha(alpha));
+            g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.5f), 5.0f, 2.0f + 3.0f * alpha);
+        }
+    }
+
     const int top = portsTop();
     const int halfWidth = kWidth / 2 - kPinSize - 4;
     g.setFont(10.5f);
@@ -222,6 +236,22 @@ void GraphNodeComponent::mouseDrag(const juce::MouseEvent& e) {
 
 void GraphNodeComponent::mouseUp(const juce::MouseEvent&) {
     editor.handleCanvasMouseUp();
+}
+
+void GraphNodeComponent::startHighlight() {
+    highlightStartMs = juce::Time::getMillisecondCounterHiRes();
+    highlightActive = true;
+    startTimerHz(30);
+    repaint();
+}
+
+void GraphNodeComponent::timerCallback() {
+    const double elapsedMs = juce::Time::getMillisecondCounterHiRes() - highlightStartMs;
+    if (elapsedMs >= kHighlightDurationMs) {
+        highlightActive = false;
+        stopTimer();
+    }
+    repaint();
 }
 
 juce::String GraphNodeComponent::getTooltip() {

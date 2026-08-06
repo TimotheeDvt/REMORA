@@ -7,7 +7,7 @@
 
 class GraphEditorComponent;
 
-class GraphNodeComponent : public juce::Component, public juce::TooltipClient {
+class GraphNodeComponent : public juce::Component, public juce::TooltipClient, private juce::Timer {
 public:
     static constexpr int kWidth = 140;
     static constexpr int kHeaderHeight = 22;
@@ -32,6 +32,8 @@ public:
     juce::Point<int> getInputPinCentre(int port) const;
     juce::Point<int> getOutputPinCentre(int port) const;
 
+    void startHighlight();
+
 private:
     GraphEditorComponent& editor;
     Graph::NodeId nodeId;
@@ -46,6 +48,10 @@ private:
     juce::Point<int> dragStartPos;
 
     juce::Rectangle<int> infoButtonBounds;
+
+    double highlightStartMs = 0.0;
+    bool highlightActive = false;
+    void timerCallback() override;
 
     int portsTop() const noexcept;
     static int paramsHeight(const Graph::NodeTypeInfo& typeInfo);
