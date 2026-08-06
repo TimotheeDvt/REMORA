@@ -51,6 +51,7 @@ public:
 
     // Mouse events arrive in screen space (pre-zoom/pan); conversion to world space happens where each is used.
     void nodeMoved(Graph::NodeId id, float x, float y);
+    void nodeResized(Graph::NodeId id, float w, float h);
     void showNodeContextMenu(Graph::NodeId id);
     void showPinContextMenu(GraphPinComponent& pin);
     void handlePinMouseDown(GraphPinComponent& pin, const juce::MouseEvent& e);

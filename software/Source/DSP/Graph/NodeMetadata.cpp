@@ -408,6 +408,39 @@ std::vector<NodeTypeInfo> buildAllNodes() {
             out[0] = s->a;
         }, true));
 
+    // Performer-facing live displays - their own category (not Math), but evaluated identically
+    // (passthrough) so they can be dropped inline on any wire without changing what it carries.
+    auto displayPassthrough = [](const float* in, int, const std::vector<float>&, NodeState*, float* out) { out[0] = in[0]; };
+    {
+        NodeTypeInfo info = math("display.value", "Value Display", "Monitors",
+            "Shows the live input value as a big number.", { "value" }, {}, {}, displayPassthrough);
+        info.category = NodeCategory::Display;
+        info.displayKind = DisplayKind::Number;
+        info.displayDefaultWidth = 120.0f;
+        info.displayDefaultHeight = 70.0f;
+        nodes.push_back(info);
+    }
+    {
+        NodeTypeInfo info = math("display.meter", "Level Meter", "Monitors",
+            "Shows the live input value as a vertical bar, scaled from 'low' to 'high'.",
+            { "value" }, { 0.0f, 1.0f }, { "low", "high" }, displayPassthrough);
+        info.category = NodeCategory::Display;
+        info.displayKind = DisplayKind::Meter;
+        info.displayDefaultWidth = 100.0f;
+        info.displayDefaultHeight = 130.0f;
+        nodes.push_back(info);
+    }
+    {
+        NodeTypeInfo info = math("display.scope", "Scope", "Monitors",
+            "Shows a scrolling trace of the live input value over the last few seconds, scaled from "
+            "'low' to 'high'.", { "value" }, { 0.0f, 1.0f }, { "low", "high" }, displayPassthrough);
+        info.category = NodeCategory::Display;
+        info.displayKind = DisplayKind::Scope;
+        info.displayDefaultWidth = 220.0f;
+        info.displayDefaultHeight = 130.0f;
+        nodes.push_back(info);
+    }
+
     // Output Scalar
     nodes.push_back(sink("sink.rootHz", "Root Hz", "Scalar",
         "Sets the synth's root/fundamental frequency, in Hz. Wanted input range: 20 Hz to 2000 Hz. All voices and chord semitones are computed relative to this.",

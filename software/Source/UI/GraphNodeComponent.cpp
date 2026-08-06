@@ -8,16 +8,18 @@ constexpr double kHighlightBlinkHz = 3.0;
 
 juce::Colour categoryColour(Graph::NodeCategory category) {
     switch (category) {
-        case Graph::NodeCategory::Source: return Palette::green;
-        case Graph::NodeCategory::Sink:   return Palette::yellow;
+        case Graph::NodeCategory::Source:  return Palette::green;
+        case Graph::NodeCategory::Sink:    return Palette::yellow;
+        case Graph::NodeCategory::Display: return Palette::purple;
         case Graph::NodeCategory::Math:
-        default:                          return Palette::accent;
+        default:                           return Palette::accent;
     }
 }
 } // namespace
 
 GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::NodeId nodeIdIn,
-                                        const Graph::NodeTypeInfo& typeInfoIn, std::vector<float> paramsIn)
+                                        const Graph::NodeTypeInfo& typeInfoIn, std::vector<float> paramsIn,
+                                        float initialW, float initialH)
     : editor(editorIn), nodeId(nodeIdIn), typeInfo(typeInfoIn), params(std::move(paramsIn)) {
     for (int i = 0; i < typeInfo.numInputs; ++i) {
         auto* pin = inputPins.add(new GraphPinComponent(editor, nodeId, i, false));
@@ -85,7 +87,14 @@ GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::No
         addAndMakeVisible(*valueSlider);
     }
 
-    setSize(kWidth, preferredHeight(typeInfo));
+    if (typeInfo.displayKind != Graph::DisplayKind::None) {
+        const int w = initialW > 0.0f ? static_cast<int>(initialW) : static_cast<int>(typeInfo.displayDefaultWidth);
+        const int h = initialH > 0.0f ? static_cast<int>(initialH) : static_cast<int>(typeInfo.displayDefaultHeight);
+        setSize(juce::jmax(kMinDisplayWidth, w), juce::jmax(kMinDisplayHeight, h));
+        startTimerHz(30); // keeps the live display current even without a highlight in progress
+    } else {
+        setSize(kWidth, preferredHeight(typeInfo));
+    }
 }
 
 juce::String GraphNodeComponent::paramLabelFor(size_t index) const {
@@ -152,7 +161,22 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
     }
 
     const int top = portsTop();
-    const int halfWidth = kWidth / 2 - kPinSize - 4;
+
+    if (typeInfo.displayKind != Graph::DisplayKind::None) {
+        paintDisplay(g, { kPinSize + 2, top, getWidth() - (kPinSize + 2) * 2, getHeight() - top - 2 });
+
+        auto grip = juce::Rectangle<float>(static_cast<float>(getWidth() - kResizeGripSize),
+                                            static_cast<float>(getHeight() - kResizeGripSize),
+                                            static_cast<float>(kResizeGripSize), static_cast<float>(kResizeGripSize));
+        g.setColour(Palette::textLo);
+        for (int i = 1; i <= 3; ++i) {
+            const float o = static_cast<float>(i) * 3.5f;
+            g.drawLine(grip.getRight() - o, grip.getBottom(), grip.getRight(), grip.getBottom() - o, 1.2f);
+        }
+        return;
+    }
+
+    const int halfWidth = getWidth() / 2 - kPinSize - 4;
     g.setFont(10.5f);
     g.setColour(Palette::textMid);
     for (int i = 0; i < typeInfo.numInputs; ++i) {
@@ -163,26 +187,93 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
     for (int i = 0; i < typeInfo.numOutputs; ++i) {
         const int y = top + i * kRowHeight;
         const juce::String label = typeInfo.outputNames.size() > static_cast<size_t>(i) ? typeInfo.outputNames[static_cast<size_t>(i)] : juce::String();
-        g.drawText(label, kWidth / 2, y, halfWidth, kRowHeight, juce::Justification::centredRight, true);
+        g.drawText(label, getWidth() / 2, y, halfWidth, kRowHeight, juce::Justification::centredRight, true);
+    }
+}
+
+void GraphNodeComponent::paintDisplay(juce::Graphics& g, juce::Rectangle<int> area) {
+    const float liveValue = editor.liveOutputValue(nodeId, 0);
+    const float lo = params.size() > 0 ? params[0] : 0.0f;
+    const float hi = params.size() > 1 ? params[1] : 1.0f;
+    auto floatArea = area.toFloat();
+
+    switch (typeInfo.displayKind) {
+        case Graph::DisplayKind::Number: {
+            g.setColour(Palette::textHi);
+            const float fontHeight = juce::jlimit(14.0f, 40.0f, floatArea.getHeight() * 0.4f);
+            g.setFont(juce::Font(juce::FontOptions().withHeight(fontHeight).withStyle("Bold")));
+            g.drawText(juce::String(liveValue, 3), area, juce::Justification::centred, false);
+            break;
+        }
+        case Graph::DisplayKind::Meter: {
+            auto barArea = floatArea.reduced(2.0f);
+            auto labelArea = barArea.removeFromBottom(14.0f);
+            g.setColour(Palette::bg);
+            g.fillRoundedRectangle(barArea, 3.0f);
+            const float t = hi > lo ? juce::jlimit(0.0f, 1.0f, (liveValue - lo) / (hi - lo)) : 0.0f;
+            if (t > 0.0f) {
+                auto fill = barArea.removeFromBottom(barArea.getHeight() * t);
+                g.setColour(Palette::accent);
+                g.fillRoundedRectangle(fill, 3.0f);
+            }
+            g.setColour(Palette::border);
+            g.drawRoundedRectangle(floatArea.reduced(2.0f).withTrimmedBottom(14.0f), 3.0f, 1.0f);
+            g.setColour(Palette::textMid);
+            g.setFont(10.0f);
+            g.drawText(juce::String(liveValue, 2), labelArea.toNearestInt(), juce::Justification::centred, false);
+            break;
+        }
+        case Graph::DisplayKind::Scope: {
+            g.setColour(Palette::bg);
+            g.fillRoundedRectangle(floatArea, 3.0f);
+            g.setColour(Palette::border);
+            g.drawRoundedRectangle(floatArea.reduced(0.5f), 3.0f, 1.0f);
+            if (scopeHistory.size() > 1) {
+                juce::Path p;
+                const auto plotArea = floatArea.reduced(2.0f);
+                const float n = static_cast<float>(scopeHistory.size() - 1);
+                for (size_t i = 0; i < scopeHistory.size(); ++i) {
+                    const float t = hi > lo ? juce::jlimit(0.0f, 1.0f, (scopeHistory[i] - lo) / (hi - lo)) : 0.0f;
+                    const float x = plotArea.getX() + plotArea.getWidth() * (static_cast<float>(i) / n);
+                    const float y = plotArea.getBottom() - t * plotArea.getHeight();
+                    if (i == 0) p.startNewSubPath(x, y);
+                    else p.lineTo(x, y);
+                }
+                g.setColour(Palette::accent);
+                g.strokePath(p, juce::PathStrokeType(1.5f));
+            }
+            break;
+        }
+        case Graph::DisplayKind::None:
+            break;
     }
 }
 
 void GraphNodeComponent::resized() {
-    infoButtonBounds = { kWidth - kHeaderHeight, 0, kHeaderHeight, kHeaderHeight };
+    infoButtonBounds = { getWidth() - kHeaderHeight, 0, kHeaderHeight, kHeaderHeight };
 
     for (int i = 0; i < paramEditors.size(); ++i) {
         const int y = kHeaderHeight + i * kParamRowHeight;
-        const int nameWidth = kWidth * 2 / 5;
+        const int nameWidth = getWidth() * 2 / 5;
         paramNameLabels.getUnchecked(i)->setBounds(4, y, nameWidth - 4, kParamRowHeight);
-        paramEditors.getUnchecked(i)->setBounds(nameWidth, y, kWidth - nameWidth - 4, kParamRowHeight - 2);
+        paramEditors.getUnchecked(i)->setBounds(nameWidth, y, getWidth() - nameWidth - 4, kParamRowHeight - 2);
     }
 
     if (valueSlider != nullptr) {
         const int y = kHeaderHeight + static_cast<int>(paramEditors.size()) * kParamRowHeight;
-        valueSlider->setBounds(4, y, kWidth - 8, kSliderRowHeight - 2);
+        valueSlider->setBounds(4, y, getWidth() - 8, kSliderRowHeight - 2);
     }
 
     const int top = portsTop();
+    if (typeInfo.displayKind != Graph::DisplayKind::None) {
+        // Single in/out, centred in the (resizable) display body rather than pinned to the top row.
+        const int centreY = (top + getHeight()) / 2;
+        for (int i = 0; i < inputPins.size(); ++i)
+            inputPins.getUnchecked(i)->setBounds(0, centreY - kPinSize / 2, kPinSize, kPinSize);
+        for (int i = 0; i < outputPins.size(); ++i)
+            outputPins.getUnchecked(i)->setBounds(getWidth() - kPinSize, centreY - kPinSize / 2, kPinSize, kPinSize);
+        return;
+    }
     for (int i = 0; i < inputPins.size(); ++i) {
         const int y = top + i * kRowHeight + kRowHeight / 2 - kPinSize / 2;
         inputPins.getUnchecked(i)->setBounds(0, y, kPinSize, kPinSize);
@@ -211,6 +302,15 @@ void GraphNodeComponent::mouseDown(const juce::MouseEvent& e) {
         showInfoPopup();
         return;
     }
+    if (typeInfo.displayKind != Graph::DisplayKind::None && !e.mods.isPopupMenu() && !e.mods.isCtrlDown()) {
+        const juce::Rectangle<int> grip(getWidth() - kResizeGripSize, getHeight() - kResizeGripSize,
+                                         kResizeGripSize, kResizeGripSize);
+        if (grip.contains(e.getPosition())) {
+            isResizing = true;
+            resizeStartSize = { getWidth(), getHeight() };
+            return;
+        }
+    }
     if (e.mods.isCtrlDown()) {
         editor.handleCanvasMouseDown(e.getEventRelativeTo(&editor));
         return;
@@ -223,6 +323,14 @@ void GraphNodeComponent::mouseDown(const juce::MouseEvent& e) {
 }
 
 void GraphNodeComponent::mouseDrag(const juce::MouseEvent& e) {
+    if (isResizing) {
+        const auto delta = e.getOffsetFromDragStart();
+        const int newW = juce::jmax(kMinDisplayWidth, resizeStartSize.x + delta.x);
+        const int newH = juce::jmax(kMinDisplayHeight, resizeStartSize.y + delta.y);
+        setSize(newW, newH);
+        editor.nodeResized(nodeId, static_cast<float>(newW), static_cast<float>(newH));
+        return;
+    }
     if (e.mods.isCtrlDown()) {
         editor.handleCanvasMouseDrag(e.getEventRelativeTo(&editor));
         return;
@@ -235,6 +343,10 @@ void GraphNodeComponent::mouseDrag(const juce::MouseEvent& e) {
 }
 
 void GraphNodeComponent::mouseUp(const juce::MouseEvent&) {
+    if (isResizing) {
+        isResizing = false;
+        return;
+    }
     editor.handleCanvasMouseUp();
 }
 
@@ -246,12 +358,20 @@ void GraphNodeComponent::startHighlight() {
 }
 
 void GraphNodeComponent::timerCallback() {
-    const double elapsedMs = juce::Time::getMillisecondCounterHiRes() - highlightStartMs;
-    if (elapsedMs >= kHighlightDurationMs) {
-        highlightActive = false;
-        stopTimer();
+    if (typeInfo.displayKind == Graph::DisplayKind::Scope) {
+        constexpr size_t kMaxScopeSamples = 120; // ~4s at the 30Hz tick rate below
+        scopeHistory.push_back(editor.liveOutputValue(nodeId, 0));
+        if (scopeHistory.size() > kMaxScopeSamples)
+            scopeHistory.erase(scopeHistory.begin());
     }
+
+    if (highlightActive && juce::Time::getMillisecondCounterHiRes() - highlightStartMs >= kHighlightDurationMs)
+        highlightActive = false;
+
     repaint();
+
+    if (!highlightActive && typeInfo.displayKind == Graph::DisplayKind::None)
+        stopTimer();
 }
 
 juce::String GraphNodeComponent::getTooltip() {

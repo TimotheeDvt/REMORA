@@ -15,6 +15,7 @@ struct NodeInstance {
     std::unique_ptr<NodeState> state;   // null for stateless nodes
     mutable std::array<float, kMaxNodeOutputs> lastOutputs{};
     float x = 0.0f, y = 0.0f;            // canvas position, for the graph editor
+    float w = 0.0f, h = 0.0f;            // canvas size override, for resizable display nodes (0 = use type default)
 };
 
 struct NodeCounts {
@@ -22,6 +23,7 @@ struct NodeCounts {
     int source = 0;
     int math = 0;
     int sink = 0;
+    int display = 0;
 };
 
 // A DAG of typed nodes wired together, evaluated once per audio block
@@ -38,6 +40,7 @@ public:
 
     void setInputDefault(NodeId dst, int dstPort, float value);
     void setNodePosition(NodeId id, float x, float y);
+    void setNodeSize(NodeId id, float w, float h);
 
     void setNodeParams(NodeId id, std::vector<float> params);
     void setNodeParam(NodeId id, int index, float value);

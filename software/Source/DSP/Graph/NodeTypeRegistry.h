@@ -9,7 +9,9 @@ struct MappingOutput;
 
 namespace Graph {
 
-enum class NodeCategory { Source, Math, Sink };
+enum class NodeCategory { Source, Math, Sink, Display };
+
+enum class DisplayKind { None, Number, Meter, Scope };
 
 struct NodeTypeInfo {
     juce::String id;
@@ -31,6 +33,10 @@ struct NodeTypeInfo {
     // Sink-only: range for the MonitorParam GraphMappingStrategy auto-registers.
     float monitorRangeMin = 0.0f;
     float monitorRangeMax = 1.0f;
+
+    DisplayKind displayKind = DisplayKind::None;
+    float displayDefaultWidth = 130.0f;
+    float displayDefaultHeight = 80.0f;
 
     using SourceEvalFn = void (*)(const SourceFrame&, const std::vector<float>& params, NodeState* state, float* outputs);
     using MathEvalFn = void (*)(const float* inputs, int numInputs, const std::vector<float>& params, NodeState* state, float* outputs);

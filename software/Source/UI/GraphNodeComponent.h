@@ -15,9 +15,12 @@ public:
     static constexpr int kSliderRowHeight = 18;
     static constexpr int kRowHeight = 20;
     static constexpr int kPinSize = 12;
+    static constexpr int kResizeGripSize = 14;
+    static constexpr int kMinDisplayWidth = 70;
+    static constexpr int kMinDisplayHeight = 50;
 
     GraphNodeComponent(GraphEditorComponent& editor, Graph::NodeId nodeId, const Graph::NodeTypeInfo& typeInfo,
-                       std::vector<float> params);
+                       std::vector<float> params, float initialW = 0.0f, float initialH = 0.0f);
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -53,11 +56,16 @@ private:
     bool highlightActive = false;
     void timerCallback() override;
 
+    bool isResizing = false;
+    juce::Point<int> resizeStartSize;
+    std::vector<float> scopeHistory;
+
     int portsTop() const noexcept;
     static int paramsHeight(const Graph::NodeTypeInfo& typeInfo);
     static bool hasValueSlider(const Graph::NodeTypeInfo& typeInfo);
     juce::String paramLabelFor(size_t index) const;
     void showInfoPopup();
+    void paintDisplay(juce::Graphics& g, juce::Rectangle<int> area);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GraphNodeComponent)
 };

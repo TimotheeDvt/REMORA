@@ -47,7 +47,7 @@ void GraphEditorComponent::onMappingChanged() {
     if (currentGraph != nullptr) {
         const Graph::NodeCounts counts = currentGraph->countNodesByCategory();
         debug.print.cyan("Preset '" + name + "' node counts - total:", counts.total, "source:", counts.source,
-                          "math:", counts.math, "sink:", counts.sink);
+                          "math:", counts.math, "sink:", counts.sink, "display:", counts.display);
     }
 
     if (currentGraph != nullptr && autoLaidOutGraphs.insert(currentGraph).second) {
@@ -340,7 +340,7 @@ void GraphEditorComponent::syncFromModel() {
         const Graph::NodeTypeInfo* info = Graph::NodeTypeRegistry::instance().find(n.typeId);
         if (info == nullptr)
             continue;
-        auto* comp = nodeComponents.add(new GraphNodeComponent(*this, n.id, *info, n.params));
+        auto* comp = nodeComponents.add(new GraphNodeComponent(*this, n.id, *info, n.params, n.w, n.h));
         comp->setTopLeftPosition(static_cast<int>(n.x + kCanvasOriginX), static_cast<int>(n.y + kCanvasOriginY));
         canvas.addAndMakeVisible(comp);
         nodeComponentById[n.id] = comp;
@@ -365,11 +365,16 @@ void GraphEditorComponent::showAddNodeMenu(juce::Point<int> position) {
 
     // category -> subcategory -> leaf items, so e.g. Source splits into "Raw Sensor"/"Derived Motion".
     std::map<Graph::NodeCategory, std::map<juce::String, juce::PopupMenu>> menusByCategory;
+    // Display has too few node types to need subcategory grouping - flat "Display" -> items instead.
+    juce::PopupMenu displayMenu;
 
     for (const auto& info : Graph::NodeTypeRegistry::instance().all()) {
         typeIdByItemId->push_back(info.id);
         const int itemId = static_cast<int>(typeIdByItemId->size() - 1);
-        menusByCategory[info.category][info.subcategory].addItem(itemId, info.displayName);
+        if (info.category == Graph::NodeCategory::Display)
+            displayMenu.addItem(itemId, info.displayName);
+        else
+            menusByCategory[info.category][info.subcategory].addItem(itemId, info.displayName);
     }
 
     juce::PopupMenu root;
@@ -385,6 +390,7 @@ void GraphEditorComponent::showAddNodeMenu(juce::Point<int> position) {
     addCategory(Graph::NodeCategory::Source, "Source");
     addCategory(Graph::NodeCategory::Math, "Math");
     addCategory(Graph::NodeCategory::Sink, "Sink");
+    root.addSubMenu("Display", displayMenu);
 
     const auto screenPos = localPointToGlobal(position);
     root.showMenuAsync(juce::PopupMenu::Options{}.withTargetScreenArea({ screenPos.x, screenPos.y, 1, 1 }),
@@ -420,6 +426,13 @@ void GraphEditorComponent::nodeMoved(Graph::NodeId id, float x, float y) {
     fixupOrderingAround(id);
     markDirty();
     canvas.repaint();
+}
+
+void GraphEditorComponent::nodeResized(Graph::NodeId id, float w, float h) {
+    if (currentGraph == nullptr)
+        return;
+    currentGraph->setNodeSize(id, w, h);
+    markDirty();
 }
 
 void GraphEditorComponent::showNodeContextMenu(Graph::NodeId id) {

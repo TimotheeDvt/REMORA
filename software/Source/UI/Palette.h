@@ -16,6 +16,7 @@ namespace Palette {
   const juce::Colour red{0xFFD9534F};
   const juce::Colour yellow{0xFFF0AD4E};
   const juce::Colour green{0xFF5CB85C};
+  const juce::Colour purple{0xFF9B59B6};
 
   // Reusable colourId/Colour groups for styleButton()
   namespace ButtonTheme {

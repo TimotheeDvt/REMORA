@@ -78,6 +78,15 @@ void NodeGraph::setNodePosition(NodeId id, float x, float y) {
     nodes_[static_cast<size_t>(idx)].y = y;
 }
 
+void NodeGraph::setNodeSize(NodeId id, float w, float h) {
+    const juce::ScopedLock sl(lock_);
+    const int idx = indexOf(id);
+    if (idx < 0)
+        return;
+    nodes_[static_cast<size_t>(idx)].w = w;
+    nodes_[static_cast<size_t>(idx)].h = h;
+}
+
 void NodeGraph::setNodeParams(NodeId id, std::vector<float> params) {
     const juce::ScopedLock sl(lock_);
     const int idx = indexOf(id);
@@ -215,6 +224,7 @@ void NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
                     info->sourceEval(sources, n.params, n.state.get(), n.lastOutputs.data());
                 break;
             case NodeCategory::Math:
+            case NodeCategory::Display: // performer-facing live displays are passthrough math nodes
                 if (info->mathEval)
                     info->mathEval(inputValues, static_cast<int>(n.inputs.size()), n.params, n.state.get(), n.lastOutputs.data());
                 break;
@@ -241,9 +251,10 @@ NodeCounts NodeGraph::countNodesByCategory() const {
 
         ++counts.total;
         switch (info->category) {
-            case NodeCategory::Source: ++counts.source; break;
-            case NodeCategory::Math:   ++counts.math;   break;
-            case NodeCategory::Sink:   ++counts.sink;   break;
+            case NodeCategory::Source:  ++counts.source;  break;
+            case NodeCategory::Math:    ++counts.math;    break;
+            case NodeCategory::Sink:    ++counts.sink;    break;
+            case NodeCategory::Display: ++counts.display; break;
         }
     }
     return counts;
@@ -268,6 +279,10 @@ std::unique_ptr<juce::XmlElement> NodeGraph::toXml() const {
         nodeXml->setAttribute("type", n.typeId);
         nodeXml->setAttribute("x", n.x);
         nodeXml->setAttribute("y", n.y);
+        if (n.w > 0.0f)
+            nodeXml->setAttribute("w", n.w);
+        if (n.h > 0.0f)
+            nodeXml->setAttribute("h", n.h);
 
         for (size_t i = 0; i < n.params.size(); ++i) {
             auto* paramXml = nodeXml->createNewChildElement("Param");
@@ -307,6 +322,8 @@ bool NodeGraph::populateFromXml(const juce::XmlElement& xml) {
         NodeInstance* inst = addNodeWithId(id, typeId, params);
         inst->x = static_cast<float>(nodeXml->getDoubleAttribute("x"));
         inst->y = static_cast<float>(nodeXml->getDoubleAttribute("y"));
+        inst->w = static_cast<float>(nodeXml->getDoubleAttribute("w", 0.0));
+        inst->h = static_cast<float>(nodeXml->getDoubleAttribute("h", 0.0));
 
         for (auto* inputXml : nodeXml->getChildWithTagNameIterator("Input")) {
             const size_t port = static_cast<size_t>(inputXml->getIntAttribute("port"));
