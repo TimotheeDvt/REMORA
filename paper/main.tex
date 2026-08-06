@@ -475,8 +475,9 @@ been swept against recorded data; Discussion returns to it alongside the missing
 evaluation.
 
 \subsection*{Software: Mapping Architecture}
-\textit{\texttt{NodeGraph}/\texttt{NodeTypeRegistry}: three node categories - Source (IMU,\\
-Laban features), Math (arithmetic, shaping, dynamics, lookup tables), Sink (synth parameters) - each a
+\textit{\texttt{NodeGraph}/\texttt{NodeTypeRegistry}: four node categories - Source (IMU,\\
+Laban features), Math (arithmetic, shaping, dynamics, lookup tables), Sink (synth parameters), and
+Display (resizable, performer-facing live monitors, \S\ref{sec:live-patching}) - each a
 small typed function registered once. A graph is nodes plus typed wiring, serialised to/from the
 Extensible Markup Language (XML) as
 a preset; \texttt{GraphMappingStrategy} makes the graph the only mapping path the synth talks to,
@@ -585,13 +586,21 @@ primitive defined earlier.
 \end{flushright}
 
 \subsection*{Graphical Interface: Live Patching as Performance Practice}
+\label{sec:live-patching}
 The node-graph editor is the instrument's primary authoring surface, not a debug tool: a pannable,
 zoomable canvas on which each node renders as a coloured card - green for Source,
-yellow for Sink, neutral for Math - labelled with its category and inline, live-editable parameter
-fields; typed input/output pins along each card's edges accept click-and-drag connections rendered
-as cubic-B\'ezier wires, colour-highlighted while dragging and hit-testable afterward for rewiring
-or deletion via context menu. New nodes are added from a categorised picker at any canvas position;
-an auto-layout pass untangles a freshly loaded preset into left-to-right source-to-sink columns. A
+yellow for Sink, purple for Display, neutral for Math - labelled with its category and inline,
+live-editable parameter fields; typed input/output pins along each card's edges accept
+click-and-drag connections rendered as cubic-B\'ezier wires, colour-highlighted while dragging and
+hit-testable afterward for rewiring or deletion via context menu, which for an existing wire also
+offers jumping the view straight to its source or destination node, briefly highlighted on arrival
+so the jump is easy to follow in a large patch. New nodes are added from a categorised picker at any
+canvas position; an auto-layout pass untangles a freshly loaded preset into left-to-right
+source-to-sink columns. Hovering any node or pin surfaces its current, live-updating value as a
+tooltip, and three dedicated Display node types - a numeric readout, a level meter, and a scrolling
+scope - can be dropped inline on any wire and freely resized, giving the performer a live, in-patch
+view of a signal without altering it (all three are pure passthrough: the graph carries exactly the
+same value with or without one attached). A
 dirty-state indicator tracks whether the active patch has diverged from its saved preset, with
 one-click revert - so a performer can improvise a mapping change mid-rehearsal and either keep or
 discard it, treating the mapping itself as something authored and iterated on at the same level as
@@ -602,7 +611,7 @@ the sound it produces.
 
   \small
   \textbf{Figure 4: Schematic of the node-graph editor canvas} -
-  coloured node cards (green Source, yellow Sink, neutral Math) with typed pins,
+  coloured node cards (green Source, yellow Sink, purple Display, neutral Math) with typed pins,
   connected by Bézier-rendered wires.
 \end{center}
 
