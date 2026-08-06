@@ -10,20 +10,16 @@ std::unique_ptr<NodeGraph> buildSimple() {
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
 
-    // rootHz = 100 + clamp((pitch + pi/2)/pi, 0, 1) * 900
     NodeId pitch = b.add("source.pitch");
-    NodeId pitchClamped = b.add("math.clamp", { -kPi * 0.5f, kPi * 0.5f });
     NodeId rootHz = b.add("math.mapRange", { -kPi * 0.5f, kPi * 0.5f, 100.0f, 1000.0f });
     NodeId rootSink = b.add("sink.rootHz");
-    b.wire(pitch, pitchClamped).wire(pitchClamped, rootHz).wire(rootHz, rootSink);
+    b.wire(pitch, rootHz).wire(rootHz, rootSink);
 
-    // masterGain = 0.05 + clamp(|roll|/pi, 0, 1) * 0.15
     NodeId roll = b.add("source.roll");
     NodeId rollAbs = b.add("math.abs");
     NodeId gain = b.add("math.mapRange", { 0.0f, kPi, 0.05f, 0.20f });
-    NodeId gainClamped = b.add("math.clamp", { 0.05f, 0.20f });
     NodeId gainSink = b.add("sink.masterGain");
-    b.wire(roll, rollAbs).wire(rollAbs, gain).wire(gain, gainClamped).wire(gainClamped, gainSink);
+    b.wire(roll, rollAbs).wire(rollAbs, gain).wire(gain, gainSink);
 
     b.wire(b.add("math.constant", { 1.0f }), b.add("sink.numVoices"));
 

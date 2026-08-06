@@ -14,32 +14,29 @@ std::unique_ptr<NodeGraph> buildBowedChord() {
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
 
-    // rootHz: midiNote = round(36 + clamp((pitch+pi/2)/pi,0,1) * 24); Hz = semitonesToHz(midiNote - 69, 440)
     NodeId pitch = b.add("source.pitch");
-    NodeId pitchClamped = clampNode(b, pitch, -kPi * 0.5f, kPi * 0.5f);
     NodeId midiFloat = b.add("math.mapRange", { -kPi * 0.5f, kPi * 0.5f, 36.0f, 60.0f });
-    b.wire(pitchClamped, midiFloat);
+    b.wire(pitch, midiFloat);
     NodeId midiNote = b.add("math.quantizeSteps", { 1.0f });
     b.wire(midiFloat, midiNote);
     NodeId rootHz = b.add("math.semitonesToHz", { 440.0f });
     b.wire(addConst(b, midiNote, -69.0f), rootHz);
     toSink(b, rootHz, "sink.rootHz");
 
-    // rollAbs = clamp(|roll|/pi, 0, 1)
     NodeId roll = b.add("source.roll");
-    NodeId rollAbs = clampNode(b, scale(b, absNode(b, roll), 1.0f / kPi), 0.0f, 1.0f);
+    NodeId rollAbs = scale(b, absNode(b, roll), 1.0f / kPi);
 
-    // yawToChordIdx: 4-band staircase from yawNorm, or a 2-way high-roll override
     NodeId yaw = b.add("source.yaw");
-    NodeId yawNorm = clampNode(b, scale(b, addConst(b, yaw, kPi), 1.0f / (2.0f * kPi)), 0.0f, 1.0f);
+    NodeId yawNorm = scale(b, addConst(b, yaw, kPi), 1.0f / (2.0f * kPi));
 
     auto thresholdOf = [&](NodeId src, float t) {
         NodeId n = b.add("math.threshold", { t });
         b.wire(src, n);
         return n;
     };
-    NodeId band0to3 = addNodes(b, addNodes(b, thresholdOf(yawNorm, 0.25f), thresholdOf(yawNorm, 0.5f)), thresholdOf(yawNorm, 0.75f));
-    NodeId highRollPair = addConst(b, thresholdOf(yawNorm, 0.5f), 4.0f); // 4 or 5
+    NodeId yawAbove50 = thresholdOf(yawNorm, 0.5f);
+    NodeId band0to3 = addNodes(b, addNodes(b, thresholdOf(yawNorm, 0.25f), yawAbove50), thresholdOf(yawNorm, 0.75f));
+    NodeId highRollPair = addConst(b, yawAbove50, 4.0f); // 4 or 5
     NodeId chordIdx = b.add("math.crossfade");
     b.wire(band0to3, chordIdx, 0);
     b.wire(highRollPair, chordIdx, 1);
@@ -58,10 +55,12 @@ std::unique_ptr<NodeGraph> buildBowedChord() {
 
     toSink(b, addConst(b, scale(b, bow, 0.20f), 0.05f), "sink.masterGain");
     toSink(b, scale(b, bow, 1.8f), "sink.driveAmt");
-    toSink(b, scale(b, bow, 0.90f), "sink.voiceGain", { 0.0f });
-    toSink(b, scale(b, bow, 0.70f), "sink.voiceGain", { 1.0f });
-    toSink(b, scale(b, bow, 0.70f), "sink.voiceGain", { 2.0f });
-    toSink(b, scale(b, bow, 0.90f), "sink.voiceGain", { 3.0f });
+    NodeId bowOuter = scale(b, bow, 0.90f);
+    NodeId bowInner = scale(b, bow, 0.70f);
+    toSink(b, bowOuter, "sink.voiceGain", { 0.0f });
+    toSink(b, bowInner, "sink.voiceGain", { 1.0f });
+    toSink(b, bowInner, "sink.voiceGain", { 2.0f });
+    toSink(b, bowOuter, "sink.voiceGain", { 3.0f });
 
     NodeId accelMag = b.add("source.accelMagnitudeRaw");
 

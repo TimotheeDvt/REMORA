@@ -52,8 +52,7 @@ std::unique_ptr<NodeGraph> buildLeadDrone() {
     NodeId accelMag = b.add("source.accelMagnitudeRaw");
     NodeId yaw = b.add("source.yaw");
 
-    // yaw is in radians ([-pi,pi]) like pitch/roll; normalize to [0,1].
-    NodeId yawNorm = clampNode(b, scale(b, addConst(b, yaw, kPi), 1.0f / (2.0f * kPi)), 0.0f, 1.0f);
+    NodeId yawNorm = scale(b, addConst(b, yaw, kPi), 1.0f / (2.0f * kPi));
 
     toSink(b, addConst(b, clampNode(b, scale(b, gyroMag, 0.01f), 0.0f, 0.2f), 0.8f), "sink.masterGain");
 

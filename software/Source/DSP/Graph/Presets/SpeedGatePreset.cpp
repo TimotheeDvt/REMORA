@@ -24,19 +24,22 @@ std::unique_ptr<NodeGraph> buildSpeedGate() {
     // --- simple melody branch ---
     NodeId pitch = b.add("source.pitch");
     NodeId scaleIndexRaw = b.add("math.mapRange", { -kPi * 0.5f, kPi * 0.5f, 0.0f, 10.0f });
-    b.wire(clampNode(b, pitch, -kPi * 0.5f, kPi * 0.5f), scaleIndexRaw);
+    b.wire(pitch, scaleIndexRaw);
     NodeId targetSemitones = b.add("math.lookupTable", std::vector<float>(kScaleSemitones, kScaleSemitones + 10));
     b.wire(scaleIndexRaw, targetSemitones);
     NodeId simpleSemitones = onePole(b, targetSemitones, 0.15f);
     NodeId simpleRootHz = b.add("math.semitonesToHz", { kRootFrequencyHz });
     b.wire(simpleSemitones, simpleRootHz);
 
+    // roll is atan2-derived, already within [-pi, pi] - no clamp needed.
     NodeId roll = b.add("source.roll");
-    NodeId simpleGain = addConst(b, scale(b, clampNode(b, scale(b, absNode(b, roll), 1.0f / kPi), 0.0f, 1.0f), 0.20f), 0.05f);
+    NodeId simpleGain = addConst(b, scale(b, absNode(b, roll), 0.20f / kPi), 0.05f);
 
+    // yaw is atan2-derived, already within [-pi, pi], so yawNorm is within [-1, 1] and simplePan within
+    // [0.15, 0.85] - no clamps needed.
     NodeId yaw = b.add("source.yaw");
-    NodeId yawNorm = clampNode(b, scale(b, yaw, 1.0f / kPi), -1.0f, 1.0f);
-    NodeId simplePan = clampNode(b, addConst(b, scale(b, yawNorm, 0.35f), 0.5f), 0.0f, 1.0f);
+    NodeId yawNorm = scale(b, yaw, 1.0f / kPi);
+    NodeId simplePan = addConst(b, scale(b, yawNorm, 0.35f), 0.5f);
     NodeId simplePanInv = subConst(b, simplePan, 1.0f);
 
     const float simpleVoiceGain[4] = { 1.0f, 0.8f, 0.7f, 0.6f };

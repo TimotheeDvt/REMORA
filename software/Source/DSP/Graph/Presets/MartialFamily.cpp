@@ -109,14 +109,13 @@ std::unique_ptr<NodeGraph> buildMartialEffort() {
     toSink(b, scale(b, mulNodes(b, flowBound, labanWeight), 0.30f), "sink.tremoloDepth");
     toSink(b, addConst(b, scale(b, flowBound, 4.0f), 3.0f), "sink.tremoloRateHz");
 
-    // pan_bias = clamp(atan2(axisY,axisX)/pi * 0.2, -0.2, 0.2), gated by magnitude-squared instead of sqrt-then-compare.
     NodeId axisX = b.add("source.rotationAxisX");
     NodeId axisY = b.add("source.rotationAxisY");
     NodeId magSqGate = threshold(b, addNodes(b, mulNodes(b, axisX, axisX), mulNodes(b, axisY, axisY)), 1e-6f);
     NodeId azimuth = b.add("math.atan2");
     b.wire(axisY, azimuth, 0);
     b.wire(axisX, azimuth, 1);
-    NodeId panBias = mulNodes(b, clampNode(b, scale(b, azimuth, 0.2f / kPi), -0.2f, 0.2f), magSqGate);
+    NodeId panBias = mulNodes(b, scale(b, azimuth, 0.2f / kPi), magSqGate);
     NodeId negPanBias = scale(b, panBias, -1.0f);
 
     NodeId spread = addConst(b, scale(b, flowFree, 0.5f), 0.3f);
