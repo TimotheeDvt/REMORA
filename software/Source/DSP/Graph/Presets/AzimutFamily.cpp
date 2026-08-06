@@ -69,7 +69,7 @@ std::unique_ptr<NodeGraph> buildAzimutReverb() {
 
     // Free motion opens a longer, brighter reverb tail; bound motion collapses it back toward dry.
     NodeId wetInner = addConst(b, scale(b, core.labanWeight, 0.75f), 0.25f);
-    toSink(b, clampNode(b, mulNodes(b, core.flowFree, wetInner), 0.0f, 1.0f), "sink.reverbWetLevel");
+    toSink(b, scale(b, mulNodes(b, core.flowFree, wetInner), 0.2f), "sink.reverbWetLevel");
     NodeId roomSize = b.add("math.mapRange", { 0.0f, 1.0f, 0.25f, 0.95f });
     b.wire(core.flowFree, roomSize);
     toSink(b, roomSize, "sink.reverbRoomSize");
