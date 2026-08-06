@@ -61,7 +61,9 @@ std::unique_ptr<NodeGraph> buildSpeedGate() {
     for (int i = 0; i < 4; ++i)
         toSink(b, crossfadeNodes(b, constantNode(b, simpleVoiceGain[i]), azimut.voiceGain[i], azimutAmount), "sink.voiceGain", { static_cast<float>(i) });
 
-    for (int i = 0; i < 6; ++i)
+    // partialAmp[0]: both sides of the crossfade are constant 1.0, matching the new MappingOutput
+    // default regardless of azimutAmount - omitted.
+    for (int i = 1; i < 6; ++i)
         toSink(b, crossfadeNodes(b, constantNode(b, simplePartials[i]), azimut.partialAmp[i], azimutAmount), "sink.partialAmp", { static_cast<float>(i) });
     toSink(b, crossfadeNodes(b, zero, azimut.driveAmt, azimutAmount), "sink.driveAmt");
 

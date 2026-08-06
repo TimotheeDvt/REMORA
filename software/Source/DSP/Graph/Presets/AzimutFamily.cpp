@@ -16,7 +16,8 @@ void wireCoreToSinks(GraphBuilder& b, const AzimutCoreOutputs& core) {
     for (int i = 0; i < 4; ++i)
         toSink(b, core.voiceGain[i], "sink.voiceGain", { static_cast<float>(i) });
     toSink(b, core.masterGain, "sink.masterGain");
-    for (int i = 0; i < 6; ++i)
+    // partialAmp[0]=1 matches the new MappingOutput default - omitted.
+    for (int i = 1; i < 6; ++i)
         toSink(b, core.partialAmp[i], "sink.partialAmp", { static_cast<float>(i) });
     toSink(b, core.driveAmt, "sink.driveAmt");
     toSink(b, core.noiseAmount, "sink.noiseAmount");
@@ -25,7 +26,9 @@ void wireCoreToSinks(GraphBuilder& b, const AzimutCoreOutputs& core) {
         toSink(b, core.panL[i], "sink.panL", { static_cast<float>(i) });
         toSink(b, core.panR[i], "sink.panR", { static_cast<float>(i) });
     }
-    // vibrato/tremolo rate 0 matches the new MappingOutput default - omitted.
+    // No vibrato/tremolo for Azimut - unwired inputs default to 0, overriding the new nonzero default.
+    b.add("sink.vibratoRateHz");
+    b.add("sink.tremoloRateHz");
 }
 
 } // namespace

@@ -169,8 +169,9 @@ std::unique_ptr<NodeGraph> buildMartialMomentum() {
     toSink(b, standardMasterGain(b, motionGate, labanWeight, thrustPeak), "sink.masterGain");
 
     NodeId peakBrightness = scale(b, thrustPeak, 0.8f);
+    // partialAmp[0]=1 matches the new MappingOutput default - omitted.
     static const float kConstantGain[6] = { 1.0f, 0.60f, 0.40f, 0.30f, 0.20f, 0.15f };
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 1; i < 6; ++i) {
         NodeId value = constantNode(b, kConstantGain[i]);
         if (i >= 3) {
             const float peakCoeff = (i == 3) ? 0.5f : (i == 4) ? 0.7f : 0.9f;
@@ -186,7 +187,9 @@ std::unique_ptr<NodeGraph> buildMartialMomentum() {
     toSink(b, scale(b, noiseEnv, 0.4f), "sink.noiseAmount");
     toSink(b, subConst(b, addNodes(b, addConst(b, scale(b, suddenness, 0.4f), 0.2f), scale(b, thrustPeak, 0.4f)), 1.0f), "sink.noiseLpCoef");
 
-    // vibrato/tremolo rate 0 matches the new MappingOutput default - omitted.
+    // No vibrato/tremolo for this preset - unwired inputs default to 0, overriding the new nonzero default.
+    b.add("sink.vibratoRateHz");
+    b.add("sink.tremoloRateHz");
 
     const float panL[4] = { 0.55f, 0.45f, 0.70f, 0.30f };
     const float panR[4] = { 0.45f, 0.55f, 0.30f, 0.70f };

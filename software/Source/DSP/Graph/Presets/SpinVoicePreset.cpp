@@ -62,13 +62,12 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
     toSink(b, constantNode(b, 19.0f), "sink.chordSemitone", { 2.0f });
     toSink(b, constantNode(b, 1.0f), "sink.masterGain");
 
-    const float partials[6] = { 1.0f, 0.5f, 0.25f, 0.1f, 0.05f, 0.02f };
-    for (int i = 0; i < 6; ++i)
-        toSink(b, constantNode(b, partials[i]), "sink.partialAmp", { static_cast<float>(i) });
+    // partialAmp[0]=1/vibratoRate=5/tremoloRate=4/noiseLpCoef=0.5 all match the new
+    // MappingOutput defaults - omitted.
+    const float partials[5] = { 0.5f, 0.25f, 0.1f, 0.05f, 0.02f };
+    for (int i = 0; i < 5; ++i)
+        toSink(b, constantNode(b, partials[i]), "sink.partialAmp", { static_cast<float>(i + 1) });
 
-    toSink(b, constantNode(b, 5.0f), "sink.vibratoRateHz");
-    toSink(b, constantNode(b, 4.0f), "sink.tremoloRateHz");
-    toSink(b, constantNode(b, 0.5f), "sink.noiseLpCoef");
     toSink(b, constantNode(b, 20000.0f), "sink.lpfCutoffHz");
 
     const float panL[4] = { 0.85f, 0.55f, 0.45f, 0.15f };

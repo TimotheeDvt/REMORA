@@ -12,22 +12,23 @@ struct MappingOutput {
     float rootHz = 110.0f;
     // All voices sing the same pitch as voice 0 by default (no chord).
     float chordSemitones[3] = { 0.0f, 0.0f, 0.0f };
-    int numVoices = 4;
+    int numVoices = 1;
 
     float masterGain = 0.0f;
     // Only voice 0 sounds by default; voices 1-3 are silent until a preset opts them in.
     float voiceGain[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
 
-    float partialAmps[6] = { 1.0f, 0.5f, 0.25f, 0.1f, 0.05f, 0.02f };
+    // Fundamental only by default - a pure sine tone until a preset adds harmonics.
+    float partialAmps[6] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
     float driveAmt = 0.0f;
 
     float vibratoDepth = 0.0f;
-    float vibratoRateHz = 0.0f;
+    float vibratoRateHz = 5.0f;
     float tremoloDepth = 0.0f;
-    float tremoloRateHz = 0.0f;
+    float tremoloRateHz = 4.0f;
 
     float noiseAmount = 0.0f;
-    float noiseLpCoef = 0.0f;
+    float noiseLpCoef = 0.5f;
 
     // Panning disabled by default - equal gain to both channels for every voice.
     float panL[4] = { 0.5f, 0.5f, 0.5f, 0.5f };

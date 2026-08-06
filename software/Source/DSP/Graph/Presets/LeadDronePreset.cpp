@@ -73,8 +73,8 @@ std::unique_ptr<NodeGraph> buildLeadDrone() {
     toSink(b, clampNode(b, scale(b, absNode(b, yaw), 0.002f), 0.0f, 0.3f), "sink.tremoloDepth");
     toSink(b, addConst(b, scale(b, accelMag, 0.1f), 2.0f), "sink.tremoloRateHz");
 
+    // partialAmp[0]=1 matches the new MappingOutput default - omitted.
     NodeId brightness = clampNode(b, scale(b, accelMag, 0.15f), 0.0f, 1.0f);
-    toSink(b, constantNode(b, 1.0f), "sink.partialAmp", { 0.0f });
     toSink(b, scale(b, brightness, 0.7f), "sink.partialAmp", { 1.0f });
     toSink(b, scale(b, brightness, 0.5f), "sink.partialAmp", { 2.0f });
     toSink(b, scale(b, brightness, 0.3f), "sink.partialAmp", { 3.0f });
