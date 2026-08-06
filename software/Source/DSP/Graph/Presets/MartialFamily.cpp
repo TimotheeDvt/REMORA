@@ -186,8 +186,7 @@ std::unique_ptr<NodeGraph> buildMartialMomentum() {
     toSink(b, scale(b, noiseEnv, 0.4f), "sink.noiseAmount");
     toSink(b, subConst(b, addNodes(b, addConst(b, scale(b, suddenness, 0.4f), 0.2f), scale(b, thrustPeak, 0.4f)), 1.0f), "sink.noiseLpCoef");
 
-    b.add("sink.vibratoRateHz");
-    b.add("sink.tremoloRateHz");
+    // vibrato/tremolo rate 0 matches the new MappingOutput default - omitted.
 
     const float panL[4] = { 0.55f, 0.45f, 0.70f, 0.30f };
     const float panR[4] = { 0.45f, 0.55f, 0.30f, 0.70f };

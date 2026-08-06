@@ -99,11 +99,8 @@ REMORAEditor::REMORAEditor(REMORAProcessor &p)
   statusDot.setOpaque(false);
   addAndMakeVisible(statusDot);
 
-  styleLabel(latencyValueLabel, "-", 24.f, Palette::textHi,
+  styleLabel(latencyValueLabel, "- ms latency", 16.f, Palette::textHi,
              juce::Justification::centredRight);
-  styleLabel(latencyLabel, "ms latency", 11.f, Palette::textMid,
-             juce::Justification::centredRight);
-  addAndMakeVisible(latencyLabel);
   addAndMakeVisible(latencyValueLabel);
 
   boStaffVisualizer.setTrailLifetime(0.6f);
@@ -225,9 +222,7 @@ void REMORAEditor::resized() {
     placeWeighted(debugButton, debugWeight);
 
     const int latencyW = static_cast<int>(availableW * (latencyWeight / totalWeight));
-    const int halfH = itemH / 2;
-    latencyValueLabel.setBounds(currentX, currentY, latencyW, halfH);
-    latencyLabel.setBounds(currentX, currentY + halfH, latencyW, itemH - halfH);
+    latencyValueLabel.setBounds(currentX, currentY, latencyW, itemH);
   }
   currentY += itemH + padding;
 
@@ -293,7 +288,7 @@ void REMORAEditor::refreshMainStats() {
     // Only valid if actively receiving - i.e. data younger than 1 second.
     if (dataAgeMs < 1000.0) {
       lastLatencyUpdateMs = now;
-      latencyValueLabel.setText(juce::String(totalLatencyMs, 1),
+      latencyValueLabel.setText(juce::String(totalLatencyMs, 1) + " ms latency",
                                 juce::dontSendNotification);
       latencyValueLabel.setColour(
           juce::Label::textColourId,
@@ -301,12 +296,12 @@ void REMORAEditor::refreshMainStats() {
               ? Palette::red
               : (totalLatencyMs > 10.0 ? Palette::yellow : Palette::green));
     } else {
-      latencyValueLabel.setText("-", juce::dontSendNotification);
+      latencyValueLabel.setText("- ms latency", juce::dontSendNotification);
       latencyValueLabel.setColour(juce::Label::textColourId, Palette::textMid);
       lastLatencyUpdateMs = 0; // reset so it instantly updates when reconnected
     }
   } else {
-    latencyValueLabel.setText("-", juce::dontSendNotification);
+    latencyValueLabel.setText("- ms latency", juce::dontSendNotification);
     latencyValueLabel.setColour(juce::Label::textColourId, Palette::textMid);
     lastLatencyUpdateMs = 0;
   }

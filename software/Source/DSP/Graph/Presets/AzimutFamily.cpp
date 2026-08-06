@@ -25,8 +25,7 @@ void wireCoreToSinks(GraphBuilder& b, const AzimutCoreOutputs& core) {
         toSink(b, core.panL[i], "sink.panL", { static_cast<float>(i) });
         toSink(b, core.panR[i], "sink.panR", { static_cast<float>(i) });
     }
-    b.add("sink.vibratoRateHz");
-    b.add("sink.tremoloRateHz");
+    // vibrato/tremolo rate 0 matches the new MappingOutput default - omitted.
 }
 
 } // namespace

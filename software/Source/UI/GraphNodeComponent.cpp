@@ -229,6 +229,15 @@ juce::String GraphNodeComponent::getTooltip() {
         return {};
 
     juce::String text = typeInfo.displayName;
+    if (typeInfo.category == Graph::NodeCategory::Sink) {
+        // Sinks have no output - show the value currently flowing into their (single) input instead.
+        for (int i = 0; i < typeInfo.numInputs; ++i) {
+            const juce::String label = typeInfo.inputNames.size() > static_cast<size_t>(i)
+                ? typeInfo.inputNames[static_cast<size_t>(i)] : ("in" + juce::String(i));
+            text << "\n" << label << ": " << juce::String(editor.liveOutputValue(nodeId, i), 4);
+        }
+        return text;
+    }
     for (int i = 0; i < typeInfo.numOutputs; ++i) {
         const juce::String label = typeInfo.outputNames.size() > static_cast<size_t>(i)
             ? typeInfo.outputNames[static_cast<size_t>(i)]

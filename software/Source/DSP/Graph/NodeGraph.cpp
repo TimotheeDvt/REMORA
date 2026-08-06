@@ -221,6 +221,9 @@ void NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
             case NodeCategory::Sink:
                 if (info->sinkWrite)
                     info->sinkWrite(inputValues, n.params, out);
+                // Sinks have no output of their own - stash the value that flowed into them so
+                // liveOutputValue()/tooltips/monitor knobs can show "what's being sent to this sink".
+                n.lastOutputs[0] = inputValues[0];
                 break;
         }
     }

@@ -38,7 +38,6 @@ private:
   juce::TextButton dspButton;
   juce::Label statusDot;
 
-  juce::Label latencyLabel;
   juce::Label latencyValueLabel;
 
   bool connected = false;

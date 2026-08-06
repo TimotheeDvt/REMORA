@@ -81,9 +81,10 @@ std::unique_ptr<NodeGraph> buildLeadDrone() {
     toSink(b, scale(b, brightness, 0.2f), "sink.partialAmp", { 4.0f });
     toSink(b, scale(b, brightness, 0.1f), "sink.partialAmp", { 5.0f });
 
-    const float panL[4] = { 0.6f, 0.9f, 0.1f, 0.5f };
-    const float panR[4] = { 0.6f, 0.1f, 0.9f, 0.5f };
-    for (int i = 0; i < 4; ++i) {
+    // voice 3's pan (0.5/0.5) matches the new MappingOutput default - omitted.
+    const float panL[3] = { 0.6f, 0.9f, 0.1f };
+    const float panR[3] = { 0.6f, 0.1f, 0.9f };
+    for (int i = 0; i < 3; ++i) {
         toSink(b, constantNode(b, panL[i]), "sink.panL", { static_cast<float>(i) });
         toSink(b, constantNode(b, panR[i]), "sink.panR", { static_cast<float>(i) });
     }

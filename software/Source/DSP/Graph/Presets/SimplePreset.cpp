@@ -23,22 +23,10 @@ std::unique_ptr<NodeGraph> buildSimple() {
 
     b.wire(b.add("math.constant", { 1.0f }), b.add("sink.numVoices"));
 
-    b.wire(b.add("math.constant", { 1.0f }), b.add("sink.voiceGain", { 0.0f }));
-    for (int i = 1; i < 4; ++i)
-        b.add("sink.voiceGain", { static_cast<float>(i) });
-
+    // voiceGain[0]=1/panning-disabled/chordSemitone=0 all match the new MappingOutput defaults - omitted.
     b.wire(b.add("math.constant", { 1.0f }), b.add("sink.partialAmp", { 0.0f }));
     for (int i = 1; i < 6; ++i)
         b.add("sink.partialAmp", { static_cast<float>(i) });
-
-    for (int i = 0; i < 4; ++i) {
-        b.wire(b.add("math.constant", { 0.5f }), b.add("sink.panL", { static_cast<float>(i) }));
-        b.wire(b.add("math.constant", { 0.5f }), b.add("sink.panR", { static_cast<float>(i) }));
-    }
-
-    b.add("sink.chordSemitone", { 0.0f });
-    b.add("sink.chordSemitone", { 1.0f });
-    b.add("sink.chordSemitone", { 2.0f });
 
     b.wire(b.add("math.constant", { 5.0f }), b.add("sink.vibratoRateHz"));
     b.wire(b.add("math.constant", { 4.0f }), b.add("sink.tremoloRateHz"));
