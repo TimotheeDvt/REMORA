@@ -149,6 +149,11 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
     g.setColour(Palette::border);
     g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 4.0f, 1.0f);
 
+    if (editor.isNodeSelected(nodeId)) {
+        g.setColour(Palette::accent);
+        g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f), 4.0f, 2.0f);
+    }
+
     if (highlightActive) {
         const double elapsedMs = juce::Time::getMillisecondCounterHiRes() - highlightStartMs;
         const float envelope = juce::jlimit(0.0f, 1.0f, 1.0f - static_cast<float>(elapsedMs / kHighlightDurationMs));
@@ -316,10 +321,16 @@ void GraphNodeComponent::mouseDown(const juce::MouseEvent& e) {
         return;
     }
     if (e.mods.isPopupMenu()) {
+        if (!editor.isNodeSelected(nodeId))
+            editor.selectNode(nodeId, false);
         editor.showNodeContextMenu(nodeId);
         return;
     }
-    dragStartPos = getPosition();
+    if (e.mods.isShiftDown())
+        editor.selectNode(nodeId, true);
+    else if (!editor.isNodeSelected(nodeId))
+        editor.selectNode(nodeId, false);
+    editor.beginGroupDrag();
 }
 
 void GraphNodeComponent::mouseDrag(const juce::MouseEvent& e) {
@@ -337,9 +348,7 @@ void GraphNodeComponent::mouseDrag(const juce::MouseEvent& e) {
     }
     if (e.mods.isPopupMenu())
         return;
-    const auto newPos = dragStartPos + e.getOffsetFromDragStart();
-    setTopLeftPosition(newPos);
-    editor.nodeMoved(nodeId, static_cast<float>(newPos.x), static_cast<float>(newPos.y));
+    editor.dragSelectedNodesBy(e.getOffsetFromDragStart());
 }
 
 void GraphNodeComponent::mouseUp(const juce::MouseEvent&) {

@@ -48,7 +48,6 @@ private:
     juce::OwnedArray<juce::Label> paramNameLabels;
     juce::OwnedArray<juce::TextEditor> paramEditors;
     std::unique_ptr<juce::Slider> valueSlider;
-    juce::Point<int> dragStartPos;
 
     juce::Rectangle<int> infoButtonBounds;
 

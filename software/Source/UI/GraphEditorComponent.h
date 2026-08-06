@@ -21,6 +21,7 @@ public:
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
+    bool keyPressed(const juce::KeyPress& key) override;
 
     // Called by DSPWindow whenever the shared mapping selector changes.
     void onMappingChanged();
@@ -64,6 +65,12 @@ public:
     void handleBackgroundMouseDown(const juce::MouseEvent& e);
     void handleBackgroundMouseDrag(const juce::MouseEvent& e);
 
+    bool isNodeSelected(Graph::NodeId id) const { return selectedNodeIds.count(id) > 0; }
+    void selectNode(Graph::NodeId id, bool toggle);
+    void beginGroupDrag();
+    void dragSelectedNodesBy(juce::Point<int> delta);
+    void deleteSelectedNodes();
+
 private:
     REMORAProcessor& processor;
     Graph::NodeGraph* currentGraph = nullptr;
@@ -94,9 +101,18 @@ private:
     bool dragSourceIsOutput = false;
     juce::Point<float> dragCurrentPos;
 
+    std::set<Graph::NodeId> selectedNodeIds;
+    std::unordered_map<Graph::NodeId, juce::Point<int>> groupDragStartPositions;
+    bool isMarqueeSelecting = false;
+    juce::Point<float> marqueeStartCanvas;
+    juce::Point<float> marqueeCurrentCanvas;
+
     void showAddNodeMenu(juce::Point<int> position);
     void addNodeAt(const juce::String& typeId, juce::Point<int> position);
     void deleteNode(Graph::NodeId id);
+    void beginMarqueeSelection(const juce::MouseEvent& e);
+    void updateMarqueeSelection(const juce::MouseEvent& e);
+    void endMarqueeSelection();
     void syncFromModel();
     void autoLayout();
     void updateTransform();

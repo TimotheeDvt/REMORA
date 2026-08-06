@@ -59,6 +59,7 @@ void GraphEditorComponent::onMappingChanged() {
     if (onDirtyStateChanged)
         onDirtyStateChanged(isDirty);
 
+    selectedNodeIds.clear();
     nodeComponents.clear();
     nodeComponentById.clear();
     syncFromModel();
@@ -95,6 +96,7 @@ void GraphEditorComponent::resetCurrentGraphToOriginal() {
     if (onDirtyStateChanged)
         onDirtyStateChanged(false);
 
+    selectedNodeIds.clear();
     nodeComponents.clear();
     nodeComponentById.clear();
     syncFromModel();
@@ -419,6 +421,69 @@ void GraphEditorComponent::deleteNode(Graph::NodeId id) {
     syncFromModel();
 }
 
+void GraphEditorComponent::deleteSelectedNodes() {
+    if (currentGraph == nullptr || selectedNodeIds.empty())
+        return;
+    for (Graph::NodeId id : selectedNodeIds)
+        currentGraph->removeNode(id);
+    selectedNodeIds.clear();
+    markDirty();
+    syncFromModel();
+}
+
+void GraphEditorComponent::selectNode(Graph::NodeId id, bool toggle) {
+    if (toggle) {
+        if (!selectedNodeIds.insert(id).second)
+            selectedNodeIds.erase(id);
+    } else {
+        selectedNodeIds.clear();
+        selectedNodeIds.insert(id);
+    }
+    canvas.repaint();
+}
+
+void GraphEditorComponent::beginGroupDrag() {
+    groupDragStartPositions.clear();
+    for (Graph::NodeId id : selectedNodeIds) {
+        auto it = nodeComponentById.find(id);
+        if (it != nodeComponentById.end())
+            groupDragStartPositions[id] = it->second->getPosition();
+    }
+}
+
+void GraphEditorComponent::dragSelectedNodesBy(juce::Point<int> delta) {
+    for (const auto& [id, startPos] : groupDragStartPositions) {
+        auto it = nodeComponentById.find(id);
+        if (it == nodeComponentById.end())
+            continue;
+        const auto newPos = startPos + delta;
+        it->second->setTopLeftPosition(newPos);
+        nodeMoved(id, static_cast<float>(newPos.x), static_cast<float>(newPos.y));
+    }
+}
+
+void GraphEditorComponent::beginMarqueeSelection(const juce::MouseEvent& e) {
+    isMarqueeSelecting = true;
+    marqueeStartCanvas = canvas.getLocalPoint(this, e.getPosition()).toFloat();
+    marqueeCurrentCanvas = marqueeStartCanvas;
+    canvas.repaint();
+}
+
+void GraphEditorComponent::updateMarqueeSelection(const juce::MouseEvent& e) {
+    marqueeCurrentCanvas = canvas.getLocalPoint(this, e.getPosition()).toFloat();
+    canvas.repaint();
+}
+
+void GraphEditorComponent::endMarqueeSelection() {
+    isMarqueeSelecting = false;
+    const juce::Rectangle<float> rect(marqueeStartCanvas, marqueeCurrentCanvas);
+    selectedNodeIds.clear();
+    for (auto* comp : nodeComponents)
+        if (rect.intersects(comp->getBounds().toFloat()))
+            selectedNodeIds.insert(comp->getNodeId());
+    canvas.repaint();
+}
+
 void GraphEditorComponent::nodeMoved(Graph::NodeId id, float x, float y) {
     if (currentGraph == nullptr)
         return;
@@ -439,10 +504,15 @@ void GraphEditorComponent::showNodeContextMenu(Graph::NodeId id) {
     if (!isEditable)
         return;
 
+    const bool multi = selectedNodeIds.size() > 1 && isNodeSelected(id);
     juce::PopupMenu menu;
-    menu.addItem(1, "Delete Node");
-    menu.showMenuAsync(juce::PopupMenu::Options{}, [this, id](int result) {
-        if (result == 1)
+    menu.addItem(1, multi ? "Delete " + juce::String(selectedNodeIds.size()) + " Nodes" : "Delete Node");
+    menu.showMenuAsync(juce::PopupMenu::Options{}, [this, id, multi](int result) {
+        if (result != 1)
+            return;
+        if (multi)
+            deleteSelectedNodes();
+        else
             deleteNode(id);
     });
 }
@@ -528,6 +598,10 @@ void GraphEditorComponent::handleCanvasMouseDrag(const juce::MouseEvent& e) {
 }
 
 void GraphEditorComponent::handleCanvasMouseUp() {
+    if (isMarqueeSelecting) {
+        endMarqueeSelection();
+        return;
+    }
     isPanning = false;
     repaint();
     canvas.repaint();
@@ -631,11 +705,24 @@ void GraphEditorComponent::handleBackgroundMouseDown(const juce::MouseEvent& e) 
             showAddNodeMenu(e.getPosition());
         return;
     }
+    // Shift+drag on empty canvas draws a marquee selection rectangle instead of panning.
+    if (e.mods.isShiftDown()) {
+        beginMarqueeSelection(e);
+        return;
+    }
+    if (!selectedNodeIds.empty()) {
+        selectedNodeIds.clear();
+        canvas.repaint();
+    }
     // Plain click+drag on empty canvas pans - no modifier key needed.
     handleCanvasMouseDown(e);
 }
 
 void GraphEditorComponent::handleBackgroundMouseDrag(const juce::MouseEvent& e) {
+    if (isMarqueeSelecting) {
+        updateMarqueeSelection(e);
+        return;
+    }
     handleCanvasMouseDrag(e);
 }
 
@@ -653,6 +740,14 @@ void GraphEditorComponent::mouseWheelMove(const juce::MouseEvent& e, const juce:
     updateTransform();
     repaint();
     canvas.repaint();
+}
+
+bool GraphEditorComponent::keyPressed(const juce::KeyPress& key) {
+    if (isEditable && (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)) {
+        deleteSelectedNodes();
+        return true;
+    }
+    return false;
 }
 
 void GraphEditorComponent::resized() {
@@ -705,6 +800,14 @@ void GraphEditorComponent::paintConnections(juce::Graphics& g) {
             else
                 drawConnection(g, dragCurrentInCanvas, fixedEnd);
         }
+    }
+
+    if (isMarqueeSelecting) {
+        const juce::Rectangle<float> rect(marqueeStartCanvas, marqueeCurrentCanvas);
+        g.setColour(Palette::accent.withAlpha(0.15f));
+        g.fillRect(rect);
+        g.setColour(Palette::accent);
+        g.drawRect(rect, 1.0f);
     }
 }
 
