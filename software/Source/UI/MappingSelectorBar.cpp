@@ -15,7 +15,7 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
     mappingCombo.onChange = [this] {
         const int newStrategyIndex = mappingCombo.getSelectedId() - 1;
         processor.setMappingStrategy(newStrategyIndex);
-        debug.print.cyan("Mapping strategy changed to:", processor.getSynth().getMappingName(newStrategyIndex));
+        // debug.print.cyan("Mapping strategy changed to:", processor.getSynth().getMappingName(newStrategyIndex));
         notifyMappingChanged();
     };
     addAndMakeVisible(mappingCombo);
