@@ -5,6 +5,7 @@
 \usetikzlibrary{arrows.meta, positioning, fit, shadows, calc}
 
 \newcommand{\coderef}[1]{{\small [#1]}}
+\newcommand{\preset}[1]{\textit{#1}}
 
 % Placeholder conference metadata - update once NIME'26 dates/venue are confirmed.
 \copyrightyear{2026}
@@ -44,10 +45,10 @@ synthesiser. We show that this same small set of building blocks is enough to re
 patches, everything from simple tilt-controlled pitch to compound movement-quality mappings inspired
 by Laban Movement Analysis. This paper describes the instrument's hardware, its self-calibration
 method, the mathematics behind turning raw orientation into musical control, and the live patching
-interface itself, situates it against prior staff-shaped, baton, and visual-patching instruments,
-and - grounded in implementation-level evidence together with a protocol for the performer
-evaluation still to be run - reflects on what it means to make an instrument's gestural vocabulary
-an explicit, editable part of the instrument.
+interface itself. We situate it against prior staff-shaped, baton, and visual-patching instruments.
+Grounded in implementation-level evidence, together with a protocol for the performer evaluation
+still to be run, we reflect on what it means to make an instrument's gestural vocabulary an
+explicit, editable part of the instrument.
 \end{abstract}
 
 \begin{CCSXML}
@@ -79,7 +80,7 @@ OSC, staff instrument}
 
 \section{Introduction}
 
-\subsection*{Motivation and Background}
+\subsection{Motivation and Background}
 REMORA grew out of the first author's parallel practice in martial arts and music, and a frustration
 shared by many hand-built digital musical instruments: once a gesture vocabulary is designed and
 coded, changing it means rebuilding the instrument rather than performing with it. That friction is
@@ -87,15 +88,15 @@ the paper's real starting point - not which single mapping best suits a staff, b
 instrument's gestural vocabulary could instead be something the performer authors and revises live,
 the way a modular-synthesis patch is built and rebuilt on a rack.
 
-The b\^o staff itself sits in a gap the New Interfaces for Musical Expression (NIME) community has
-left largely unexplored: a full-body, swung, two-handed controller with its own rotational inertia
+The b\^o staff itself is a form factor that New Interfaces for Musical Expression (NIME) instruments
+have rarely explored: a full-body, swung, two-handed controller with its own rotational inertia
 and reach, distinct from the small handheld or body-mounted objects most inertial-sensor Digital
-Musical Instruments (DMIs) use. Pairing that underused controller form with a
+Musical Instruments (DMIs) use. Pairing that distinctive controller form with a
 mapping layer that can be reshaped at performance time, rather than fixed at design time, is the
 combination this paper investigates.
 
-\subsection*{Objectives of the Study}
-This article supports four claims, each argued based on the system as it currently operates rather than being proposed as future work:
+\subsection{Objectives of the Study}
+This article supports four claims, each grounded in the system as it currently operates:
 \begin{enumerate}
 \item \label{claim:dag} A small dataflow language - source, math, and sink node primitives - is embedded directly in
 the audio plugin and evaluated once per audio block as a directed acyclic graph (DAG); the performer
@@ -111,11 +112,11 @@ yaw drift is expected to accumulate over longer, uninterrupted play (\S\ref{sec:
 of where the sensor is physically mounted on the staff.
 \end{enumerate}
 
-\subsection*{Scope and Applications}
+\subsection{Scope and Applications}
 The instrument's intended context follows directly from its origin: a solo performer with some
 staff or martial-arts background, playing a set built from one or more presets rather than a fixed,
-single-piece score. The preset catalog (Table~2) is deliberately graded rather than uniform - Simple
-asks only for basic tilt and roll, while the Laban-driven Martial and Azimut presets reward
+single-piece score. The preset catalog (Table~2) is deliberately graded rather than uniform - \preset{Simple}
+asks only for basic tilt and roll, while the Laban-driven \preset{Martial} and \preset{Azimut} presets reward
 staff-handling vocabulary the performer already has from bo practice - so the same instrument can
 serve a newcomer exploring gesture-to-sound relationships and a martial artist bringing an existing
 physical vocabulary onto a stage. Because the mapping itself is authored in the same visual
@@ -129,101 +130,83 @@ context in mind.
 
 \section{Related Work}
 
-\subsection*{Staff, Rod, and Baton DMIs}
-The T-Stick~\cite{malloch2007tstick} is the closest prior instrument to REMORA's physical form: a
-family of rod-shaped controllers sensing finger position and pressure along the shaft via capacitive
-touch, together with accelerometer-derived shake and tap gestures. Crucially, the T-Stick project
-pairs that sensing with an external, reconfigurable mapping layer (the digital-orchestra/libmapper
-tools built alongside it), so the gesture vocabulary is not permanently fixed to the hardware either
-- but that rewiring happens in supporting software outside the instrument, authored by a mapping
-designer between pieces, rather than as a performer-facing surface embedded in the instrument
-itself during play. REMORA differs from the T-Stick on two axes at once: its full-body two-handed
-swung form (closer to a bô or fighting staff than a handheld rod), and a live-patchable mapping
-graph built directly into the audio plugin the performer plays through, rather than a separate
-mapping tool.
+\subsection{Staff, Rod, and Baton DMIs}
+Rod-, staff-, and baton-shaped controllers form a recurring family of DMIs, spanning handheld
+sensor-augmented rods, conducting tools, and swung objects.
 
-Conducting batons form a second, older lineage of rod-shaped expressive controllers. Marrin and
-Paradiso's Digital Baton~\cite{marrin1997digitalbaton} combined accelerometers, infrared position
-tracking, and a pressure-sensitive tip to capture continuous conducting gesture, and the companion
-Conductor's Jacket~\cite{marrin1998conductorsjacket} extended the same goal - recording expressive,
-continuous musical gesture rather than discrete note events - to a wearable, full-body
-electromyography (EMG) and motion rig. Both systems used a fixed mapping, hand-engineered by the researchers for conducting
-gesture specifically; REMORA shares the goal of capturing continuous, qualitative gesture (via
-Laban Effort features, \S\ref{sec:azimut-deep-dive} and Table~1) but treats the mapping from that
-gesture to sound as something the performer edits rather than something fixed by the instrument
-builder in advance.
+\textit{T-Stick}~\cite{malloch2007tstick} - a family of rod-shaped controllers sensing finger
+position and pressure along the shaft via capacitive touch, together with accelerometer-derived
+shake and tap gestures. The sensing is paired with an external, reconfigurable mapping layer built
+around the digital-orchestra/libmapper tools, so the gesture vocabulary can be revised without
+changing the hardware.
 
-Swung or spun full-body objects are a comparatively thin category at NIME: the clearest match is
-Nam's Musical Poi (mPoi)~\cite{nam2013mpoi}, a sensor-augmented poi that generates sound from
-swing motion. mPoi confirms that spun/swung objects are a recognised, if under-explored, DMI form,
-but it is a compact, single-mapping instrument without a reconfigurable mapping layer or a
-movement-quality vocabulary comparable to Laban Effort. REMORA occupies the same underexplored
-niche of full-body, swung, two-handed controllers but combines it with the T-Stick's ambition of
-a reconfigurable gesture vocabulary and the conducting-baton lineage's focus on continuous
-expressive quality rather than discrete triggers - a combination we are not aware of in prior
-staff-, rod-, or swung-object DMIs.
+\textit{Digital Baton}~\cite{marrin1997digitalbaton} - Marrin and Paradiso's controller, combining
+accelerometers, infrared position tracking, and a pressure-sensitive tip to capture continuous
+conducting gesture rather than discrete note events.
 
-\subsection*{Inertial Sensing and Visual Patching in NIME}
-Visual dataflow patching is a much older paradigm than any of the staff instruments above. Max
-originated as Puckette's Patcher~\cite{puckette1988patcher} and has been maintained and extended
-commercially for over three decades, a history Puckette himself traces in
-``Max at Seventeen''~\cite{puckette2002maxatseventeen}; Pure Data~\cite{puckette1996puredata} is
-its open-source sibling, built around the same boxes-and-patch-cords model of unit generators wired
-together and rewired live. VCV Rack~\cite{belt2017vcvrack} is a more recent, community-maintained
-open-source descendant of the same idea applied to virtual modular synthesis. REMORA's node-graph
-editor (\S\ref{sec:azimut-deep-dive}) draws directly on this patching lineage - typed nodes, typed
-wires, live rewiring without stopping audio - but repurposes it specifically as a
-\emph{gesture-to-sound mapping layer} rather than a general-purpose signal-processing environment:
-REMORA's nodes represent motion features, shaping functions, and synthesis-parameter sinks, not
-arbitrary digital signal processing (DSP), and the graph lives inside a single instrument's plugin
-rather than functioning as a
-standalone environment a performer would build an entire instrument in.
+\textit{Conductor's Jacket}~\cite{marrin1998conductorsjacket} - a wearable, full-body
+electromyography (EMG) and motion rig extending the same conducting-gesture goal to the whole body,
+recording muscle tension and movement alongside the baton's hand-level detail.
 
-Using Laban Movement Analysis as a source of mapping features has real precedent in NIME and
-related venues. Camurri et al.'s EyesWeb~\cite{camurri2000eyesweb} established a technical template
-for extracting expressive movement qualities from full-body motion in real time, explicitly
-grounded in Laban's Effort theory, for interactive dance and music systems. Bennett et
-al.'s DAMPER~\cite{bennett2007damper} used Laban's four Effort factors directly as the design basis
-for a force-feedback interface platform, Ward et al.~\cite{ward2008thereminists} used Laban Effort
-- Flow and the Recuperation phase of Effort phrasing in particular - as an analytic lens on theremin
-performers' movement to inform instrument design, and Schacher~\cite{schacher2010motiontogesture}
-argues explicitly for Laban-derived motion/effort elements as a systematic basis for gesture-to-sound
-mapping in interactive dance. REMORA continues this line by computing the same four Effort
-qualities (Weight, Time, Space, Flow; Table~1) as real-time IMU-derived features, but where the
-cited work treats Effort primarily as an analysis or fixed-mapping-design tool, REMORA exposes those
-qualities as first-class typed nodes a performer can wire into an arbitrary sink at performance
-time - combining EyesWeb's Effort-feature-extraction approach with the Max/Pd/VCV-style repatchable
-dataflow paradigm inside a single embedded, performer-facing instrument, which is the specific
-combination we have not found addressed together in prior work.
+\textit{Musical Poi (mPoi)}~\cite{nam2013mpoi} - Nam's sensor-augmented poi, generating sound from
+swing motion; a compact, single-mapping instrument that established spun/swung objects as a
+recognised, if uncommon, DMI form.
 
-\subsection*{Mapping Strategies}
-REMORA's reconfigurable graph is one answer to a design question the mapping literature has
-approached from several other directions. Hunt and Wanderley~\cite{hunt2002mapping} categorise
-gesture-to-synthesis mappings by complexity - one-to-one, one-to-many, many-to-one - and argue that
-richer, many-to-many mappings are what make an interface feel like an instrument rather than a
-remote control; REMORA's graph does not choose a mapping complexity in advance so much as let the
-performer construct any point on that spectrum from primitives, with the eleven presets (Table~2)
-occupying different, empirically observed positions on it rather than a single designed one.
-Fiebrink and Cook's Wekinator~\cite{fiebrink2010wekinator} takes a different route entirely to the
-same underlying problem of authoring a gesture-to-sound relationship without hand-coding it: a
-performer or designer supplies example gestures and desired outputs, and interactive machine
-learning regresses a mapping from those examples. REMORA's graph is authored explicitly rather than
-learned - every wire and node parameter is placed and readable by the performer, at the cost of
-requiring that placement by hand rather than a handful of training examples. The two approaches are
-complementary rather than competing: a learned Wekinator-style regression could plausibly sit inside
-REMORA as a single opaque node type wired between existing source and sink nodes, trading the
-graph's transparency for the ability to demonstrate a mapping instead of construct it, which we
-leave to future work (\S\ref{sec:limitations}).
+\subsection{Inertial Sensing and Visual Patching in NIME}
+Visual dataflow patching and Laban-derived movement analysis are two long-running, separate
+threads in NIME and related work: one concerned with how a mapping is authored and rewired, the
+other with what expressive qualities a mapping can draw on.
+
+\textit{Max}~\cite{puckette1988patcher} - originated as Puckette's Patcher and has been maintained
+and extended commercially for over three decades, a history Puckette himself traces in
+``Max at Seventeen''~\cite{puckette2002maxatseventeen}. It established the boxes-and-patch-cords
+model of unit generators wired together and rewired live that much of visual audio programming
+still follows.
+
+\textit{Pure Data}~\cite{puckette1996puredata} - Max's open-source sibling, built around the same
+patching model and widely used in NIME instrument-building for its extensibility and free
+licensing.
+
+\textit{VCV Rack}~\cite{belt2017vcvrack} - a community-maintained open-source descendant of the same
+patching idea applied to virtual modular synthesis, letting performers wire together emulated
+Eurorack-style modules on screen.
+
+\textit{EyesWeb}~\cite{camurri2000eyesweb} - Camurri et al.'s system for extracting expressive
+movement qualities from full-body motion in real time, grounded in Laban's Effort theory and built
+for interactive dance and music applications.
+
+\textit{DAMPER}~\cite{bennett2007damper} - Bennett et al.'s force-feedback interface platform, built
+on Laban's four Effort factors as the direct design basis for its haptic response.
+
+Ward et al.~\cite{ward2008thereminists} - use Laban Effort - Flow and the Recuperation phase of
+Effort phrasing in particular - as an analytic lens on theremin performers' movement, to inform how
+future instruments might be designed around it.
+
+Schacher~\cite{schacher2010motiontogesture} - argues for Laban-derived motion/effort elements as a
+systematic basis for gesture-to-sound mapping in interactive dance, rather than an ad hoc or
+purely descriptive analysis tool.
+
+\subsection{Mapping Strategies}
+Beyond specific instruments, a body of work addresses gesture-to-sound mapping as a design problem
+in its own right, independent of any single controller's hardware.
+
+Hunt and Wanderley~\cite{hunt2002mapping} - categorise gesture-to-synthesis mappings by complexity -
+one-to-one, one-to-many, many-to-one - and argue that richer, many-to-many mappings are what make an
+interface feel like an instrument rather than a remote control.
+
+\textit{Wekinator}~\cite{fiebrink2010wekinator} - Fiebrink and Cook's system for authoring a
+gesture-to-sound relationship via interactive machine learning: a performer or designer supplies
+example gestures and desired outputs, and regression learns the mapping, without either party
+writing or wiring an explicit mapping function.
 
 \section{Design and System Architecture}
 
-\subsection*{Initial Design Requirements}
-Five requirements shaped the design from the outset, chosen to keep the instrument performable
-rather than merely functional on a workbench:
+\subsection{Initial Design Requirements}
+Five requirements shaped the design from the outset, chosen to keep the instrument performable:
 \begin{itemize}
     \item \textbf{Full-body, swingable staff form factor.} Not a handheld controller: the instrument
-must support the reach, weight, and two-handed grip of an actual b\^o, not a miniaturised stand-in
-for one.
+must support the reach, weight, and two-handed grip of an actual b\^o - roughly 1.5\,m long - not a
+miniaturised stand-in for one.
     \item \textbf{Wireless sensing during performance.} A cable is acceptable only for charging
 between sets; nothing should tether the performer to a fixed point on stage.
     \item \textbf{Live-editable mapping.} Switching or rewiring the mapping graph must not interrupt
@@ -236,7 +219,7 @@ not lagging behind it, which bounds how much time sensing, transport, and synthe
 allowed to take.
 \end{itemize}
 
-\subsection*{Architecture Overview}
+\subsection{Architecture Overview}
 REMORA's architecture has two parts, matching the physical split between staff and host: firmware
 handles sensing and transport, and the plugin handles everything downstream of the incoming Open
 Sound Control (OSC) stream, from calibration through to the audio it produces. Figure~\ref{fig:architecture} lays out that split directly,
@@ -276,7 +259,7 @@ reception-to-synthesis pipeline on the host.
 
 \section{Implementation}
 
-\subsection*{The Build}
+\subsection{The Build}
 The sensor unit sits in a small OpenSCAD-parametrised enclosure, sized to the b\^o's diameter rather
 than assuming a fixed one. Because calibration is mount-agnostic, the enclosure can be placed
 anywhere along the staff; in practice it is usually mounted near one extremity, out of the way of
@@ -293,7 +276,7 @@ electronics in place so nothing shifts under swing.
   zip ties.
 \end{center}
 
-\subsection*{Hardware}
+\subsection{Hardware}
 Inside the enclosure, a SparkFun ESP32-S2 Thing Plus reads a 9-degrees-of-freedom (9-DOF) MPU-9250
 IMU over the Inter-Integrated Circuit (I2C) bus at 100~Hz and packs orientation, acceleration, and
 gyroscope readings into an OSC packet sent over the User Datagram Protocol (UDP) on port 8000. The
@@ -310,11 +293,11 @@ single pairing step at the cost of the range and interference sensitivity Discus
   battery, wired as described in Hardware.
 \end{center}
 
-\subsection*{Software: Calibration and Motion Mathematics}
+\subsection{Software: Calibration and Motion Mathematics}
 \textit{Every equation below comes straight from the running code, each one is tagged with the
 function it lives in.}
 
-\subsubsection*{Orientation and Calibration}
+\subsubsection{Orientation and Calibration}
 
 \textbf{Rotation.} Orientation is tracked as a unit quaternion (no gimbal lock); rotating $v$ by $q$
 gives $v' = q\,v\,q^{-1}$, with $q^{-1}$ the conjugate. Euler angles are derived only once, at the
@@ -368,7 +351,7 @@ the staff.
 \coderef{\texttt{REMORAProcessor::getCalibratedQuat}}
 \end{flushright}
 
-\subsubsection*{Motion Feature Extraction}
+\subsubsection{Motion Feature Extraction}
 
 \textit{Everything below runs once per received packet, inside the shared analyzer that every
 mapping graph reads from - so no individual mapping repeats this work.} The smoothing rates,
@@ -504,7 +487,7 @@ false triggers during forceful spins (too low) against missed soft stabs (too hi
 been swept against recorded data; Discussion returns to it alongside the missing perceptual
 evaluation.
 
-\subsection*{Software: Mapping Architecture}
+\subsection{Software: Mapping Architecture}
 \textit{\texttt{NodeGraph}/\texttt{NodeTypeRegistry}: four node categories - Source (IMU,\\
 Laban features), Math (arithmetic, shaping, dynamics, lookup tables), Sink (synth parameters), and
 Display (resizable, performer-facing live monitors, \S\ref{sec:live-patching}) - each a
@@ -513,7 +496,7 @@ Extensible Markup Language (XML) as
 a preset; \texttt{GraphMappingStrategy} makes the graph the only mapping path the synth talks to,
 with no separate hand-written path.}
 
-\subsubsection*{Graph Evaluation and Primitive Library}
+\subsubsection{Graph Evaluation and Primitive Library}
 
 \textbf{DAG evaluation.} A patch is a directed graph of typed nodes; \texttt{NodeGraph::connect}
 provisionally adds an edge and recomputes a topological order with Kahn's algorithm via
@@ -531,18 +514,18 @@ re-sorting on the audio thread.
 \textbf{Primitive vocabulary.} Every node type is one small pure function (or, for stateful ones, a
 function plus a scratch struct): arithmetic (add/subtract/multiply/divide/abs/max/min/equals),
 shaping (mapRange, clamp, threshold, crossfade, quantizeSteps, sine, atan2, semitonesToHz), lookup
-tables (a general 1-D table and the 3-boolean-selector table used by the Azimut root table below),
+tables (a general 1-D table and the 3-boolean-selector table used by the \preset{Azimut} root table below),
 and stateful dynamics (one-pole smoother, leaky integrator, retrigger envelope, hysteresis step,
 derivative, latched smoother).
 \begin{flushright}
 \coderef{\texttt{Graph::buildAllNodes}}
 \end{flushright}
 
-\subsection*{Software: Named Mappings as Graph Presets}
+\subsection{Software: Named Mappings as Graph Presets}
 \label{sec:azimut-deep-dive}
-Table~2 shows the generalisation claim directly: each of the eleven mappings - Simple, Lead+Drone,
-Spin Filter, Bowed Chord, the Azimut family (facing-based root table, spin-count filter sweep, axial
-thrust transients), Martial Effort/Momentum, Spin Voices, and Speed Gate - is built once via \texttt{GraphBuilder}
+Table~2 shows the generalisation claim directly: each of the eleven mappings - \preset{Simple}, \preset{Lead+Drone},
+\preset{Spin Filter}, \preset{Bowed Chord}, the \preset{Azimut} family (facing-based root table, spin-count filter sweep, axial
+thrust transients), \preset{Martial Effort}/\preset{Martial Momentum}, \preset{Spin Voices}, and \preset{Speed Gate} - is built once via \texttt{GraphBuilder}
 and is structurally just a particular wiring of the same node catalog. Counts are read directly off
 the constructed graphs (\texttt{NodeGraph::nodes()}).
 \begin{center}
@@ -569,7 +552,7 @@ Spin Voices      & 99 & 34 & 36  & 29 \\
 Across all eleven presets, only 63 of the catalog's 79 registered node types are ever
 instantiated - 42 of those source/math primitives, the rest sink writers. A full development cycle
 of hand-built mapping design, spanning a solo tilt-controlled mapping through the fully Laban-driven
-Martial and Speed Gate patches, lands inside less than two-thirds of an already small catalog; no preset
+\preset{Martial} and \preset{Speed Gate} patches, lands inside less than two-thirds of an already small catalog; no preset
 needed a node type invented specifically for it. That result should be read carefully, though: the
 catalog itself was not fixed in advance and then tested against eleven independent designs - it grew
 alongside the eleven mappings, several of which were the reason a given primitive was added in the
@@ -583,7 +566,7 @@ primitive is an open question the current evidence does not settle.
 \coderef{\texttt{NodeGraph::nodes}} \coderef{\texttt{Graph::Presets::AllPresets}}
 \end{flushright}
 
-\subsubsection*{Azimut-Specific Transformations}
+\subsubsection{Azimut-Specific Transformations}
 \textit{Shared by every Azimut-family preset.}
 
 \textbf{Root-note table.} The spin-plane/direction/facing root-note table above is not an if/else
@@ -615,7 +598,7 @@ primitive defined earlier.
 \coderef{\texttt{buildSpinCountLpfHz}}
 \end{flushright}
 
-\subsection*{Graphical Interface: Live Patching as Performance Practice}
+\subsection{Graphical Interface: Live Patching as Performance Practice}
 \label{sec:live-patching}
 The node-graph editor is the instrument's primary authoring surface, not a debug tool: a pannable,
 zoomable canvas on which each node renders as a coloured card - green for Source,
@@ -646,14 +629,14 @@ the sound it produces.
   connected by Bézier-rendered wires.
 \end{center}
 
-\subsection*{Software: Synthesis Engine}
+\subsection{Software: Synthesis Engine}
 Every mapping graph, regardless of preset, writes into the same \texttt{BoStaffSynth}: a shared
 four-voice additive engine exposing one mapping-agnostic parameter surface (gain, drive, noise,
 filter cutoff, pan, reverb send) that sink nodes address by name. Keeping the synthesis engine
 itself ignorant of which preset is driving it is what lets a graph be swapped or rewired live
 without reinitialising audio.
 
-\subsubsection*{Additive Synthesis Engine} \
+\subsubsection{Additive Synthesis Engine} \
 \begin{flushright}
 \coderef{\texttt{BoStaffSynth::processBlock}}
 \coderef{\texttt{SynthVoice::tick}}
@@ -710,18 +693,18 @@ REMORA's architecture did not arrive fully formed; the node-graph engine describ
 \S\ref{sec:azimut-deep-dive} is the result of three iterations, summarised below, in which
 generalisation followed rather than preceded hand-built mapping design.
 
-\subsection*{Iteration 1: Sensing Pipeline}
+\subsection{Iteration 1: Sensing Pipeline}
 The first iteration was firmware reading the IMU and streaming OSC, a minimal receiver on the
 plugin side, and a single hardcoded tilt-to-pitch mapping. The goal was purely to prove the
 sensor-to-sound pipeline end to end, not to explore expressivity.
 
-\subsection*{Iteration 2: Hand-Built Mapping Library}
-The eleven named mappings - Simple, Bowed Chord, Lead+Drone, Spin Filter, Martial Effort/Momentum, Azimut and
-its variants, Speed Gate, Spin Voices - were then built one at a time as their own C++ classes, each
+\subsection{Iteration 2: Hand-Built Mapping Library}
+The eleven named mappings - \preset{Simple}, \preset{Bowed Chord}, \preset{Lead+Drone}, \preset{Spin Filter}, \preset{Martial Effort}/\preset{Martial Momentum}, \preset{Azimut} and
+its variants, \preset{Speed Gate}, \preset{Spin Voices} - were then built one at a time as their own C++ classes, each
 adding a new gesture vocabulary (chords, Laban Effort, world-frame facing, transient detection) on
 top of the shared \texttt{StaffMotionAnalyzer}.
 
-\subsection*{Iteration 3: Generalising into the Node Graph}
+\subsection{Iteration 3: Generalising into the Node Graph}
 Once eleven mappings existed as separate classes, a pattern became visible: every one of them was
 really just arithmetic, shaping, and a handful of stateful primitives wired together in a fixed
 pattern. The third iteration rebuilt the mapping layer as the small generic graph engine described
@@ -757,7 +740,7 @@ assumption, not measurement \\
 \end{tabular}
 \end{center}
 
-\subsection*{Evidence from the Implemented System}
+\subsection{Evidence from the Implemented System}
 Claims (\ref{claim:dag}), (\ref{claim:presets}), and (\ref{claim:calibration}) are, at present, supported by the system as built and run by the author
 during development rather than by an outside observer. The graph evaluator provisionally adds and
 removes edges, recomputes a topological order, and drives synthesis every audio block without
@@ -772,7 +755,7 @@ Claim (\ref{claim:facing}) is the weakest of the four on current evidence: the f
 every development session, but "correctly" here means "matched the author's own sense of where the
 staff was pointing," which is not a substitute for a logged, ground-truth comparison.
 
-\subsection*{Planned Performer Evaluation}
+\subsection{Planned Performer Evaluation}
 To test the parts of these claims that are inherently about performer experience rather than code
 behaviour - whether the graph is rewireable by someone other than its author, whether a
 Laban-driven preset reads as more physically legible than a simple one, whether the node picker
@@ -788,7 +771,7 @@ speak to a specific claim in Table~3 rather than to general usability. This prot
 is what we currently have; running it, with informed consent handled as described in the Ethical
 Statement, is the immediate next step for this work.
 
-\subsection*{Current Evidentiary Limitations}
+\subsection{Current Evidentiary Limitations}
 To be explicit: no human-subject data has been collected for this instrument. Claims (\ref{claim:dag}), (\ref{claim:presets}), and
 (\ref{claim:calibration}) currently rest on implementation-level evidence - the graph's own structure and behaviour under
 the author's use - not on an independent performer's experience. Claim (\ref{claim:presets})'s catalog was grown
@@ -800,7 +783,7 @@ run.
 
 \section{Discussion}
 
-\subsection*{Advantages and Limitations}
+\subsection{Advantages and Limitations}
 \label{sec:limitations}
 The generalisation into a graph buys expressiveness and shareability - eleven previously hand-coded
 mappings collapse into presets of one small dataflow language - at the cost of a patching step that
@@ -856,7 +839,7 @@ cutoff voltage, reported with variance rather than a single number - is needed b
 claim can be made, and before the battery can be sized with confidence for a full day of
 back-to-back performances without a recharge.
 
-\subsection*{Future Improvements}
+\subsection{Future Improvements}
 
 \textbf{Wireless transport.} The hotspot-join scheme in \S\ref{sec:limitations} could be replaced
 with ESP-NOW: the staff-mounted ESP32 would send its sensor packets directly, peer-to-peer, to a
@@ -877,7 +860,7 @@ than being one more fixed gesture-to-sound mapping: the same small dataflow lang
 math, and sink node primitives, evaluated as a DAG once per audio block and rewireable without
 recompiling - is expressive enough to reproduce all eleven mapping strategies developed over the
 course of the project as ordinary, live-editable presets (Table~2), from a minimal tilt-to-pitch
-patch to the fully Laban-driven Martial and Speed Gate mappings. That claim is grounded in an explicit,
+patch to the fully Laban-driven \preset{Martial} and \preset{Speed Gate} mappings. That claim is grounded in an explicit,
 code-traceable account of mount-agnostic calibration, orientation tracking, and movement-quality
 extraction (\S\ref{sec:azimut-deep-dive}), not asserted in the abstract alone.
 
@@ -909,9 +892,9 @@ fairness commitment in the Ethical Statement below.
 with swinging a b\^o staff; it is not currently adapted for performers who cannot support or swing a
 1--1.5\,kg full-length staff, and no alternative mounting or reduced-effort variant has been
 explored. This is a real limitation of the instrument's physical form, not merely of the present
-build. That said, the skill barrier is not uniform across the preset catalog: presets such as Simple
+build. That said, the skill barrier is not uniform across the preset catalog: presets such as \preset{Simple}
 ask only for basic tilt and roll and do not assume any prior staff-handling technique, while the
-Laban-driven presets (Martial, Azimut) reward accumulated skill with the instrument's physical
+Laban-driven presets (\preset{Martial}, \preset{Azimut}) reward accumulated skill with the instrument's physical
 vocabulary. Because every preset is authored in the same shared patching language
 (\S\ref{sec:azimut-deep-dive}), a facilitator or performer can also build or select a reduced-effort
 mapping for someone without a staff background, rather than being limited to the eleven built-in
