@@ -1,3 +1,4 @@
+![REMORA logo](Assets/logo.svg)
 # REMORA Plugin
 ### Real-time Expressive Motion to Output Routing Audio
 
@@ -10,6 +11,7 @@ A real-time, dynamic **JUCE-based audio plugin** (VST3 and Standalone) engineere
 * **Preset Management:** Create, save, and load node graphs as presets from a preset folder you configure once (via the **Options** button) and that persists across sessions - your own patches live right alongside the built-in mappings.
 * **Integrated Synth Engine:** Features a built-in algorithmic synthesis framework (`BoStaffSynth`) designed specifically for performance interaction.
 * **Visual Diagnostic Windows:** Includes dedicated GUI interfaces for viewing live raw IMU data streams, debugging console logs, and visually monitoring spatial movements.
+* **Scalable Branding:** The editor header renders the REMORA logo from an embedded SVG (`Assets/logo.svg`), tinted to match the UI palette, so it stays crisp at any window size instead of scaling a bitmap.
 
 ---
 

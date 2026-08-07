@@ -9,6 +9,11 @@
 REMORAEditor::REMORAEditor(REMORAProcessor &p)
     : AudioProcessorEditor(&p), processor(p) {
   debug.print.blue("Plugin Editor created.");
+
+  if (auto svgXml = juce::XmlDocument::parse(juce::String(
+          BinaryData::logo_svg, static_cast<size_t>(BinaryData::logo_svgSize)))) {
+    logo = juce::Drawable::createFromSVG(*svgXml);
+  }
   setResizable(true, true);
   setResizeLimits(780, 450, 4096, 4096);
   setSize(780, 780);
@@ -147,11 +152,12 @@ void REMORAEditor::paint(juce::Graphics &g) {
   const int numRows = 4;
   const int itemH = (topSpace - padding * (numRows + 1)) / numRows;
 
-  juce::Image logo = juce::ImageCache::getFromMemory(BinaryData::logo_png,
-                                                     BinaryData::logo_pngSize);
-  if (logo.isValid()) {
-    g.drawImageWithin(logo, w - padding - 40, padding, 40, itemH,
-                      juce::RectanglePlacement::centred);
+  const int logoW = 64;
+  if (logo) {
+    logo->drawWithin(g,
+                     {static_cast<float>(w - padding - logoW), static_cast<float>(padding),
+                      static_cast<float>(logoW), static_cast<float>(itemH)},
+                     juce::RectanglePlacement::centred, 1.0f);
   }
 
   g.setColour(Palette::border);
@@ -161,7 +167,7 @@ void REMORAEditor::paint(juce::Graphics &g) {
 
   const bool isReceivingData = processor.getMessagesPerSecond() > 0.f;
   g.setColour(isReceivingData ? Palette::green : Palette::red);
-  g.fillEllipse(static_cast<float>(w - padding - 40 - padding - 8),
+  g.fillEllipse(static_cast<float>(w - padding - logoW - padding - 8),
                 padding + itemH / 2.0f - 4.0f, 8.f, 8.f);
 
   g.setColour(Palette::border);

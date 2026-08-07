@@ -54,5 +54,7 @@ private:
   BoStaffVisualizer boStaffVisualizer;
   CalibrationOverlay calibrationOverlay;
 
+  std::unique_ptr<juce::Drawable> logo;
+
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(REMORAEditor)
 };

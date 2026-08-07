@@ -14,12 +14,12 @@ juce_add_plugin(REMORA
     PRODUCT_NAME              "REMORA"
     COMPANY_NAME              "NIME Project"
     BUNDLE_ID                 com.NIMEProject.REMORA
-    ICON_BIG                  "Assets/logo.png"
+    ICON_BIG                  "Assets/logo.svg"
     VST3_CATEGORIES           Tools
 )
 
 juce_generate_juce_header(REMORA)
-juce_add_binary_data(REMORAData SOURCES Assets/logo.png)
+juce_add_binary_data(REMORAData SOURCES Assets/logo.svg)
 
 file(GLOB_RECURSE SOURCE_FILES "Source/*.cpp" "Source/*.h")
 target_sources(REMORA PRIVATE ${SOURCE_FILES})
