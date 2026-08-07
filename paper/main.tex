@@ -14,7 +14,7 @@
 \setcctype{by}
 \acmConference[NIME '27]{International Conference on New Interfaces for Musical Expression}{2027}{}
 
-\title{REMORA: Real-time Expressive Motion to Output Routing Audio}
+\title{\texorpdfstring{\vspace*{-50pt}\includegraphics[width=0.15\linewidth]{Assets/logo.pdf}\\[4pt]}{}REMORA: Real-time Expressive Motion to Output Routing Audio}
 
 \author{Timothée Dravet}
 \affiliation{%
@@ -220,9 +220,10 @@ allowed to take.
 \end{itemize}
 
 \subsection{Architecture Overview}
-REMORA's architecture has two parts, matching the physical split between staff and host: firmware
-handles sensing and transport, and the plugin handles everything downstream of the incoming Open
-Sound Control (OSC) stream, from calibration through to the audio it produces. Figure~\ref{fig:architecture} lays out that split directly,
+REMORA's architecture has two parts: firmware handles sensing and transport,
+and the plugin handles everything downstream of the incoming Open
+Sound Control (OSC) stream, from calibration through to the audio it produces.
+Figure~\ref{fig:architecture} lays out that split directly,
 left to right: IMU sampling and OSC transmission on the staff, feeding the plugin's own
 reception-to-synthesis pipeline on the host.
 
@@ -260,13 +261,10 @@ reception-to-synthesis pipeline on the host.
 \section{Implementation}
 
 \subsection{The Build}
-The sensor unit sits in a small OpenSCAD-parametrised enclosure, sized to the b\^o's diameter rather
-than assuming a fixed one. Because calibration is mount-agnostic, the enclosure can be placed
-anywhere along the staff; in practice it is usually mounted near one extremity, out of the way of
-the performer's grip. It is secured with three zip ties passing through channels in the
-casing - no adhesive or drilling - so it can be repositioned or removed freely. The same zip ties
-hold the two enclosure halves closed, together with screws that additionally clamp the internal
-electronics in place so nothing shifts under swing.
+The sensor unit sits in a small OpenSCAD-parametrised enclosure, sized to the b\^o's diameter.
+Because calibration is mount-agnostic, it can be placed anywhere along
+the staff - in practice usually near one extremity, out of the performer's grip - and is secured
+with zip ties rather than adhesive or drilling, so it can be repositioned or removed freely.
 \begin{center}
   \includegraphics[width=0.6\linewidth]{Assets/openscad_casing.png}
 
@@ -297,7 +295,7 @@ single pairing step at the cost of the range and interference sensitivity Discus
 \textit{Every equation below comes straight from the running code, each one is tagged with the
 function it lives in.}
 
-\subsubsection{Orientation and Calibration}
+\subsubsection*{Orientation and Calibration}
 
 \textbf{Rotation.} Orientation is tracked as a unit quaternion (no gimbal lock); rotating $v$ by $q$
 gives $v' = q\,v\,q^{-1}$, with $q^{-1}$ the conjugate. Euler angles are derived only once, at the
@@ -351,7 +349,7 @@ the staff.
 \coderef{\texttt{REMORAProcessor::getCalibratedQuat}}
 \end{flushright}
 
-\subsubsection{Motion Feature Extraction}
+\subsubsection*{Motion Feature Extraction}
 
 \textit{Everything below runs once per received packet, inside the shared analyzer that every
 mapping graph reads from - so no individual mapping repeats this work.} The smoothing rates,
@@ -496,7 +494,7 @@ Extensible Markup Language (XML) as
 a preset; \texttt{GraphMappingStrategy} makes the graph the only mapping path the synth talks to,
 with no separate hand-written path.}
 
-\subsubsection{Graph Evaluation and Primitive Library}
+\subsubsection*{Graph Evaluation and Primitive Library}
 
 \textbf{DAG evaluation.} A patch is a directed graph of typed nodes; \texttt{NodeGraph::connect}
 provisionally adds an edge and recomputes a topological order with Kahn's algorithm via
@@ -566,7 +564,7 @@ primitive is an open question the current evidence does not settle.
 \coderef{\texttt{NodeGraph::nodes}} \coderef{\texttt{Graph::Presets::AllPresets}}
 \end{flushright}
 
-\subsubsection{Azimut-Specific Transformations}
+\subsubsection*{Azimut-Specific Transformations}
 \textit{Shared by every Azimut-family preset.}
 
 \textbf{Root-note table.} The spin-plane/direction/facing root-note table above is not an if/else
@@ -636,7 +634,7 @@ filter cutoff, pan, reverb send) that sink nodes address by name. Keeping the sy
 itself ignorant of which preset is driving it is what lets a graph be swapped or rewired live
 without reinitialising audio.
 
-\subsubsection{Additive Synthesis Engine} \
+\subsubsection*{Additive Synthesis Engine} \
 \begin{flushright}
 \coderef{\texttt{BoStaffSynth::processBlock}}
 \coderef{\texttt{SynthVoice::tick}}
