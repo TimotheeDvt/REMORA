@@ -128,6 +128,7 @@ single-IMU, single-staff design in \S\ref{sec:limitations} means the instrument 
 second performer's motion, and no mapping in the current catalog was designed with an ensemble
 context in mind.
 
+\newpage
 \section{Related Work}
 
 \subsection{Staff, Rod, and Baton DMIs}
@@ -229,26 +230,26 @@ reception-to-synthesis pipeline on the host.
 
 \begin{center}
 \begin{tikzpicture}[
-  box/.style={draw, rounded corners, align=center, text width=2.1cm, minimum height=0.7cm,
+  box/.style={draw, rounded corners, align=center, text width=2.1cm, minimum height=0.55cm,
     font=\small\bfseries, inner sep=2pt},
   sub/.style={draw, align=center, text width=1.9cm, minimum height=0.45cm, font=\scriptsize,
-    inner sep=2pt},
+    inner sep=1.5pt},
   arr/.style={-{Latex[length=1.5mm]}}
 ]
 \node[box] (staff) {Firmware};
-\node[sub, below=1mm of staff] (collect) {IMU sampling};
-\node[sub, below=1.5mm of collect] (send) {OSC transmission};
+\node[sub, below=0.6mm of staff] (collect) {IMU sampling};
+\node[sub, below=0.8mm of collect] (send) {OSC transmission};
 \draw[arr] (collect) -- (send);
 
 \node[box, right=26mm of staff] (host) {REMORA plugin};
 \draw[arr] (staff) -- (host)
-  node[midway, above, font=\scriptsize, align=center] {Wi-Fi / UDP / OSC\\(port 8000)};
+  node[midway, above, font=\scriptsize, align=center] {Wi-Fi / UDP / OSC};
 
-\node[sub, below=1mm of host, xshift=-1.03cm] (recv) {OSC reception};
+\node[sub, below=0.6mm of host, xshift=-1.03cm] (recv) {OSC reception};
 \node[sub, right=1.5mm of recv] (calib) {Calibration};
 \draw[arr] (recv) -- (calib);
-\node[sub, below=1.5mm of calib] (graph) {Graph evaluation};
-\node[sub, below=1.5mm of recv] (synth) {Synthesis};
+\node[sub, below=0.8mm of calib] (graph) {Graph evaluation};
+\node[sub, below=0.8mm of recv] (synth) {Synthesis};
 \draw[arr] (calib) -- (graph);
 \draw[arr] (graph) -- (synth);
 \end{tikzpicture}
@@ -258,6 +259,7 @@ reception-to-synthesis pipeline on the host.
 \textbf{Figure \thefigure: REMORA's signal flow}, from IMU sampling on the staff to synthesis on the host.
 \end{center}
 
+\newpage
 \section{Implementation}
 
 \subsection{The Build}
@@ -277,7 +279,7 @@ with zip ties rather than adhesive or drilling, so it can be repositioned or rem
 \subsection{Hardware}
 Inside the enclosure, a SparkFun ESP32-S2 Thing Plus reads a 9-degrees-of-freedom (9-DOF) MPU-9250
 IMU over the Inter-Integrated Circuit (I2C) bus at 100~Hz and packs orientation, acceleration, and
-gyroscope readings into an OSC packet sent over the User Datagram Protocol (UDP) on port 8000. The
+gyroscope readings into an OSC packet sent over the UDP on port 8000. The
 firmware joins the host
 computer's own Wi-Fi hotspot directly rather than a dedicated access point, which keeps setup to a
 single pairing step at the cost of the range and interference sensitivity Discussion returns to
@@ -292,8 +294,8 @@ single pairing step at the cost of the range and interference sensitivity Discus
 \end{center}
 
 \subsection{Software: Calibration and Motion Mathematics}
-\textit{Every equation below comes straight from the running code, each one is tagged with the
-function it lives in.}
+\textit{Every equation below comes straight from the running code (optimized in the implementation),
+each tagged with the function it lives in.}
 
 \subsubsection*{Orientation and Calibration}
 
@@ -473,17 +475,15 @@ acceleration crosses zero as its magnitude passes $1.5\text{g}$, gated against f
 \coderef{\texttt{detectAxialThrustPeaks}}
 \end{flushright}
 
-\textbf{Sensitivity of tuned constants.} None of the constants above were fit to data; each biases the
-instrument in a specific direction. The gravity smoother's $\alpha{=}0.10$ trades under-reporting fast
+\textbf{Sensitivity of tuned constants.} Each constant above biases the instrument in a specific
+direction. The gravity smoother's $\alpha{=}0.10$ trades under-reporting fast
 motion (too high) against a lagging estimate that produces a spurious motion blip when the staff is
 set down (too low). The spin-axis smoother's $\alpha{=}0.35$ plays the same role for Laban Space:
 higher reads axis noise as ``inconsistent'' too readily, lower reads a genuinely wandering spin as
 falsely focused. The facing hysteresis factor ($1.15$) sets the $\approx\!48^\circ/42^\circ$
 dead-band; $1.0$ reintroduces boundary flicker, while a much larger factor makes facing changes
 sluggish to register. The thrust detector's $1.5\text{g}$ threshold and $90^\circ/\text{s}$ gate trade
-false triggers during forceful spins (too low) against missed soft stabs (too high). None of this has
-been swept against recorded data; Discussion returns to it alongside the missing perceptual
-evaluation.
+false triggers during forceful spins (too low) against missed soft stabs (too high).
 
 \subsection{Software: Mapping Architecture}
 \textit{\texttt{NodeGraph}/\texttt{NodeTypeRegistry}: four node categories - Source (IMU,\\
