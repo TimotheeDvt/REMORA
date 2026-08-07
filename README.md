@@ -1,3 +1,4 @@
+![REMORA logo](software/Assets/logo.svg)
 # Remora - A Motion-Controlled Musical Instrument
 
 **Remora** is a digital musical instrument built around a martial arts staff (bô) augmented with an IMU sensor. Physical gestures such as spinning, tilting, striking, sweeping are translated in real time into expressive audio synthesis. The name *NIME* in the codebase stands for **New Instrument for Musical Expression**, and reflects the instrument design philosophy.
@@ -48,7 +49,7 @@ The two communicate over a local Wi-Fi network using UDP/OSC on port 8000.
 │   ├── IDEAS.md                # Scratchpad of in-progress mapping ideas
 │   ├── JUCE/                   # JUCE library (cloned locally, not tracked here)
 │   ├── Assets/
-│   │   └── logo.png
+│   │   └── logo.svg
 │   └── Source/
 │       ├── PluginProcessor.{h,cpp}   # REMORAProcessor: calibration, OSC bridge
 │       ├── PluginEditor.{h,cpp}      # REMORAEditor: main UI
