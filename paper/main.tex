@@ -686,28 +686,17 @@ signed offset applied to it, giving the equal-tempered result $f$.
 \coderef{\texttt{convertSemitonesToHertz}}
 \end{flushright}
 
-\section{Development Iterations}
-REMORA's architecture did not arrive fully formed; the node-graph engine described in
-\S\ref{sec:azimut-deep-dive} is the result of three iterations, summarised below, in which
-generalisation followed rather than preceded hand-built mapping design.
-
-\subsection{Iteration 1: Sensing Pipeline}
-The first iteration was firmware reading the IMU and streaming OSC, a minimal receiver on the
-plugin side, and a single hardcoded tilt-to-pitch mapping. The goal was purely to prove the
-sensor-to-sound pipeline end to end, not to explore expressivity.
-
-\subsection{Iteration 2: Hand-Built Mapping Library}
-The eleven named mappings - \preset{Simple}, \preset{Bowed Chord}, \preset{Lead+Drone}, \preset{Spin Filter}, \preset{Martial Effort}/\preset{Martial Momentum}, \preset{Azimut} and
-its variants, \preset{Speed Gate}, \preset{Spin Voices} - were then built one at a time as their own C++ classes, each
-adding a new gesture vocabulary (chords, Laban Effort, world-frame facing, transient detection) on
-top of the shared \texttt{StaffMotionAnalyzer}.
-
-\subsection{Iteration 3: Generalising into the Node Graph}
-Once eleven mappings existed as separate classes, a pattern became visible: every one of them was
+\subsection{Development Iterations}
+The node-graph engine above did not arrive fully formed; it is the result of three iterations in
+which generalisation followed rather than preceded hand-built mapping design. The first was
+firmware reading the IMU and streaming OSC into a minimal receiver, driving a single hardcoded
+tilt-to-pitch mapping, purely to prove the sensor-to-sound pipeline end to end. The second built
+the eleven named mappings one at a time as their own C++ classes, each adding a new gesture
+vocabulary (chords, Laban Effort, world-frame facing, transient detection) on top of the shared
+\texttt{StaffMotionAnalyzer} - at which point a pattern became visible: every one of them was
 really just arithmetic, shaping, and a handful of stateful primitives wired together in a fixed
 pattern. The third iteration rebuilt the mapping layer as the small generic graph engine described
-in \S\ref{sec:azimut-deep-dive}, porting all eleven prior mappings over as presets rather than
-deleting them.
+above, porting all eleven prior mappings over as presets rather than deleting them.
 
 \section{Evaluation}
 \label{sec:evaluation}
@@ -739,19 +728,23 @@ assumption, not measurement \\
 \end{center}
 
 \subsection{Evidence from the Implemented System}
-Claims (\ref{claim:dag}), (\ref{claim:presets}), and (\ref{claim:calibration}) are, at present, supported by the system as built and run by the author
-during development rather than by an outside observer. The graph evaluator provisionally adds and
-removes edges, recomputes a topological order, and drives synthesis every audio block without
-recompilation or an audio dropout - this is exercised every time a preset is loaded or a wire is
-changed during development, not a claim about untested code. Table~2's per-preset node counts are
+Claims (\ref{claim:dag}), (\ref{claim:presets}), and (\ref{claim:calibration}) are, at present, supported by implementation-level
+evidence - the system as built and run by the author during development - rather than by an
+independent observer. The graph evaluator provisionally adds and removes edges, recomputes a
+topological order, and drives synthesis every audio block without recompilation or an audio dropout,
+exercised every time a preset is loaded or a wire is changed. Table~2's per-preset node counts are
 read directly off the constructed graphs, so claim (\ref{claim:presets})'s "eleven mappings, one catalog" result is a
-property of the code, not a reported impression. Claim (\ref{claim:calibration})'s mount-independence follows from the
-two-stage calibration derivation (\S\ref{sec:azimut-deep-dive}) holding for any physically valid
-sensor placement, which is a property we can state mathematically but have not yet stress-tested
-by physically remounting the enclosure at several positions and re-running calibration at each.
-Claim (\ref{claim:facing}) is the weakest of the four on current evidence: the facing heuristic runs correctly in
-every development session, but "correctly" here means "matched the author's own sense of where the
-staff was pointing," which is not a substitute for a logged, ground-truth comparison.
+property of the code, not a reported impression - though the catalog grew alongside those eleven
+mappings, so its sufficiency for a mapping designed independently of the project remains open
+(\S\ref{sec:azimut-deep-dive}). Claim (\ref{claim:calibration})'s mount-independence follows from the two-stage calibration
+derivation holding for any physically valid sensor placement, a property we can state
+mathematically but have not yet stress-tested by remounting the enclosure at several positions.
+Claim (\ref{claim:facing}) is the weakest of the four: the facing heuristic runs correctly in every development
+session, but "correctly" here means matching the author's own sense of where the staff was
+pointing, not a logged, ground-truth comparison - drift is bounded to short sessions by assumption,
+not measurement. No human-subject data has been collected for this instrument, and none of the four
+claims should be read as validated by user testing until the protocol below, or something like it,
+has actually been run.
 
 \subsection{Planned Performer Evaluation}
 To test the parts of these claims that are inherently about performer experience rather than code
@@ -768,16 +761,6 @@ reason, and any node-picker search difficulties observed or reported. Each measu
 speak to a specific claim in Table~3 rather than to general usability. This protocol - not results -
 is what we currently have; running it, with informed consent handled as described in the Ethical
 Statement, is the immediate next step for this work.
-
-\subsection{Current Evidentiary Limitations}
-To be explicit: no human-subject data has been collected for this instrument. Claims (\ref{claim:dag}), (\ref{claim:presets}), and
-(\ref{claim:calibration}) currently rest on implementation-level evidence - the graph's own structure and behaviour under
-the author's use - not on an independent performer's experience. Claim (\ref{claim:presets})'s catalog was grown
-alongside the eleven mappings it reproduces, so its sufficiency for a mapping designed independently
-of the project remains open (\S\ref{sec:azimut-deep-dive}). Claim (\ref{claim:facing}) is bounded to short sessions
-by assumption pending a measurement that has not yet been made. None of the four claims should be
-read as validated by user testing until the protocol above, or something like it, has actually been
-run.
 
 \section{Discussion}
 
@@ -804,24 +787,19 @@ magnetometer fusion; heading is deliberately kept relative to the calibration po
 magnetic north, since the magnetometer is unreliable this close to the staff's own electronics and
 typical stage rigs. That keeps facing free of magnetic interference, but it also means REMORA has no
 absolute reference at all - any yaw drift accumulated since calibration is invisible and
-uncorrected, and the facing feature is only ever as good as that session's calibration. We have not
-measured drift quantitatively - no ground-truth heading reference has been logged alongside a
-session - so rather than report a number we do not have, we explicitly bound claim (\ref{claim:facing}) to session
-lengths on the order of tens of minutes of active play from a single calibration, matching the
-durations used during development. That bound is an assumption carried over from informal use
-during development, not a measured guarantee: nothing in the current implementation prevents drift
-from growing unboundedly over a longer, uninterrupted rehearsal or set, and no
-re-calibration-on-demand gesture currently exists to correct it mid-performance. No quantitative or
-perceptual evaluation of facing or calibration accuracy has been carried out yet; it is one of the
-open items the planned performer evaluation (\S\ref{sec:evaluation}) does not yet address either,
-since ground-truth heading logging would need to be added to the protocol first.
+uncorrected, and the facing feature is only ever as good as that session's calibration
+(\S\ref{sec:evaluation} bounds claim~\ref{claim:facing} to session lengths of tens of minutes on this basis, not a
+measured guarantee). Nothing in the current implementation prevents drift from growing unboundedly
+over a longer, uninterrupted rehearsal or set, and no re-calibration-on-demand gesture currently
+exists to correct it mid-performance; ground-truth heading logging would need to be added to the
+planned performer evaluation before that bound could be tightened.
 
 \textbf{Graph interface complexity.} The node-graph editor is expressive for whoever is building or
 modifying a mapping, but it exposes that same complexity to a performer who only wants to select and
-play an existing preset: there is no simplified performance-only view that hides the graph until
-it's asked for. As it stands, the interface serves instrument-builders and patch-authors more
-directly than first-time performers, and whether that cost is acceptable is exactly the kind of
-question the still-missing formal user study would need to answer.
+play an existing preset - there is no simplified performance-only view that hides the graph until
+asked for. The interface currently serves instrument-builders and patch-authors more directly than
+first-time performers, and whether that cost is acceptable is a question the still-missing user
+study would need to answer.
 
 \textbf{Remaining software robustness gaps.} A few implementation-level issues would need attention
 before REMORA is exposed to inputs beyond the author's own testing: incoming OSC messages are read
@@ -830,12 +808,11 @@ packets are not detected as such, and the handoff of a sensor snapshot from the 
 the audio thread retries in a tight spin loop rather than degrading gracefully under contention.
 
 \textbf{Hardware.} The enclosure carries a 2000\,mAh LiPo battery, sized to comfortably outlast a
-single rehearsal or set at the firmware's steady 100\,Hz sampling/transmission rate based on the
-ESP32-S2's typical current draw, but runtime under REMORA's actual firmware has not been measured:
-no discharge test has been logged to date. That measurement - ideally several runs to a defined
-cutoff voltage, reported with variance rather than a single number - is needed before any runtime
-claim can be made, and before the battery can be sized with confidence for a full day of
-back-to-back performances without a recharge.
+single rehearsal or set at the firmware's steady 100\,Hz sampling rate, but runtime under REMORA's
+actual firmware has not been measured: no discharge test has been logged to date. That measurement
+- ideally several runs to a defined cutoff voltage, reported with variance - is needed before any
+runtime claim can be made or the battery sized with confidence for a full day of back-to-back
+performances.
 
 \subsection{Future Improvements}
 
@@ -856,21 +833,16 @@ and eventually exposing the node graph itself as a shareable/community patch for
 REMORA is a wireless, IMU-driven b\^o staff instrument, but its contribution is architectural rather
 than being one more fixed gesture-to-sound mapping: the same small dataflow language - source,
 math, and sink node primitives, evaluated as a DAG once per audio block and rewireable without
-recompiling - is expressive enough to reproduce all eleven mapping strategies developed over the
-course of the project as ordinary, live-editable presets (Table~2), from a minimal tilt-to-pitch
-patch to the fully Laban-driven \preset{Martial} and \preset{Speed Gate} mappings. That claim is grounded in an explicit,
-code-traceable account of mount-agnostic calibration, orientation tracking, and movement-quality
-extraction (\S\ref{sec:azimut-deep-dive}), not asserted in the abstract alone.
+recompiling - reproduces all eleven mapping strategies developed over the course of the project as
+ordinary, live-editable presets (Table~2), from a minimal tilt-to-pitch patch to the fully
+Laban-driven \preset{Martial} and \preset{Speed Gate} mappings, grounded in an explicit, code-traceable account of
+calibration, orientation tracking, and movement-quality extraction (\S\ref{sec:azimut-deep-dive}).
 
-What remains uncertain is exactly what \S\ref{sec:evaluation} makes explicit: whether a performer
-other than the author finds the graph rewireable and the Laban-driven presets more legible, whether
-the 63-type primitive catalog holds up against a mapping designed independently of it, and how much
-heading drift accumulates beyond the session lengths used during development are all open questions
-that implementation-level evidence alone cannot settle. The most important next step for this work
-is therefore not another architectural extension but running the performer evaluation protocol
-outlined in \S\ref{sec:evaluation}, so that the claims this paper makes about live-patchable,
-Laban-grounded gestural control can be tested against use by someone other than the instrument's
-own builder.
+What remains uncertain is exactly what \S\ref{sec:evaluation} makes explicit: whether these claims hold for a
+performer other than the author, and whether the primitive catalog and facing estimate fare under
+conditions implementation-level evidence alone cannot settle. The most important next step for this
+work is therefore not another architectural extension but running the performer evaluation protocol
+outlined in \S\ref{sec:evaluation}.
 
 \begin{acks}
 This work was carried out during the first author's internship at CREATE, Aalborg University,
@@ -878,45 +850,42 @@ Denmark.
 \end{acks}
 
 \section{Supplementary Material}
-% TODO before submission: replace with the actual video URLs.
-A video demonstration of REMORA, showing the staff, the calibration procedure, and several presets
-played live, is available at \url{https://youtu.be/PLACEHOLDER-REMORA-DEMO}. Firmware, plugin
-source, OpenSCAD enclosure files, and all eleven presets described in \S\ref{sec:azimut-deep-dive}
-are published at \url{https://github.com/TimotheeDvt/2026_NIME_TD}, consistent with the socio-economic
-fairness commitment in the Ethical Statement below.
+% TODO before submission: replace with the actual video URL.
+\begin{itemize}
+  \item \textbf{Video demonstration:} the staff, the calibration procedure, and several presets
+  played live - \url{https://youtu.be/PLACEHOLDER-REMORA-DEMO}
+  \item \textbf{Source and design files:} firmware, plugin source, OpenSCAD enclosure files, and all
+  eleven presets described in \S\ref{sec:azimut-deep-dive} -
+  \url{https://github.com/TimotheeDvt/REMORA}
+\end{itemize}
 
 \section{Ethical Statement}
 \textbf{Accessibility.} REMORA assumes a range of mobility and two-handed grip strength consistent
 with swinging a b\^o staff; it is not currently adapted for performers who cannot support or swing a
 1--1.5\,kg full-length staff, and no alternative mounting or reduced-effort variant has been
-explored. This is a real limitation of the instrument's physical form, not merely of the present
-build. That said, the skill barrier is not uniform across the preset catalog: presets such as \preset{Simple}
-ask only for basic tilt and roll and do not assume any prior staff-handling technique, while the
-Laban-driven presets (\preset{Martial}, \preset{Azimut}) reward accumulated skill with the instrument's physical
-vocabulary. Because every preset is authored in the same shared patching language
-(\S\ref{sec:azimut-deep-dive}), a facilitator or performer can also build or select a reduced-effort
-mapping for someone without a staff background, rather than being limited to the eleven built-in
-presets. This is a partial mitigation on the skill axis, not a solution to the physical one above.
+explored - a real limitation of the instrument's physical form, not merely of the present build.
+The skill barrier is not uniform across the preset catalog, though: \preset{Simple} asks only for basic
+tilt and roll, while the Laban-driven presets (\preset{Martial}, \preset{Azimut}) reward accumulated
+staff-handling skill. Because every preset is authored in the same shared patching language
+(\S\ref{sec:azimut-deep-dive}), a facilitator can also build a reduced-effort mapping for someone
+without a staff background - a partial mitigation on the skill axis, not a solution to the physical
+one above.
 
-\textbf{Environmental impact.} The staff-mounted hardware consists of a 3D-printed/OpenSCAD-parametrised
-enclosure, a rechargeable LiPo battery, an ESP32-S2 microcontroller, and an MPU-9250 IMU. The
-enclosure's zip-tie mounting (\S\ref{sec:limitations}, The Build) avoids adhesives, so it can be
-removed and the plastic reused or recycled without damaging the staff; the electronics are
-similarly reusable across builds since nothing is glued in place. No lifecycle or embodied-carbon
-analysis of the components has been performed.
+\textbf{Environmental impact.} The staff-mounted hardware - a 3D-printed/OpenSCAD-parametrised
+enclosure, a rechargeable LiPo battery, an ESP32-S2 microcontroller, and an MPU-9250 IMU - is held
+together with zip ties rather than adhesive (\S\ref{sec:limitations}, The Build), so the enclosure
+and electronics can be removed, reused, or recycled without damaging the staff. No lifecycle or
+embodied-carbon analysis of the components has been performed.
 
 \textbf{Socio-economic fairness.} REMORA is built entirely on free/libre and open-source tools -
-JUCE, PlatformIO, and OpenSCAD - and the microcontroller and IMU are inexpensive, widely available
-commodity parts. This keeps the reproduction cost and toolchain barrier low relative to
-proprietary DMI development environments, which we consider a genuine point in the instrument's
-favour under the NIME Code of Practice's socio-economic fairness criterion; the source and design
-files referenced in Supplementary Material are what make that reproduction actually possible.
+JUCE, PlatformIO, and OpenSCAD - with an inexpensive, widely available microcontroller and IMU,
+keeping the reproduction cost and toolchain barrier low relative to proprietary DMI environments; the source and design files referenced in Supplementary Material
+are what make that reproduction actually possible.
 
 \textbf{Human participants.} No human-participant data has been collected to date; all reported
-observations of the system in use are the first author's own. The performer evaluation outlined in
+observations are the first author's own, and the performer evaluation outlined in
 \S\ref{sec:evaluation} has not yet been conducted. When it is run, participants will give informed
-consent before any session, be referred to only by anonymised identifiers, and be free to withdraw
-at any point, consistent with this statement's other commitments.
+consent, be referred to only by anonymised identifiers, and be free to withdraw at any point.
 
 \textbf{Use of Artificial Intelligence.} Per the NIME Code of Practice's guidance on Artificial
 Intelligence use, we disclose that a locally-run large language model (Mistral 7B) was used to help draft and edit
