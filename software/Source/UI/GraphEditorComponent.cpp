@@ -757,7 +757,7 @@ void GraphEditorComponent::mouseWheelMove(const juce::MouseEvent& e, const juce:
 }
 
 bool GraphEditorComponent::keyPressed(const juce::KeyPress& key) {
-    if (key == juce::KeyPress('f', juce::ModifierKeys::commandModifier, 0)) {
+    if (key.getKeyCode() == 'f') {
         if (searchPopup->isOpen())
             searchPopup->closePopup();
         else

@@ -20,8 +20,9 @@ GraphSearchPopup::GraphSearchPopup(GraphEditorComponent& editorIn) : editor(edit
     searchBox.setColour(juce::TextEditor::outlineColourId, Palette::border);
     searchBox.setTextToShowWhenEmpty("Search Source/Sink nodes...", Palette::textLo);
     searchBox.onTextChange = [this] { refilter(); };
-    searchBox.onReturnKey = [this] { chooseResult(0); };
+    searchBox.onReturnKey = [this] { chooseResult(resultsList.getSelectedRow()); };
     searchBox.onEscapeKey = [this] { closePopup(); };
+    searchBox.onArrowKey = [this](int delta) { moveSelection(delta); };
     addAndMakeVisible(searchBox);
 
     resultsList.setColour(juce::ListBox::backgroundColourId, Palette::panel);
@@ -78,7 +79,19 @@ void GraphSearchPopup::refilter() {
     }
 
     resultsList.updateContent();
-    resultsList.repaint();
+    if (results.empty())
+        resultsList.deselectAllRows();
+    else
+        resultsList.selectRow(0);
+}
+
+void GraphSearchPopup::moveSelection(int delta) {
+    if (results.empty())
+        return;
+    const int count = static_cast<int>(results.size());
+    const int current = resultsList.getSelectedRow();
+    const int newRow = juce::jlimit(0, count - 1, (current < 0 ? 0 : current) + delta);
+    resultsList.selectRow(newRow);
 }
 
 void GraphSearchPopup::chooseResult(int row) {

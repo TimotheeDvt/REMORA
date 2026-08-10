@@ -42,16 +42,29 @@ private:
         GraphSearchPopup& owner;
     };
 
+    class SearchTextEditor : public juce::TextEditor {
+    public:
+        std::function<void(int)> onArrowKey; // argument: -1 (up) or +1 (down)
+        bool keyPressed(const juce::KeyPress& key) override {
+            if (onArrowKey && (key == juce::KeyPress::upKey || key == juce::KeyPress::downKey)) {
+                onArrowKey(key == juce::KeyPress::downKey ? 1 : -1);
+                return true;
+            }
+            return juce::TextEditor::keyPressed(key);
+        }
+    };
+
     GraphEditorComponent& editor;
     Graph::NodeGraph* graph = nullptr;
     bool editable = false;
 
-    juce::TextEditor searchBox;
+    SearchTextEditor searchBox;
     ResultsListModel resultsModel { *this };
     juce::ListBox resultsList { "GraphSearchResults", &resultsModel };
     std::vector<SearchResult> results;
 
     void refilter();
+    void moveSelection(int delta);
     void chooseResult(int row);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GraphSearchPopup)
