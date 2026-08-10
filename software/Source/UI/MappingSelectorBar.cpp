@@ -11,6 +11,10 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
     mappingCombo.setColour(juce::ComboBox::textColourId, Palette::textHi);
     mappingCombo.setColour(juce::ComboBox::outlineColourId, Palette::border);
     mappingCombo.setColour(juce::ComboBox::arrowColourId, Palette::textMid);
+
+    styleLabel(descriptionLabel, {}, 12.0f, Palette::textLo, juce::Justification::topLeft);
+    addAndMakeVisible(descriptionLabel);
+
     refreshMappingCombo(processor.getMappingStrategy());
     mappingCombo.onChange = [this] {
         const int newStrategyIndex = mappingCombo.getSelectedId() - 1;
@@ -109,9 +113,6 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
     setupSepSlider(rankSepSlider, rankSepLabel, "Rank Sep", "Spacing between columns (flow direction)", 60.0f,
                     onRankSepChanged);
     setupSepSlider(nodeSepSlider, nodeSepLabel, "Node Sep", "Spacing between lanes (rows)", 24.0f, onNodeSepChanged);
-
-    styleLabel(descriptionLabel, {}, 12.0f, Palette::textLo, juce::Justification::topLeft);
-    addAndMakeVisible(descriptionLabel);
 
     startTimerHz(10);
 }
