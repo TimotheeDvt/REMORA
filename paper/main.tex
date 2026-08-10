@@ -7,9 +7,8 @@
 \newcommand{\coderef}[1]{{\small [#1]}}
 \newcommand{\preset}[1]{\textit{#1}}
 
-% Placeholder conference metadata - update once NIME'26 dates/venue are confirmed.
-\copyrightyear{2026}
-\acmYear{2026}
+\copyrightyear{2027}
+\acmYear{2027}
 \setcopyright{cc}
 \setcctype{by}
 \acmConference[NIME '27]{International Conference on New Interfaces for Musical Expression}{2027}{}
@@ -115,7 +114,7 @@ of where the sensor is physically mounted on the staff.
 \subsection{Scope and Applications}
 The instrument's intended context follows directly from its origin: a solo performer with some
 staff or martial-arts background, playing a set built from one or more presets rather than a fixed,
-single-piece score. The preset catalog (Table~2) is deliberately graded rather than uniform - \preset{Simple}
+single-piece score. The preset catalog (Table~\ref{tab:preset-nodes}) is deliberately graded rather than uniform - \preset{Simple}
 asks only for basic tilt and roll, while the Laban-driven \preset{Martial} and \preset{Azimut} presets reward
 staff-handling vocabulary the performer already has from bo practice - so the same instrument can
 serve a newcomer exploring gesture-to-sound relationships and a martial artist bringing an existing
@@ -362,9 +361,11 @@ Discussion for the resulting lack of a perceptual evaluation of these choices.
 \coderef{\texttt{StaffMotionAnalyzer::computeFrame}}
 \end{flushright}
 
-\begin{center}
+\begin{table}[htbp]
+\centering
 \small
-\textbf{Table 1: Per-packet motion features.}\par\smallskip
+\caption{Per-packet motion features.}
+\label{tab:motion-features}
 \begin{tabular}{@{}p{0.32\linewidth}p{0.58\linewidth}@{}}
 \toprule
 Feature & Purpose \\
@@ -382,7 +383,7 @@ Continuous spin count & count full turns per spin \\
 Axial thrust & detect stab/strike along staff axis \\
 \bottomrule
 \end{tabular}
-\end{center}
+\end{table}
 
 \textbf{Timestep.} $\Delta t$ is the time between two packets, clamped to a $0.1$-$200\,\text{ms}$
 valid range so a dropped or duplicated packet can't send the integrators below flying.
@@ -520,15 +521,17 @@ derivative, latched smoother).
 \end{flushright}
 
 \subsection{Software: Named Mappings as Graph Presets}
-\label{sec:azimut-deep-dive}
-Table~2 shows the generalisation claim directly: each of the eleven mappings - \preset{Simple}, \preset{Lead+Drone},
+\label{sec:named-mappings}
+Table~\ref{tab:preset-nodes} shows the generalisation claim directly: each of the eleven mappings - \preset{Simple}, \preset{Lead+Drone},
 \preset{Spin Filter}, \preset{Bowed Chord}, the \preset{Azimut} family (facing-based root table, spin-count filter sweep, axial
 thrust transients), \preset{Martial Effort}/\preset{Martial Momentum}, \preset{Spin Voices}, and \preset{Speed Gate} - is built once via \texttt{GraphBuilder}
 and is structurally just a particular wiring of the same node catalog. Counts are read directly off
 the constructed graphs (\texttt{NodeGraph::nodes()}).
-\begin{center}
+\begin{table}[htbp]
+\centering
 \small
-\textbf{Table 2: Node composition of each named-mapping preset.}\par\smallskip
+\caption{Node composition of each named-mapping preset.}
+\label{tab:preset-nodes}
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
 Preset & Nodes & Source & Math & Sink \\
@@ -546,7 +549,7 @@ Speed Gate       & 181 & 87 & 95 & 29 \\
 Spin Voices      & 99 & 34 & 36  & 29 \\
 \bottomrule
 \end{tabular}
-\end{center}
+\end{table}
 Across all eleven presets, only 63 of the catalog's 79 registered node types are ever
 instantiated - 42 of those source/math primitives, the rest sink writers. A full development cycle
 of hand-built mapping design, spanning a solo tilt-controlled mapping through the fully Laban-driven
@@ -554,7 +557,7 @@ of hand-built mapping design, spanning a solo tilt-controlled mapping through th
 needed a node type invented specifically for it. That result should be read carefully, though: the
 catalog itself was not fixed in advance and then tested against eleven independent designs - it grew
 alongside the eleven mappings, several of which were the reason a given primitive was added in the
-first place. What Table~2 demonstrates is internal consistency (the resulting catalog is compact
+first place. What Table~\ref{tab:preset-nodes} demonstrates is internal consistency (the resulting catalog is compact
 enough to re-express every mapping it was abstracted from as a preset, rather than needing a
 bespoke escape hatch per mapping), not that the catalog would prove sufficient for a gesture
 vocabulary designed independently of it. Whether a mapping designer outside this project can build
@@ -703,19 +706,21 @@ above, porting all eleven prior mappings over as presets rather than deleting th
 No performer evaluation has been run yet. This section separates what the current claims actually
 rest on - implementation-level evidence internal to the system itself - from a protocol for the
 performer session that would be needed to test the remaining, human-facing parts of those claims.
-Table~3 summarises this split per claim; the subsections below explain each row.
+Table~\ref{tab:claims-evidence} summarises this split per claim; the subsections below explain each row.
 
-\begin{center}
+\begin{table}[htbp]
+\centering
 \small
-\textbf{Table 3: Claims, current evidence, and open questions.}\par\smallskip
+\caption{Claims, current evidence, and open questions.}
+\label{tab:claims-evidence}
 \begin{tabular}{@{}p{0.09\linewidth}p{0.44\linewidth}p{0.4\linewidth}@{}}
 \toprule
 Claim & Current evidence & What is still untested \\
 \midrule
 (\ref{claim:dag}) live graph, no recompile & DAG evaluation/rewiring is implemented and exercised continuously
-during development (\S\ref{sec:azimut-deep-dive}) & whether a performer other than the author can
+during development (\S\ref{sec:named-mappings}) & whether a performer other than the author can
 rewire it unaided \\
-(\ref{claim:presets}) 11 mappings as presets & Table~2: all eleven hand-built mappings rebuilt as presets from the
+(\ref{claim:presets}) 11 mappings as presets & Table~\ref{tab:preset-nodes}: all eleven hand-built mappings rebuilt as presets from the
 same catalog & whether a mapping designed independently of the catalog fits without a new
 primitive \\
 (\ref{claim:facing}) magnetometer-free facing & derivation is implemented and used throughout development sessions
@@ -725,18 +730,18 @@ assumption, not measurement \\
 (\S\ref{sec:limitations}) & not yet tested across multiple physical mount positions on hardware \\
 \bottomrule
 \end{tabular}
-\end{center}
+\end{table}
 
 \subsection{Evidence from the Implemented System}
 Claims (\ref{claim:dag}), (\ref{claim:presets}), and (\ref{claim:calibration}) are, at present, supported by implementation-level
 evidence - the system as built and run by the author during development - rather than by an
 independent observer. The graph evaluator provisionally adds and removes edges, recomputes a
 topological order, and drives synthesis every audio block without recompilation or an audio dropout,
-exercised every time a preset is loaded or a wire is changed. Table~2's per-preset node counts are
+exercised every time a preset is loaded or a wire is changed. Table~\ref{tab:preset-nodes}'s per-preset node counts are
 read directly off the constructed graphs, so claim (\ref{claim:presets})'s "eleven mappings, one catalog" result is a
 property of the code, not a reported impression - though the catalog grew alongside those eleven
 mappings, so its sufficiency for a mapping designed independently of the project remains open
-(\S\ref{sec:azimut-deep-dive}). Claim (\ref{claim:calibration})'s mount-independence follows from the two-stage calibration
+(\S\ref{sec:named-mappings}). Claim (\ref{claim:calibration})'s mount-independence follows from the two-stage calibration
 derivation holding for any physically valid sensor placement, a property we can state
 mathematically but have not yet stress-tested by remounting the enclosure at several positions.
 Claim (\ref{claim:facing}) is the weakest of the four: the facing heuristic runs correctly in every development
@@ -758,7 +763,7 @@ then rewiring which motion feature drives a sink); and a closing semi-structured
 Candidate measures include calibration time, time to complete the guided rewire unassisted, think-
 aloud commentary during free play, a preference judgement between at least two presets with a
 reason, and any node-picker search difficulties observed or reported. Each measure is chosen to
-speak to a specific claim in Table~3 rather than to general usability. This protocol - not results -
+speak to a specific claim in Table~\ref{tab:claims-evidence} rather than to general usability. This protocol - not results -
 is what we currently have; running it, with informed consent handled as described in the Ethical
 Statement, is the immediate next step for this work.
 
@@ -834,9 +839,9 @@ REMORA is a wireless, IMU-driven b\^o staff instrument, but its contribution is 
 than being one more fixed gesture-to-sound mapping: the same small dataflow language - source,
 math, and sink node primitives, evaluated as a DAG once per audio block and rewireable without
 recompiling - reproduces all eleven mapping strategies developed over the course of the project as
-ordinary, live-editable presets (Table~2), from a minimal tilt-to-pitch patch to the fully
+ordinary, live-editable presets (Table~\ref{tab:preset-nodes}), from a minimal tilt-to-pitch patch to the fully
 Laban-driven \preset{Martial} and \preset{Speed Gate} mappings, grounded in an explicit, code-traceable account of
-calibration, orientation tracking, and movement-quality extraction (\S\ref{sec:azimut-deep-dive}).
+calibration, orientation tracking, and movement-quality extraction (\S\ref{sec:named-mappings}).
 
 What remains uncertain is exactly what \S\ref{sec:evaluation} makes explicit: whether these claims hold for a
 performer other than the author, and whether the primitive catalog and facing estimate fare under
@@ -855,7 +860,7 @@ Denmark.
   \item \textbf{Video demonstration:} the staff, the calibration procedure, and several presets
   played live - \url{https://youtu.be/PLACEHOLDER-REMORA-DEMO}
   \item \textbf{Source and design files:} firmware, plugin source, OpenSCAD enclosure files, and all
-  eleven presets described in \S\ref{sec:azimut-deep-dive} -
+  eleven presets described in \S\ref{sec:named-mappings} -
   \url{https://github.com/TimotheeDvt/REMORA}
 \end{itemize}
 
@@ -867,7 +872,7 @@ explored - a real limitation of the instrument's physical form, not merely of th
 The skill barrier is not uniform across the preset catalog, though: \preset{Simple} asks only for basic
 tilt and roll, while the Laban-driven presets (\preset{Martial}, \preset{Azimut}) reward accumulated
 staff-handling skill. Because every preset is authored in the same shared patching language
-(\S\ref{sec:azimut-deep-dive}), a facilitator can also build a reduced-effort mapping for someone
+(\S\ref{sec:named-mappings}), a facilitator can also build a reduced-effort mapping for someone
 without a staff background - a partial mitigation on the skill axis, not a solution to the physical
 one above.
 
@@ -887,8 +892,7 @@ observations are the first author's own, and the performer evaluation outlined i
 \S\ref{sec:evaluation} has not yet been conducted. When it is run, participants will give informed
 consent, be referred to only by anonymised identifiers, and be free to withdraw at any point.
 
-\textbf{Use of Artificial Intelligence.} Per the NIME Code of Practice's guidance on Artificial
-Intelligence use, we disclose that a locally-run large language model (Mistral 7B) was used to help draft and edit
+\textbf{Use of Artificial Intelligence.} We disclose that a locally-run large language model (Mistral 7B) was used to help draft and edit
 portions of this manuscript's prose under the first author's direction and review. This disclosure
 applies only to the writing of this paper: REMORA's firmware, plugin, and mapping code were designed
 and written entirely by the first author without AI code generation.
