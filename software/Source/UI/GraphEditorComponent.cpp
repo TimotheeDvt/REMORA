@@ -4,6 +4,7 @@
 #include "../PluginProcessor.h"
 #include "DebugLog.h"
 #include "GraphPinComponent.h"
+#include "GraphSearchPopup.h"
 #include "Palette.h"
 #include "StyleHelpers.h"
 #include <algorithm>
@@ -30,9 +31,14 @@ GraphEditorComponent::GraphEditorComponent(REMORAProcessor& p) : processor(p) {
     canvas.setBufferedToImage(false);
     addAndMakeVisible(canvas);
 
+    searchPopup = std::make_unique<GraphSearchPopup>(*this);
+    addChildComponent(*searchPopup);
+
     panOffset = { -kCanvasOriginX, -kCanvasOriginY };
     updateTransform();
 }
+
+GraphEditorComponent::~GraphEditorComponent() = default;
 
 void GraphEditorComponent::onMappingChanged() {
     auto* mapping = processor.getSynth().getMapping(processor.getMappingStrategy());
@@ -63,6 +69,8 @@ void GraphEditorComponent::onMappingChanged() {
     nodeComponents.clear();
     nodeComponentById.clear();
     syncFromModel();
+
+    searchPopup->setContext(currentGraph, isEditable);
 }
 
 float GraphEditorComponent::liveOutputValue(Graph::NodeId id, int port) const {
@@ -413,6 +421,12 @@ void GraphEditorComponent::addNodeAt(const juce::String& typeId, juce::Point<int
     syncFromModel();
 }
 
+void GraphEditorComponent::addNodeAtViewCentre(const juce::String& typeId) {
+    if (!isEditable)
+        return;
+    addNodeAt(typeId, getLocalBounds().getCentre());
+}
+
 void GraphEditorComponent::deleteNode(Graph::NodeId id) {
     if (currentGraph == nullptr)
         return;
@@ -743,6 +757,13 @@ void GraphEditorComponent::mouseWheelMove(const juce::MouseEvent& e, const juce:
 }
 
 bool GraphEditorComponent::keyPressed(const juce::KeyPress& key) {
+    if (key == juce::KeyPress('f', juce::ModifierKeys::commandModifier, 0)) {
+        if (searchPopup->isOpen())
+            searchPopup->closePopup();
+        else
+            searchPopup->open();
+        return true;
+    }
     if (isEditable && (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)) {
         deleteSelectedNodes();
         return true;
@@ -752,6 +773,9 @@ bool GraphEditorComponent::keyPressed(const juce::KeyPress& key) {
 
 void GraphEditorComponent::resized() {
     statusLabel.setBounds(getLocalBounds().removeFromTop(20).reduced(8, 2));
+
+    constexpr int kSearchWidth = 380, kSearchHeight = 320;
+    searchPopup->setBounds(getLocalBounds().getCentreX() - kSearchWidth / 2, 40, kSearchWidth, kSearchHeight);
 }
 
 juce::Path GraphEditorComponent::buildConnectionPath(juce::Point<float> from, juce::Point<float> to) {

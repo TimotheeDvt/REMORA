@@ -11,10 +11,12 @@
 
 class REMORAProcessor;
 class GraphPinComponent;
+class GraphSearchPopup;
 
 class GraphEditorComponent : public juce::Component {
 public:
     explicit GraphEditorComponent(REMORAProcessor& p);
+    ~GraphEditorComponent() override;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -71,6 +73,9 @@ public:
     void dragSelectedNodesBy(juce::Point<int> delta);
     void deleteSelectedNodes();
 
+    void goToNode(Graph::NodeId id);
+    void addNodeAtViewCentre(const juce::String& typeId);
+
 private:
     REMORAProcessor& processor;
     Graph::NodeGraph* currentGraph = nullptr;
@@ -85,6 +90,7 @@ private:
 
     juce::Label statusLabel;
     GraphCanvasComponent canvas { *this };
+    std::unique_ptr<GraphSearchPopup> searchPopup;
 
     float zoom = 1.0f;
     juce::Point<float> panOffset;
@@ -125,7 +131,6 @@ private:
     GraphPinComponent* findPinAt(juce::Point<int> posInEditor);
     bool findConnectionAt(juce::Point<float> posInCanvas, Graph::NodeId& outDstNode, int& outDstPort) const;
     void showWireContextMenu(Graph::NodeId dstNode, int dstPort);
-    void goToNode(Graph::NodeId id);
     static juce::Path buildConnectionPath(juce::Point<float> from, juce::Point<float> to);
     static void drawConnection(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to);
 
