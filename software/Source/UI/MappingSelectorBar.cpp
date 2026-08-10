@@ -16,6 +16,7 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
         const int newStrategyIndex = mappingCombo.getSelectedId() - 1;
         processor.setMappingStrategy(newStrategyIndex);
         // debug.print.cyan("Mapping strategy changed to:", processor.getSynth().getMappingName(newStrategyIndex));
+        updateMappingInfo();
         notifyMappingChanged();
     };
     addAndMakeVisible(mappingCombo);
@@ -109,6 +110,9 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
                     onRankSepChanged);
     setupSepSlider(nodeSepSlider, nodeSepLabel, "Node Sep", "Spacing between lanes (rows)", 24.0f, onNodeSepChanged);
 
+    styleLabel(descriptionLabel, {}, 12.0f, Palette::textLo, juce::Justification::topLeft);
+    addAndMakeVisible(descriptionLabel);
+
     startTimerHz(10);
 }
 
@@ -134,17 +138,27 @@ void MappingSelectorBar::refreshMappingCombo(int selectIndex) {
             mappingCombo.addItem(name, i + 1);
     }
     mappingCombo.setSelectedId(selectIndex + 1, juce::dontSendNotification);
+    updateMappingInfo();
 }
 
 void MappingSelectorBar::selectMapping(int index) {
     processor.setMappingStrategy(index);
     mappingCombo.setSelectedId(index + 1, juce::dontSendNotification);
+    updateMappingInfo();
     notifyMappingChanged();
+}
+
+void MappingSelectorBar::updateMappingInfo() {
+    const auto* mapping = processor.getSynth().getMapping(processor.getMappingStrategy());
+    const juce::String description = mapping != nullptr ? mapping->getDescription() : juce::String();
+    mappingCombo.setTooltip(description);
+    descriptionLabel.setText(description, juce::dontSendNotification);
 }
 
 void MappingSelectorBar::timerCallback() {
     if (!mappingCombo.isPopupActive() && mappingCombo.getSelectedId() != processor.getMappingStrategy() + 1) {
         mappingCombo.setSelectedId(processor.getMappingStrategy() + 1, juce::dontSendNotification);
+        updateMappingInfo();
         notifyMappingChanged();
     }
 }
@@ -283,9 +297,11 @@ void MappingSelectorBar::changePresetFolder() {
 
 void MappingSelectorBar::resized() {
     auto bounds = getLocalBounds().reduced(10, 4);
-    auto topRow = bounds.removeFromTop(bounds.getHeight() / 2 - 2);
+    auto topRow = bounds.removeFromTop(26);
     bounds.removeFromTop(4);
-    auto& bottomRow = bounds;
+    auto bottomRow = bounds.removeFromTop(26);
+    bounds.removeFromTop(4);
+    descriptionLabel.setBounds(bounds);
 
     optionsButton.setBounds(topRow.removeFromRight(80));
     topRow.removeFromRight(10);

@@ -40,6 +40,7 @@ private:
     juce::Label rankSepLabel;
     juce::Slider nodeSepSlider;
     juce::Label nodeSepLabel;
+    juce::Label descriptionLabel;
 
     std::unordered_map<int, juce::File> presetFileByMappingIndex;
 
@@ -49,6 +50,7 @@ private:
     void notifyMappingChanged();
     void refreshMappingCombo(int selectIndex);
     void selectMapping(int index);
+    void updateMappingInfo();
 
     void promptForPresetName(const juce::String& title, const juce::String& initialValue,
                               std::function<void(juce::String)> onConfirmed);

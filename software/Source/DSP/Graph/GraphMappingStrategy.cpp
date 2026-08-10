@@ -3,8 +3,8 @@
 
 namespace Graph {
 
-GraphMappingStrategy::GraphMappingStrategy(std::unique_ptr<NodeGraph> graph, juce::String displayName)
-    : name_(std::move(displayName)), graph_(std::move(graph)) {
+GraphMappingStrategy::GraphMappingStrategy(std::unique_ptr<NodeGraph> graph, juce::String displayName, juce::String description)
+    : name_(std::move(displayName)), description_(std::move(description)), graph_(std::move(graph)) {
     const NodeTypeRegistry& registry = NodeTypeRegistry::instance();
     for (const auto& node : graph_->nodes()) {
         const NodeTypeInfo* info = registry.find(node.typeId);

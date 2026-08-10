@@ -64,6 +64,8 @@ public:
     virtual void prepare(double sampleRate) { (void)sampleRate; }
     virtual void process(const StaffSoundParams& in, MappingOutput& out) = 0;
     virtual const char* getName() const = 0;
+    // What the preset does/sounds like, shown to the performer picking a mapping. Empty if not written yet.
+    virtual const juce::String& getDescription() const { static const juce::String empty; return empty; }
 
     int getMonitorParamCount() const noexcept { return static_cast<int>(monitorParams.size()); }
     const MonitorParam& getMonitorParam(int index) const { return *monitorParams[static_cast<size_t>(index)]; }
