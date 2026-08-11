@@ -28,6 +28,7 @@ public:
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
     void mouseUp(const juce::MouseEvent& e) override;
+    void mouseDoubleClick(const juce::MouseEvent& e) override;
     juce::String getTooltip() override;
 
     Graph::NodeId getNodeId() const noexcept { return nodeId; }
@@ -50,6 +51,7 @@ private:
     juce::OwnedArray<juce::Label> paramNameLabels;
     juce::OwnedArray<juce::TextEditor> paramEditors;
     std::unique_ptr<juce::Slider> valueSlider;
+    std::unique_ptr<juce::TextEditor> labelEditor;
 
     juce::Rectangle<int> infoButtonBounds;
 
@@ -66,6 +68,8 @@ private:
     static bool hasValueSlider(const Graph::NodeTypeInfo& typeInfo);
     juce::String paramLabelFor(size_t index) const;
     juce::String displayCaption() const { return nodeLabel.isNotEmpty() ? nodeLabel : typeInfo.displayName; }
+    void beginLabelEdit();
+    void commitLabelEdit();
     void showInfoPopup();
     void paintDisplay(juce::Graphics& g, juce::Rectangle<int> area);
 

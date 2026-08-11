@@ -366,6 +366,13 @@ void GraphEditorComponent::updateNodeParam(Graph::NodeId id, int index, float va
     markDirty();
 }
 
+void GraphEditorComponent::updateNodeLabel(Graph::NodeId id, juce::String label) {
+    if (!isEditable || currentGraph == nullptr)
+        return;
+    currentGraph->setNodeLabel(id, std::move(label));
+    markDirty();
+}
+
 void GraphEditorComponent::showAddNodeMenu(juce::Point<int> position) {
     if (!isEditable || currentGraph == nullptr)
         return;

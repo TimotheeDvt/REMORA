@@ -16,14 +16,21 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
 
     NodeId activeVoiceRounded = b.add("math.quantizeSteps", { 1.0f });
     b.wire(activeVoiceIndex, activeVoiceRounded);
-    b.wire(activeVoiceRounded, b.add("display.value"));
+    NodeId voiceDisplay = b.add("display.value");
+    b.wire(activeVoiceRounded, voiceDisplay);
+    b.setLabel(voiceDisplay, "Selected Voice");
 
     NodeId pitch = b.add("source.pitch");
     NodeId pitchOffset = b.add("math.mapRange", { -kPi * 0.5f, kPi * 0.5f, -12.0f, 12.0f });
     b.wire(pitch, pitchOffset);
 
-    NodeId labanWeight = b.add("source.labanWeight");
-    NodeId targetGain = clampNode(b, scale(b, labanWeight, 1.2f), 0.0f, 1.0f);
+    NodeId yaw = b.add("source.yaw");
+    NodeId yawGain = b.add("math.mapRange", { -kPi, kPi, 0.0f, 1.0f });
+    b.wire(yaw, yawGain);
+    NodeId targetGain = clampNode(b, yawGain, 0.0f, 1.0f);
+
+    NodeId selectedGain = constantNode(b, 0.0f);
+    NodeId selectedHz = constantNode(b, 0.0f);
 
     for (int v = 0; v < 4; ++v) {
         NodeId voiceGate = b.add("math.equals", { 0.5f });
@@ -44,7 +51,18 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
         b.wire(pitchNode, voiceHz);
         toSink(b, voiceHz, "sink.voiceHz", { static_cast<float>(v) });
         toSink(b, gainNode, "sink.voiceGain", { static_cast<float>(v) });
+
+        selectedGain = addNodes(b, selectedGain, mulNodes(b, voiceGate, gainNode));
+        selectedHz = addNodes(b, selectedHz, mulNodes(b, voiceGate, voiceHz));
     }
+
+    NodeId gainDisplay = b.add("display.value");
+    b.wire(selectedGain, gainDisplay);
+    b.setLabel(gainDisplay, "Voice Gain");
+
+    NodeId hzDisplay = b.add("display.value");
+    b.wire(selectedHz, hzDisplay);
+    b.setLabel(hzDisplay, "Voice Hz");
 
     toSink(b, constantNode(b, 1.0f), "sink.useIndependentVoicePitch");
     toSink(b, constantNode(b, 4.0f), "sink.numVoices");

@@ -49,6 +49,9 @@ public:
     // Called by GraphNodeComponent's inline param TextEditors as they're edited.
     void updateNodeParam(Graph::NodeId id, int index, float value);
 
+    // Called by GraphNodeComponent's inline label editor (double-click on the header caption).
+    void updateNodeLabel(Graph::NodeId id, juce::String label);
+
     // Called by GraphCanvasComponent - draws in canvas-local (world) space.
     void paintConnections(juce::Graphics& g);
 

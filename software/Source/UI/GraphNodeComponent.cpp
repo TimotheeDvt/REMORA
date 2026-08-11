@@ -359,6 +359,46 @@ void GraphNodeComponent::mouseUp(const juce::MouseEvent&) {
     editor.handleCanvasMouseUp();
 }
 
+void GraphNodeComponent::mouseDoubleClick(const juce::MouseEvent& e) {
+    if (!editor.isGraphEditable() || e.y >= kHeaderHeight || infoButtonBounds.contains(e.getPosition()))
+        return;
+    beginLabelEdit();
+}
+
+void GraphNodeComponent::beginLabelEdit() {
+    if (labelEditor != nullptr)
+        return;
+
+    auto* box = new juce::TextEditor();
+    labelEditor.reset(box);
+    box->setFont(juce::Font(juce::FontOptions().withHeight(12.0f)));
+    box->setJustification(juce::Justification::centred);
+    box->setColour(juce::TextEditor::backgroundColourId, Palette::panel);
+    box->setColour(juce::TextEditor::textColourId, Palette::textHi);
+    box->setColour(juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
+    box->setColour(juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
+    box->setSelectAllWhenFocused(true);
+    box->setText(displayCaption(), false);
+    box->onReturnKey = [box] { box->giveAwayKeyboardFocus(); };
+    box->onFocusLost = [this] { commitLabelEdit(); };
+    addAndMakeVisible(box);
+    box->setBounds(4, 0, juce::jmax(10, infoButtonBounds.getX() - 4), kHeaderHeight);
+    box->grabKeyboardFocus();
+    box->selectAll();
+}
+
+void GraphNodeComponent::commitLabelEdit() {
+    if (labelEditor == nullptr)
+        return;
+    const juce::String typed = labelEditor->getText().trim();
+    labelEditor.reset();
+    if (typed != nodeLabel) {
+        nodeLabel = typed;
+        editor.updateNodeLabel(nodeId, nodeLabel);
+    }
+    repaint();
+}
+
 void GraphNodeComponent::startHighlight() {
     highlightStartMs = juce::Time::getMillisecondCounterHiRes();
     highlightActive = true;
