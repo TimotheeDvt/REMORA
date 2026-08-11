@@ -609,16 +609,19 @@ click-and-drag connections rendered as cubic-B\'ezier wires, colour-highlighted 
 hit-testable afterward for rewiring or deletion via context menu, which for an existing wire also
 offers jumping the view straight to its source or destination node, briefly highlighted on arrival
 so the jump is easy to follow in a large patch. New nodes are added from a categorised picker at any
-canvas position; an auto-layout pass untangles a freshly loaded preset into left-to-right
-source-to-sink columns. Hovering any node or pin surfaces its current, live-updating value as a
-tooltip, and three dedicated Display node types - a numeric readout, a level meter, and a scrolling
-scope - can be dropped inline on any wire and freely resized, giving the performer a live, in-patch
-view of a signal without altering it (all three are pure passthrough: the graph carries exactly the
-same value with or without one attached). A
+canvas position, each entry annotated with a short description of its behaviour; a search bar
+over the same picker jumps directly to a node type by name. An auto-layout pass untangles a freshly
+loaded preset into left-to-right source-to-sink columns. Hovering any node or pin surfaces its
+current, live-updating value as a tooltip, and three dedicated Display node types - a numeric
+readout, a level meter, and a scrolling scope - can be dropped inline on any wire and freely
+resized, giving the performer a live, in-patch view of a signal without altering it (all three are
+pure passthrough: the graph carries exactly the same value with or without one attached). A
 dirty-state indicator tracks whether the active patch has diverged from its saved preset, with
 one-click revert - so a performer can improvise a mapping change mid-rehearsal and either keep or
 discard it, treating the mapping itself as something authored and iterated on at the same level as
-the sound it produces.
+the sound it produces. Each preset in the catalog also carries a short description,
+surfaced in the preset selector, so a performer choosing between mappings mid-rehearsal is not
+reading bare names.
 
 \begin{center}
   \includegraphics[width=1\linewidth]{Assets/node-graph-editor.png}
