@@ -90,6 +90,18 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
     });
     addAndMakeVisible(layoutButton);
 
+    styleButton(clusterDisplaysButton, "Cluster Displays", Palette::ButtonTheme::secondary, [this] {
+        if (onClusterDisplaysToggled)
+            onClusterDisplaysToggled(clusterDisplaysButton.getToggleState());
+    });
+    clusterDisplaysButton.setClickingTogglesState(true);
+    clusterDisplaysButton.setToggleState(true, juce::dontSendNotification); // matches GraphEditorComponent's default
+    clusterDisplaysButton.setColour(juce::TextButton::buttonOnColourId, Palette::accent);
+    clusterDisplaysButton.setColour(juce::TextButton::textColourOnId, Palette::textHi);
+    clusterDisplaysButton.setTooltip("On: group every Display node into one dashboard cluster. "
+                                      "Off: leave them inline, wherever the graph layout places them.");
+    addAndMakeVisible(clusterDisplaysButton);
+
     auto setupSepSlider = [this](juce::Slider& slider, juce::Label& label, const juce::String& labelText,
                                   const juce::String& tooltip, float defaultValue,
                                   std::function<void(float)>& callback) {
@@ -320,6 +332,8 @@ void MappingSelectorBar::resized() {
     resetButton.setBounds(bottomRow.removeFromRight(110));
     bottomRow.removeFromRight(10);
     layoutButton.setBounds(bottomRow.removeFromRight(100));
+    bottomRow.removeFromRight(10);
+    clusterDisplaysButton.setBounds(bottomRow.removeFromRight(130));
     bottomRow.removeFromRight(10);
     nodeSepSlider.setBounds(bottomRow.removeFromRight(90));
     nodeSepLabel.setBounds(bottomRow.removeFromRight(60));

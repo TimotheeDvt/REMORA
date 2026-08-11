@@ -46,6 +46,9 @@ public:
     float getRankSep() const noexcept { return rankSep; }
     float getNodeSep() const noexcept { return nodeSep; }
 
+    void setClusterDisplays(bool shouldCluster);
+    bool getClusterDisplays() const noexcept { return clusterDisplays; }
+
     // Called by GraphNodeComponent's inline param TextEditors as they're edited.
     void updateNodeParam(Graph::NodeId id, int index, float value);
 
@@ -86,6 +89,7 @@ private:
     std::set<Graph::NodeGraph*> autoLaidOutGraphs;
     float rankSep = 60.0f;
     float nodeSep = 24.0f;
+    bool clusterDisplays = true;
 
     std::unordered_map<Graph::NodeGraph*, juce::String> originalSnapshots;
     std::unordered_map<Graph::NodeGraph*, bool> dirtyByGraph;

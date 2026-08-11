@@ -250,6 +250,7 @@ DSPWindow::DSPWindow(REMORAProcessor& p)
     selectorBar.onNodeSepChanged = [this](float v) {
         graphEditorComponent.setLayoutSpacing(graphEditorComponent.getRankSep(), v);
     };
+    selectorBar.onClusterDisplaysToggled = [this](bool on) { graphEditorComponent.setClusterDisplays(on); };
     selectorBar.onPresetSaved = [this] { graphEditorComponent.markCurrentGraphAsSaved(); };
     graphEditorComponent.onDirtyStateChanged = [this](bool dirty) { selectorBar.setResetButtonVisible(dirty); };
     graphEditorComponent.onMappingChanged();

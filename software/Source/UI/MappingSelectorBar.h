@@ -19,6 +19,7 @@ public:
     std::function<void()> onLayoutRequested;
     std::function<void(float)> onRankSepChanged;
     std::function<void(float)> onNodeSepChanged;
+    std::function<void(bool)> onClusterDisplaysToggled;
     std::function<void()> onPresetSaved;
     void setResetButtonVisible(bool shouldBeVisible);
 
@@ -34,6 +35,7 @@ private:
     juce::TextButton optionsButton;
     juce::TextButton resetButton;
     juce::TextButton layoutButton;
+    juce::TextButton clusterDisplaysButton;
     juce::Slider globalVolumeSlider;
     juce::Label globalVolumeLabel;
     juce::Slider rankSepSlider;

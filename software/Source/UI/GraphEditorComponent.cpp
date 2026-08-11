@@ -127,6 +127,13 @@ void GraphEditorComponent::setLayoutSpacing(float newRankSep, float newNodeSep) 
     rerunAutoLayout();
 }
 
+void GraphEditorComponent::setClusterDisplays(bool shouldCluster) {
+    if (clusterDisplays == shouldCluster)
+        return;
+    clusterDisplays = shouldCluster;
+    rerunAutoLayout();
+}
+
 void GraphEditorComponent::rerunAutoLayout() {
     if (currentGraph == nullptr || !isEditable)
         return;
@@ -149,6 +156,14 @@ void GraphEditorComponent::autoLayout() {
     const auto& nodes = currentGraph->nodes();
     if (nodes.empty())
         return;
+
+    std::unordered_map<Graph::NodeId, bool> isDisplayCategory;
+    for (const auto& n : nodes) {
+        const Graph::NodeTypeInfo* info = Graph::NodeTypeRegistry::instance().find(n.typeId);
+        isDisplayCategory[n.id] = info != nullptr && info->category == Graph::NodeCategory::Display;
+    }
+    const bool doCluster = clusterDisplays;
+    auto isClustered = [&](Graph::NodeId id) { return doCluster && isDisplayCategory[id]; };
 
     // Raw (possibly duplicated, one per connected input slot) parent -> child edges, used to compute a
     // topological order via Kahn's algorithm.
@@ -234,6 +249,8 @@ void GraphEditorComponent::autoLayout() {
 
     std::unordered_map<Graph::NodeId, int> laneOf;
     for (Graph::NodeId id : ordered) {
+        if (isClustered(id))
+            continue;
         if (laneOf.count(id) == 0)
             laneOf[id] = pickLane(rankOf[id] - 1, rankOf[id], 0);
 
@@ -241,8 +258,11 @@ void GraphEditorComponent::autoLayout() {
         if (it == childrenOf.end())
             continue;
 
-        // Farthest-away children get first pick of a lane close to their parent's.
+        // Farthest-away children get first pick of a lane close to their parent's. Display children are
+        // excluded - they get their own cluster below and shouldn't reserve a lane in the main graph.
         std::vector<Graph::NodeId> kids = it->second;
+        kids.erase(std::remove_if(kids.begin(), kids.end(), [&](Graph::NodeId k) { return isClustered(k); }),
+                   kids.end());
         std::sort(kids.begin(), kids.end(), [&](Graph::NodeId a, Graph::NodeId b) { return rankOf[a] > rankOf[b]; });
         for (Graph::NodeId child : kids) {
             if (laneOf.count(child) > 0)
@@ -258,7 +278,11 @@ void GraphEditorComponent::autoLayout() {
 
     const int numLanes = static_cast<int>(laneReservedUntil.size());
     std::vector<float> laneHeight(static_cast<size_t>(numLanes), 0.0f);
+    int maxRank = 0;
     for (const auto& n : nodes) {
+        maxRank = std::max(maxRank, rankOf[n.id]);
+        if (isClustered(n.id))
+            continue;
         const Graph::NodeTypeInfo* info = Graph::NodeTypeRegistry::instance().find(n.typeId);
         const float h = static_cast<float>(info != nullptr ? GraphNodeComponent::preferredHeight(*info, n.params.size())
                                                             : GraphNodeComponent::kHeaderHeight);
@@ -274,8 +298,29 @@ void GraphEditorComponent::autoLayout() {
     }
 
     for (const auto& n : nodes) {
+        if (isClustered(n.id))
+            continue;
         const float x = static_cast<float>(rankOf[n.id]) * columnGap;
         currentGraph->setNodePosition(n.id, x, laneTop[static_cast<size_t>(laneOf[n.id])]);
+    }
+
+    std::vector<Graph::NodeId> displayIds;
+    for (const auto& n : nodes)
+        if (isClustered(n.id))
+            displayIds.push_back(n.id);
+    std::sort(displayIds.begin(), displayIds.end());
+
+    if (!displayIds.empty()) {
+        constexpr int kDisplayCols = 3;
+        constexpr float kCellWidth = 240.0f;   // covers the widest default display (Scope, 220px) plus margin
+        constexpr float kCellHeight = 160.0f;  // covers the tallest default display (Meter/Scope, 130px) plus margin
+        const float clusterX0 = static_cast<float>(maxRank + 1) * columnGap;
+        for (size_t i = 0; i < displayIds.size(); ++i) {
+            const int col = static_cast<int>(i) % kDisplayCols;
+            const int row = static_cast<int>(i) / kDisplayCols;
+            currentGraph->setNodePosition(displayIds[i], clusterX0 + static_cast<float>(col) * kCellWidth,
+                                           static_cast<float>(row) * kCellHeight);
+        }
     }
 }
 
