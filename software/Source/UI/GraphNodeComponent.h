@@ -32,7 +32,7 @@ public:
     juce::String getTooltip() override;
 
     Graph::NodeId getNodeId() const noexcept { return nodeId; }
-    static int preferredHeight(const Graph::NodeTypeInfo& typeInfo);
+    static int preferredHeight(const Graph::NodeTypeInfo& typeInfo, size_t paramCount);
 
     juce::Point<int> getInputPinCentre(int port) const;
     juce::Point<int> getOutputPinCentre(int port) const;
@@ -64,7 +64,7 @@ private:
     std::vector<float> scopeHistory;
 
     int portsTop() const noexcept;
-    static int paramsHeight(const Graph::NodeTypeInfo& typeInfo);
+    static int paramsHeight(const Graph::NodeTypeInfo& typeInfo, size_t paramCount);
     static bool hasValueSlider(const Graph::NodeTypeInfo& typeInfo);
     juce::String paramLabelFor(size_t index) const;
     juce::String displayCaption() const { return nodeLabel.isNotEmpty() ? nodeLabel : typeInfo.displayName; }

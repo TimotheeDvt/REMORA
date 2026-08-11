@@ -260,7 +260,7 @@ void GraphEditorComponent::autoLayout() {
     std::vector<float> laneHeight(static_cast<size_t>(numLanes), 0.0f);
     for (const auto& n : nodes) {
         const Graph::NodeTypeInfo* info = Graph::NodeTypeRegistry::instance().find(n.typeId);
-        const float h = static_cast<float>(info != nullptr ? GraphNodeComponent::preferredHeight(*info)
+        const float h = static_cast<float>(info != nullptr ? GraphNodeComponent::preferredHeight(*info, n.params.size())
                                                             : GraphNodeComponent::kHeaderHeight);
         float& slot = laneHeight[static_cast<size_t>(laneOf[n.id])];
         slot = std::max(slot, h);

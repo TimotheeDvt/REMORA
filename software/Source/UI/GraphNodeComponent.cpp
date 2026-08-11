@@ -93,7 +93,7 @@ GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::No
         setSize(juce::jmax(kMinDisplayWidth, w), juce::jmax(kMinDisplayHeight, h));
         startTimerHz(30); // keeps the live display current even without a highlight in progress
     } else {
-        setSize(kWidth, preferredHeight(typeInfo));
+        setSize(kWidth, preferredHeight(typeInfo, params.size()));
     }
 }
 
@@ -107,14 +107,14 @@ bool GraphNodeComponent::hasValueSlider(const Graph::NodeTypeInfo& typeInfo) {
     return typeInfo.id == "math.constant" && !typeInfo.defaultParams.empty();
 }
 
-int GraphNodeComponent::paramsHeight(const Graph::NodeTypeInfo& typeInfo) {
-    return static_cast<int>(typeInfo.defaultParams.size()) * kParamRowHeight
+int GraphNodeComponent::paramsHeight(const Graph::NodeTypeInfo& typeInfo, size_t paramCount) {
+    return static_cast<int>(paramCount) * kParamRowHeight
         + (hasValueSlider(typeInfo) ? kSliderRowHeight : 0);
 }
 
-int GraphNodeComponent::preferredHeight(const Graph::NodeTypeInfo& typeInfo) {
+int GraphNodeComponent::preferredHeight(const Graph::NodeTypeInfo& typeInfo, size_t paramCount) {
     const int rows = juce::jmax(1, typeInfo.numInputs, typeInfo.numOutputs);
-    return kHeaderHeight + paramsHeight(typeInfo) + rows * kRowHeight + 6;
+    return kHeaderHeight + paramsHeight(typeInfo, paramCount) + rows * kRowHeight + 6;
 }
 
 int GraphNodeComponent::portsTop() const noexcept {
