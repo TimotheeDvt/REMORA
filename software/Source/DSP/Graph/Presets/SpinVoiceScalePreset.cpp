@@ -6,49 +6,18 @@
 // quantized to the nearest note of a major scale, and all 4 voices' gain + note are always on display.
 namespace Graph::Presets {
 
-namespace {
-
-// stepIndex -> semitones via octave*12 + majorScale[degree] (same table trick as Lead Drone / Spin Filter).
-std::vector<float> buildScaleSemitoneTable(const int* scaleDegrees, int scaleLength, int minStep, int maxStep) {
-    std::vector<float> table;
-    for (int step = minStep; step <= maxStep; ++step) {
-        int octave = step / scaleLength;
-        int degree = step % scaleLength;
-        if (degree < 0) { degree += scaleLength; octave -= 1; }
-        table.push_back(static_cast<float>(octave * 12 + scaleDegrees[degree]));
-    }
-    return table;
-}
-
-// stepIndex -> 1-based scale degree (1..scaleLength), folding octaves away - what the display shows
-// instead of a raw Hz value.
-std::vector<float> buildScaleDegreeTable(int scaleLength, int minStep, int maxStep) {
-    std::vector<float> table;
-    for (int step = minStep; step <= maxStep; ++step) {
-        int degree = step % scaleLength;
-        if (degree < 0) degree += scaleLength;
-        table.push_back(static_cast<float>(degree + 1));
-    }
-    return table;
-}
-
-} // namespace
-
 std::unique_ptr<NodeGraph> buildSpinVoiceScale() {
     constexpr float kPi = 3.14159265f;
     constexpr float kRootFrequencyHz = 130.81f; // C3
-    constexpr int kScaleLength = 7;
-    constexpr int kMinStep = -12, kMaxStep = 24; // generous margin over the realistic pitch range
-    static const int kMajorScale[7] = { 0, 2, 4, 5, 7, 9, 11 };
-    // Same voice chord (root/5th/octave/octave+5th) as Spin Voices, expressed in scale steps rather than
-    // semitones: step 4 = a 5th (7 semitones), step 7 = an octave (12 semitones), step 11 = octave+5th (19).
-    static const float kVoiceBaseSteps[4] = { 0.f, 4.f, 7.f, 11.f };
+    static const float kVoiceBaseSemitones[4] = { 0.f, 7.f, 12.f, 19.f };
+
+    static const float kNearestScaleSemitone[12] = { 0.f, 0.f, 2.f, 2.f, 4.f, 5.f, 5.f, 7.f, 7.f, 9.f, 9.f, 11.f };
+    static const float kNearestScaleDegree[12]   = { 0.f, 0.f, 1.f, 1.f, 2.f, 3.f, 3.f, 4.f, 4.f, 5.f, 5.f, 6.f };
+    const std::vector<float> semitoneTable(kNearestScaleSemitone, kNearestScaleSemitone + 12);
+    const std::vector<float> degreeTable(kNearestScaleDegree, kNearestScaleDegree + 12);
 
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
-
-    const std::vector<float> semitoneTable = buildScaleSemitoneTable(kMajorScale, kScaleLength, kMinStep, kMaxStep);
-    const std::vector<float> degreeTable = buildScaleDegreeTable(kScaleLength, kMinStep, kMaxStep);
 
     NodeId roll = b.add("source.roll");
     NodeId activeVoiceIndex = addConst(b, scale(b, roll, 2.0f / kPi), 1.5f);
@@ -60,9 +29,8 @@ std::unique_ptr<NodeGraph> buildSpinVoiceScale() {
     b.setLabel(voiceDisplay, "Selected Voice");
 
     NodeId pitch = b.add("source.pitch");
-    // +-1 octave (+-7 scale steps) across the pitch tilt range, mirroring the original's +-12 semitones.
-    NodeId pitchOffsetSteps = b.add("math.mapRange", { -kPi * 0.5f, kPi * 0.5f, -7.0f, 7.0f });
-    b.wire(pitch, pitchOffsetSteps);
+    NodeId pitchOffset = b.add("math.mapRange", { -kPi * 0.5f, kPi * 0.5f, -12.0f, 12.0f });
+    b.wire(pitch, pitchOffset);
 
     NodeId yaw = b.add("source.yaw");
     NodeId yawGain = b.add("math.mapRange", { -kPi, kPi, 0.0f, 1.0f });
@@ -74,23 +42,31 @@ std::unique_ptr<NodeGraph> buildSpinVoiceScale() {
         b.wire(activeVoiceIndex, voiceGate, 0);
         b.wire(constantNode(b, static_cast<float>(v)), voiceGate, 1);
 
-        NodeId stepTarget = addConst(b, pitchOffsetSteps, kVoiceBaseSteps[v]);
-        NodeId stepIndex = addConst(b, stepTarget, static_cast<float>(-kMinStep));
+        NodeId pitchTarget = addConst(b, pitchOffset, kVoiceBaseSemitones[v]);
 
-        NodeId degreeNode = b.add("math.lookupTable", degreeTable);
-        b.wire(stepIndex, degreeNode);
+        NodeId semitoneInOctave = b.add("math.mod");
+        b.wire(pitchTarget, semitoneInOctave, 0);
+        b.wire(constantNode(b, 12.0f), semitoneInOctave, 1);
+        NodeId octave = b.add("math.floorDiv");
+        b.wire(pitchTarget, octave, 0);
+        b.wire(constantNode(b, 12.0f), octave, 1);
+
+        NodeId degreeIndex = b.add("math.lookupTable", degreeTable);
+        b.wire(semitoneInOctave, degreeIndex);
+        NodeId degree = addConst(b, degreeIndex, 1.0f);
         NodeId degreeHeld = b.add("math.latchedSmoother", { 1.0f });
-        b.wire(degreeNode, degreeHeld, 0);
+        b.wire(degree, degreeHeld, 0);
         b.wire(voiceGate, degreeHeld, 1);
         NodeId degreeDisplay = b.add("display.value");
         b.wire(degreeHeld, degreeDisplay);
         b.setLabel(degreeDisplay, "Voice " + juce::String(v + 1) + " Note (Degree)");
 
-        NodeId pitchTarget = b.add("math.lookupTable", semitoneTable);
-        b.wire(stepIndex, pitchTarget);
-        // Starts at 0 semitones, not the target - a minor one-time glide-up transient, not a persistent bug.
+        NodeId nearestSemitone = b.add("math.lookupTable", semitoneTable);
+        b.wire(semitoneInOctave, nearestSemitone);
+        NodeId quantizedSemitones = addNodes(b, scale(b, octave, 12.0f), nearestSemitone);
+
         NodeId pitchNode = b.add("math.latchedSmoother", { 0.08f });
-        b.wire(pitchTarget, pitchNode, 0);
+        b.wire(quantizedSemitones, pitchNode, 0);
         b.wire(voiceGate, pitchNode, 1);
 
         NodeId gainNode = b.add("math.latchedSmoother", { 0.15f });

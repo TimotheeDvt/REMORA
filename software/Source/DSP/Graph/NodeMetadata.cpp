@@ -237,6 +237,19 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         [](const float* in, int, const std::vector<float>&, NodeState*, float* out) {
             out[0] = std::abs(in[1]) > 1e-6f ? in[0] / in[1] : 0.0f;
         }));
+    nodes.push_back(math("math.floorDiv", "Floor Divide", "Arithmetic",
+        "Input range: any (b != 0)\nOutput range: integer-valued (0 if |b| < 1e-6)\nFormula: f(a, b) = floor(a / b)",
+        { "a", "b" }, {}, {},
+        [](const float* in, int, const std::vector<float>&, NodeState*, float* out) {
+            out[0] = std::abs(in[1]) > 1e-6f ? std::floor(in[0] / in[1]) : 0.0f;
+        }));
+    nodes.push_back(math("math.mod", "Modulo", "Arithmetic",
+        "Input range: any (b != 0)\nOutput range: [0 ; |b|) (0 if |b| < 1e-6)\n"
+        "Formula: f(a, b) = a - floor(a / b) * b - always non-negative, unlike C's fmod",
+        { "a", "b" }, {}, {},
+        [](const float* in, int, const std::vector<float>&, NodeState*, float* out) {
+            out[0] = std::abs(in[1]) > 1e-6f ? in[0] - std::floor(in[0] / in[1]) * in[1] : 0.0f;
+        }));
     nodes.push_back(math("math.abs", "Absolute Value", "Arithmetic",
         "Input range: any\nOutput range: [0 ; unbounded)\nFormula: f(value) = |value|", { "value" }, {}, {},
         [](const float* in, int, const std::vector<float>&, NodeState*, float* out) { out[0] = std::abs(in[0]); }));
