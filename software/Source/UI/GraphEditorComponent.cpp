@@ -794,6 +794,12 @@ juce::Path GraphEditorComponent::buildConnectionPath(juce::Point<float> from, ju
 }
 
 void GraphEditorComponent::drawConnection(juce::Graphics& g, juce::Point<float> from, juce::Point<float> to) {
+    const float bend = juce::jmax(30.0f, std::abs(to.x - from.x) * 0.5f);
+    const juce::Rectangle<float> bounds(juce::jmin(from.x, to.x) - bend, juce::jmin(from.y, to.y) - 2.0f,
+                                         std::abs(to.x - from.x) + bend * 2.0f, std::abs(to.y - from.y) + 4.0f);
+    if (!g.getClipBounds().toFloat().intersects(bounds))
+        return;
+
     g.setColour(Palette::accent);
     g.strokePath(buildConnectionPath(from, to), juce::PathStrokeType(2.0f));
 }
