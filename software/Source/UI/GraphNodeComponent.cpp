@@ -19,8 +19,8 @@ juce::Colour categoryColour(Graph::NodeCategory category) {
 
 GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::NodeId nodeIdIn,
                                         const Graph::NodeTypeInfo& typeInfoIn, std::vector<float> paramsIn,
-                                        float initialW, float initialH)
-    : editor(editorIn), nodeId(nodeIdIn), typeInfo(typeInfoIn), params(std::move(paramsIn)) {
+                                        float initialW, float initialH, juce::String labelIn)
+    : editor(editorIn), nodeId(nodeIdIn), typeInfo(typeInfoIn), params(std::move(paramsIn)), nodeLabel(std::move(labelIn)) {
     for (int i = 0; i < typeInfo.numInputs; ++i) {
         auto* pin = inputPins.add(new GraphPinComponent(editor, nodeId, i, false));
         addAndMakeVisible(pin);
@@ -136,7 +136,7 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
 
     g.setColour(Palette::textHi);
     g.setFont(12.0f);
-    g.drawText(typeInfo.displayName, header.reduced(6.0f, 0.0f), juce::Justification::centred, true);
+    g.drawText(displayCaption(), header.reduced(6.0f, 0.0f), juce::Justification::centred, true);
 
     {
         auto circle = infoArea.withSizeKeepingCentre(13.0f, 13.0f);
@@ -387,7 +387,7 @@ juce::String GraphNodeComponent::getTooltip() {
     if (!editor.isGraphEditable())
         return {};
 
-    juce::String text = typeInfo.displayName;
+    juce::String text = displayCaption();
     if (typeInfo.category == Graph::NodeCategory::Sink) {
         // Sinks have no output - show the value currently flowing into their (single) input instead.
         for (int i = 0; i < typeInfo.numInputs; ++i) {

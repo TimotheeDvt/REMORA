@@ -16,6 +16,7 @@ struct NodeInstance {
     mutable std::array<float, kMaxNodeOutputs> lastOutputs{};
     float x = 0.0f, y = 0.0f;            // canvas position, for the graph editor
     float w = 0.0f, h = 0.0f;            // canvas size override, for resizable display nodes (0 = use type default)
+    juce::String label;                  // optional per-instance caption override (e.g. "Voice Gain" for a display node)
 };
 
 struct NodeCounts {
@@ -41,6 +42,7 @@ public:
     void setInputDefault(NodeId dst, int dstPort, float value);
     void setNodePosition(NodeId id, float x, float y);
     void setNodeSize(NodeId id, float w, float h);
+    void setNodeLabel(NodeId id, juce::String label);
 
     void setNodeParams(NodeId id, std::vector<float> params);
     void setNodeParam(NodeId id, int index, float value);

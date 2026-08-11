@@ -87,6 +87,14 @@ void NodeGraph::setNodeSize(NodeId id, float w, float h) {
     nodes_[static_cast<size_t>(idx)].h = h;
 }
 
+void NodeGraph::setNodeLabel(NodeId id, juce::String label) {
+    const juce::ScopedLock sl(lock_);
+    const int idx = indexOf(id);
+    if (idx < 0)
+        return;
+    nodes_[static_cast<size_t>(idx)].label = std::move(label);
+}
+
 void NodeGraph::setNodeParams(NodeId id, std::vector<float> params) {
     const juce::ScopedLock sl(lock_);
     const int idx = indexOf(id);
@@ -283,6 +291,8 @@ std::unique_ptr<juce::XmlElement> NodeGraph::toXml() const {
             nodeXml->setAttribute("w", n.w);
         if (n.h > 0.0f)
             nodeXml->setAttribute("h", n.h);
+        if (n.label.isNotEmpty())
+            nodeXml->setAttribute("label", n.label);
 
         for (size_t i = 0; i < n.params.size(); ++i) {
             auto* paramXml = nodeXml->createNewChildElement("Param");
@@ -324,6 +334,7 @@ bool NodeGraph::populateFromXml(const juce::XmlElement& xml) {
         inst->y = static_cast<float>(nodeXml->getDoubleAttribute("y"));
         inst->w = static_cast<float>(nodeXml->getDoubleAttribute("w", 0.0));
         inst->h = static_cast<float>(nodeXml->getDoubleAttribute("h", 0.0));
+        inst->label = nodeXml->getStringAttribute("label");
 
         for (auto* inputXml : nodeXml->getChildWithTagNameIterator("Input")) {
             const size_t port = static_cast<size_t>(inputXml->getIntAttribute("port"));

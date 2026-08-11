@@ -20,7 +20,8 @@ public:
     static constexpr int kMinDisplayHeight = 50;
 
     GraphNodeComponent(GraphEditorComponent& editor, Graph::NodeId nodeId, const Graph::NodeTypeInfo& typeInfo,
-                       std::vector<float> params, float initialW = 0.0f, float initialH = 0.0f);
+                       std::vector<float> params, float initialW = 0.0f, float initialH = 0.0f,
+                       juce::String label = {});
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -42,6 +43,7 @@ private:
     Graph::NodeId nodeId;
     const Graph::NodeTypeInfo& typeInfo;
     std::vector<float> params;
+    juce::String nodeLabel;
 
     juce::OwnedArray<GraphPinComponent> inputPins;
     juce::OwnedArray<GraphPinComponent> outputPins;
@@ -63,6 +65,7 @@ private:
     static int paramsHeight(const Graph::NodeTypeInfo& typeInfo);
     static bool hasValueSlider(const Graph::NodeTypeInfo& typeInfo);
     juce::String paramLabelFor(size_t index) const;
+    juce::String displayCaption() const { return nodeLabel.isNotEmpty() ? nodeLabel : typeInfo.displayName; }
     void showInfoPopup();
     void paintDisplay(juce::Graphics& g, juce::Rectangle<int> area);
 

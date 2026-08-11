@@ -350,7 +350,7 @@ void GraphEditorComponent::syncFromModel() {
         const Graph::NodeTypeInfo* info = Graph::NodeTypeRegistry::instance().find(n.typeId);
         if (info == nullptr)
             continue;
-        auto* comp = nodeComponents.add(new GraphNodeComponent(*this, n.id, *info, n.params, n.w, n.h));
+        auto* comp = nodeComponents.add(new GraphNodeComponent(*this, n.id, *info, n.params, n.w, n.h, n.label));
         comp->setTopLeftPosition(static_cast<int>(n.x + kCanvasOriginX), static_cast<int>(n.y + kCanvasOriginY));
         canvas.addAndMakeVisible(comp);
         nodeComponentById[n.id] = comp;

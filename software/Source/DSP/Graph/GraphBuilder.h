@@ -30,6 +30,12 @@ public:
         return *this;
     }
 
+    // Overrides the node's header caption in the graph editor (e.g. a display node showing "Voice Gain").
+    GraphBuilder& setLabel(NodeId id, juce::String label) {
+        graph_.setNodeLabel(id, std::move(label));
+        return *this;
+    }
+
     NodeGraph& graph() { return graph_; }
 
 private:
