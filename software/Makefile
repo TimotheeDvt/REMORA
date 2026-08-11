@@ -7,7 +7,7 @@ configure:
 	cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
 
 # Compiles the project using the generated build files
-build:
+build: configure
 	cmake --build build --config Release -j4
 
 # Cleans the build directory
