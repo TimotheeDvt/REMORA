@@ -79,8 +79,11 @@ std::unique_ptr<NodeGraph> buildSpinVoiceScale() {
 
         NodeId degreeNode = b.add("math.lookupTable", degreeTable);
         b.wire(stepIndex, degreeNode);
+        NodeId degreeHeld = b.add("math.latchedSmoother", { 1.0f });
+        b.wire(degreeNode, degreeHeld, 0);
+        b.wire(voiceGate, degreeHeld, 1);
         NodeId degreeDisplay = b.add("display.value");
-        b.wire(degreeNode, degreeDisplay);
+        b.wire(degreeHeld, degreeDisplay);
         b.setLabel(degreeDisplay, "Voice " + juce::String(v + 1) + " Note (Degree)");
 
         NodeId pitchTarget = b.add("math.lookupTable", semitoneTable);
