@@ -57,6 +57,10 @@ BoStaffSynth::BoStaffSynth() {
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoice(), "Spin Voices",
         "Roll angle selects which of 4 independent voices is currently 'live'; the active voice's pitch glides "
         "with pitch angle and its volume follows Laban 'Weight', while the other voices hold their last pitch/gain."));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoiceScale(), "Spin Voices (Scale)",
+        "Same 4-voice roll-select/pitch-glide mapping as Spin Voices, but every voice's pitch snaps to the "
+        "nearest note of a major scale, and the graph displays every voice's gain and scale degree (not Hz), "
+        "not just the selected voice's."));
 }
 
 BoStaffSynth::~BoStaffSynth() {}
