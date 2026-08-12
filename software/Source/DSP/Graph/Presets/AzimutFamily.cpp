@@ -2,7 +2,6 @@
 #include "AzimutCore.h"
 #include "PresetHelpers.h"
 
-// The 3 Azimut variants share every field via buildAzimutCore() and differ only in LPF-cutoff drive and reverb.
 namespace Graph::Presets {
 
 namespace {
@@ -76,6 +75,77 @@ std::unique_ptr<NodeGraph> buildAzimutReverb() {
     NodeId damping = b.add("math.mapRange", { 0.0f, 1.0f, 0.80f, 0.15f });
     b.wire(core.flowFree, damping);
     toSink(b, damping, "sink.reverbDamping");
+    return graph;
+}
+
+std::unique_ptr<NodeGraph> buildAzimutKinetic() {
+    constexpr float kGyroscopeFloor = 30.0f, kGyroscopeCeiling = 750.0f; // StaffMotionAnalyzer constants
+
+    auto graph = std::make_unique<NodeGraph>();
+    GraphBuilder b(*graph);
+    AzimutCoreOutputs core = buildAzimutCore(b);
+
+    // Pitch and voice-gating: unchanged from the rest of the family.
+    toSink(b, core.rootHz, "sink.rootHz");
+    toSink(b, core.chordSemitone[0], "sink.chordSemitone", { 0.0f });
+    toSink(b, core.chordSemitone[1], "sink.chordSemitone", { 1.0f });
+    toSink(b, core.chordSemitone[2], "sink.chordSemitone", { 2.0f });
+    toSink(b, core.numVoices, "sink.numVoices");
+    for (int i = 0; i < 4; ++i)
+        toSink(b, core.voiceGain[i], "sink.voiceGain", { static_cast<float>(i) });
+    toSink(b, core.masterGain, "sink.masterGain");
+    for (int i = 0; i < 4; ++i) {
+        toSink(b, core.panL[i], "sink.panL", { static_cast<float>(i) });
+        toSink(b, core.panR[i], "sink.panR", { static_cast<float>(i) });
+    }
+
+    // The one hub node: normalized, smoothed rotation speed. Everything timbral below reads only this.
+    NodeId speedNormRaw = b.add("math.mapRange", { kGyroscopeFloor, kGyroscopeCeiling, 0.0f, 1.0f });
+    b.wire(core.gyroMagnitude, speedNormRaw);
+    NodeId energy = onePole(b, clampNode(b, speedNormRaw, 0.0f, 1.0f), 0.05f);
+
+    NodeId lpf = b.add("math.mapRangeLog", { 0.0f, 1.0f, 300.0f, 18000.0f });
+    b.wire(energy, lpf);
+    toSink(b, onePole(b, lpf, 0.03f), "sink.lpfCutoffHz");
+
+    // Pure sine at rest, increasingly buzzy/harmonic as motion energy climbs.
+    const float partialPeak[5] = { 0.75f, 0.55f, 0.45f, 0.30f, 0.20f };
+    for (int p = 0; p < 5; ++p) {
+        NodeId amp = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, partialPeak[p] });
+        b.wire(energy, amp);
+        toSink(b, amp, "sink.partialAmp", { static_cast<float>(p + 1) });
+    }
+
+    NodeId drive = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, 3.0f });
+    b.wire(energy, drive);
+    toSink(b, drive, "sink.driveAmt");
+
+    NodeId noiseAmt = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, 0.35f });
+    b.wire(energy, noiseAmt);
+    toSink(b, noiseAmt, "sink.noiseAmount");
+    NodeId noiseColor = b.add("math.mapRange", { 0.0f, 1.0f, 0.85f, 0.15f });
+    b.wire(energy, noiseColor);
+    toSink(b, noiseColor, "sink.noiseLpCoef");
+
+    NodeId vibDepth = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, 0.025f });
+    b.wire(energy, vibDepth);
+    toSink(b, vibDepth, "sink.vibratoDepth");
+    toSink(b, constantNode(b, 5.5f), "sink.vibratoRateHz");
+    NodeId tremDepth = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, 0.3f });
+    b.wire(energy, tremDepth);
+    toSink(b, tremDepth, "sink.tremoloDepth");
+    toSink(b, constantNode(b, 4.5f), "sink.tremoloRateHz");
+
+    NodeId reverbWet = b.add("math.mapRange", { 0.0f, 1.0f, 0.05f, 0.45f });
+    b.wire(energy, reverbWet);
+    toSink(b, reverbWet, "sink.reverbWetLevel");
+    NodeId reverbRoom = b.add("math.mapRange", { 0.0f, 1.0f, 0.3f, 0.9f });
+    b.wire(energy, reverbRoom);
+    toSink(b, reverbRoom, "sink.reverbRoomSize");
+    NodeId reverbDamp = b.add("math.mapRange", { 0.0f, 1.0f, 0.75f, 0.2f });
+    b.wire(energy, reverbDamp);
+    toSink(b, reverbDamp, "sink.reverbDamping");
+
     return graph;
 }
 

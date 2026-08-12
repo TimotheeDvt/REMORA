@@ -51,6 +51,10 @@ BoStaffSynth::BoStaffSynth() {
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutReverb(), "Azimut Reverb",
         "Same pitch/volume mapping as Azimut. Free, fluid motion (Laban 'Flow Free') opens up a longer, brighter "
         "reverb tail; bound, controlled motion collapses it back toward dry."));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutKinetic(), "Azimut Kinetic",
+        "Same pitch/volume mapping as Azimut, but timbre is one-to-many: a single rotation-speed value fans out "
+        "to the filter cutoff, harmonic brightness, drive, noise, vibrato/tremolo depth and reverb all at once - "
+        "still and calm sounds like a pure sine, fast spins turn buzzy, driven, noisy and drenched in reverb."));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpeedGate(), "Speed Gate",
         "Below a speed threshold, pitch angle drives a simple pentatonic melody with roll controlling volume; "
         "above it, staff speed crossfades smoothly into the full Azimut mapping, with no clicks at the transition."));

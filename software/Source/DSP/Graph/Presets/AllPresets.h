@@ -13,6 +13,7 @@ std::unique_ptr<NodeGraph> buildBowedChord();
 std::unique_ptr<NodeGraph> buildAzimut();
 std::unique_ptr<NodeGraph> buildAzimutPlus();
 std::unique_ptr<NodeGraph> buildAzimutReverb();
+std::unique_ptr<NodeGraph> buildAzimutKinetic();
 std::unique_ptr<NodeGraph> buildMartialEffort();
 std::unique_ptr<NodeGraph> buildMartialMomentum();
 std::unique_ptr<NodeGraph> buildSpinVoice();
