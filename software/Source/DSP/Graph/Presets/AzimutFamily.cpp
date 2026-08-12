@@ -6,7 +6,7 @@ namespace Graph::Presets {
 
 namespace {
 
-void wireCoreToSinks(GraphBuilder& b, const AzimutCoreOutputs& core) {
+void wireCoreToSinks(GraphBuilder& b, const AzimutCoreOutputs& core, const AzimutTimbreOutputs& timbre) {
     toSink(b, core.rootHz, "sink.rootHz");
     toSink(b, core.chordSemitone[0], "sink.chordSemitone", { 0.0f });
     toSink(b, core.chordSemitone[1], "sink.chordSemitone", { 1.0f });
@@ -17,10 +17,10 @@ void wireCoreToSinks(GraphBuilder& b, const AzimutCoreOutputs& core) {
     toSink(b, core.masterGain, "sink.masterGain");
     // partialAmp[0]=1 matches the new MappingOutput default - omitted.
     for (int i = 1; i < 6; ++i)
-        toSink(b, core.partialAmp[i], "sink.partialAmp", { static_cast<float>(i) });
-    toSink(b, core.driveAmt, "sink.driveAmt");
-    toSink(b, core.noiseAmount, "sink.noiseAmount");
-    toSink(b, core.noiseLpCoef, "sink.noiseLpCoef");
+        toSink(b, timbre.partialAmp[i], "sink.partialAmp", { static_cast<float>(i) });
+    toSink(b, timbre.driveAmt, "sink.driveAmt");
+    toSink(b, timbre.noiseAmount, "sink.noiseAmount");
+    toSink(b, timbre.noiseLpCoef, "sink.noiseLpCoef");
     for (int i = 0; i < 4; ++i) {
         toSink(b, core.panL[i], "sink.panL", { static_cast<float>(i) });
         toSink(b, core.panR[i], "sink.panR", { static_cast<float>(i) });
@@ -36,7 +36,8 @@ std::unique_ptr<NodeGraph> buildAzimut() {
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
     AzimutCoreOutputs core = buildAzimutCore(b);
-    wireCoreToSinks(b, core);
+    AzimutTimbreOutputs timbre = buildAzimutTimbre(b, core);
+    wireCoreToSinks(b, core, timbre);
     toSink(b, buildSpinCountLpfHz(b, core), "sink.lpfCutoffHz");
     return graph;
 }
@@ -47,7 +48,8 @@ std::unique_ptr<NodeGraph> buildAzimutPlus() {
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
     AzimutCoreOutputs core = buildAzimutCore(b);
-    wireCoreToSinks(b, core);
+    AzimutTimbreOutputs timbre = buildAzimutTimbre(b, core);
+    wireCoreToSinks(b, core, timbre);
 
     // Cutoff tracks rotation speed directly instead of continuous spin count.
     NodeId speedNormRaw = b.add("math.mapRange", { kGyroscopeFloor, kGyroscopeCeiling, 0.0f, 1.0f });
@@ -63,17 +65,18 @@ std::unique_ptr<NodeGraph> buildAzimutReverb() {
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
     AzimutCoreOutputs core = buildAzimutCore(b);
-    wireCoreToSinks(b, core);
+    AzimutTimbreOutputs timbre = buildAzimutTimbre(b, core);
+    wireCoreToSinks(b, core, timbre);
     toSink(b, buildSpinCountLpfHz(b, core), "sink.lpfCutoffHz");
 
     // Free motion opens a longer, brighter reverb tail; bound motion collapses it back toward dry.
     NodeId wetInner = addConst(b, scale(b, core.labanWeight, 0.75f), 0.25f);
-    toSink(b, scale(b, mulNodes(b, core.flowFree, wetInner), 0.2f), "sink.reverbWetLevel");
+    toSink(b, scale(b, mulNodes(b, timbre.flowFree, wetInner), 0.2f), "sink.reverbWetLevel");
     NodeId roomSize = b.add("math.mapRange", { 0.0f, 1.0f, 0.25f, 0.95f });
-    b.wire(core.flowFree, roomSize);
+    b.wire(timbre.flowFree, roomSize);
     toSink(b, roomSize, "sink.reverbRoomSize");
     NodeId damping = b.add("math.mapRange", { 0.0f, 1.0f, 0.80f, 0.15f });
-    b.wire(core.flowFree, damping);
+    b.wire(timbre.flowFree, damping);
     toSink(b, damping, "sink.reverbDamping");
     return graph;
 }

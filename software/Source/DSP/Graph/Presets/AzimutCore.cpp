@@ -87,23 +87,6 @@ AzimutCoreOutputs buildAzimutCore(GraphBuilder& b) {
 
     core.masterGain = standardMasterGain(b, motionGate, labanWeight, thrustPeak);
 
-    NodeId peakBrightness = scale(b, thrustPeak, 0.8f);
-    core.partialAmp[0] = constantNode(b, 1.0f);
-    core.partialAmp[1] = constantNode(b, 0.6f);
-    core.partialAmp[2] = constantNode(b, 0.4f);
-    core.partialAmp[3] = clampNode(b, addConst(b, scale(b, peakBrightness, 0.5f), 0.3f), 0.0f, 1.0f);
-    core.partialAmp[4] = clampNode(b, addConst(b, scale(b, peakBrightness, 0.7f), 0.2f), 0.0f, 1.0f);
-    core.partialAmp[5] = clampNode(b, addConst(b, scale(b, peakBrightness, 0.9f), 0.15f), 0.0f, 1.0f);
-
-    NodeId driveAmtBase = addConst(b, labanWeight, 1.0f);
-    core.driveAmt = clampNode(b, addNodes(b, driveAmtBase, scale(b, thrustPeak, 2.0f)), 0.0f, 4.0f);
-
-    NodeId suddenness = b.add("source.labanTimeSuddenness");
-    NodeId noiseEnv = standardNoiseEnvelope(b, suddenness, thrustPeak, 0.9985f);
-    core.noiseAmount = scale(b, noiseEnv, 0.4f);
-    NodeId noiseLpInner = addNodes(b, addConst(b, scale(b, suddenness, 0.4f), 0.2f), scale(b, thrustPeak, 0.4f));
-    core.noiseLpCoef = subConst(b, noiseLpInner, 1.0f);
-
     const float panL[4] = { 0.55f, 0.45f, 0.70f, 0.30f };
     const float panR[4] = { 0.45f, 0.55f, 0.30f, 0.70f };
     for (int i = 0; i < 4; ++i) {
@@ -111,10 +94,33 @@ AzimutCoreOutputs buildAzimutCore(GraphBuilder& b) {
         core.panR[i] = constantNode(b, panR[i]);
     }
 
-    core.flowBound = b.add("source.labanFlowBound");
-    core.flowFree = b.add("source.labanFlowFree");
-
     return core;
+}
+
+AzimutTimbreOutputs buildAzimutTimbre(GraphBuilder& b, const AzimutCoreOutputs& core) {
+    AzimutTimbreOutputs timbre{};
+
+    NodeId thrustPeak = b.add("source.thrustPeakEnvelope");
+    NodeId peakBrightness = scale(b, thrustPeak, 0.8f);
+    timbre.partialAmp[0] = constantNode(b, 1.0f);
+    timbre.partialAmp[1] = constantNode(b, 0.6f);
+    timbre.partialAmp[2] = constantNode(b, 0.4f);
+    timbre.partialAmp[3] = clampNode(b, addConst(b, scale(b, peakBrightness, 0.5f), 0.3f), 0.0f, 1.0f);
+    timbre.partialAmp[4] = clampNode(b, addConst(b, scale(b, peakBrightness, 0.7f), 0.2f), 0.0f, 1.0f);
+    timbre.partialAmp[5] = clampNode(b, addConst(b, scale(b, peakBrightness, 0.9f), 0.15f), 0.0f, 1.0f);
+
+    NodeId driveAmtBase = addConst(b, core.labanWeight, 1.0f);
+    timbre.driveAmt = clampNode(b, addNodes(b, driveAmtBase, scale(b, thrustPeak, 2.0f)), 0.0f, 4.0f);
+
+    NodeId suddenness = b.add("source.labanTimeSuddenness");
+    NodeId noiseEnv = standardNoiseEnvelope(b, suddenness, thrustPeak, 0.9985f);
+    timbre.noiseAmount = scale(b, noiseEnv, 0.4f);
+    NodeId noiseLpInner = addNodes(b, addConst(b, scale(b, suddenness, 0.4f), 0.2f), scale(b, thrustPeak, 0.4f));
+    timbre.noiseLpCoef = subConst(b, noiseLpInner, 1.0f);
+
+    timbre.flowFree = b.add("source.labanFlowFree");
+
+    return timbre;
 }
 
 NodeId buildSpinCountLpfHz(GraphBuilder& b, const AzimutCoreOutputs& core) {

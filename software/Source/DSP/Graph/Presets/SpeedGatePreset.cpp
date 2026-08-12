@@ -49,6 +49,7 @@ std::unique_ptr<NodeGraph> buildSpeedGate() {
 
     // --- azimut branch (shared with plain Azimut/Azimut+/Azimut Reverb) ---
     AzimutCoreOutputs azimut = buildAzimutCore(b);
+    AzimutTimbreOutputs azimutTimbre = buildAzimutTimbre(b, azimut);
     NodeId azimutLpf = buildSpinCountLpfHz(b, azimut);
 
     // numVoices is NOT cross-faded - taken from azimut directly
@@ -64,14 +65,14 @@ std::unique_ptr<NodeGraph> buildSpeedGate() {
     // partialAmp[0]: both sides of the crossfade are constant 1.0, matching the new MappingOutput
     // default regardless of azimutAmount - omitted.
     for (int i = 1; i < 6; ++i)
-        toSink(b, crossfadeNodes(b, constantNode(b, simplePartials[i]), azimut.partialAmp[i], azimutAmount), "sink.partialAmp", { static_cast<float>(i) });
-    toSink(b, crossfadeNodes(b, zero, azimut.driveAmt, azimutAmount), "sink.driveAmt");
+        toSink(b, crossfadeNodes(b, constantNode(b, simplePartials[i]), azimutTimbre.partialAmp[i], azimutAmount), "sink.partialAmp", { static_cast<float>(i) });
+    toSink(b, crossfadeNodes(b, zero, azimutTimbre.driveAmt, azimutAmount), "sink.driveAmt");
 
     toSink(b, crossfadeNodes(b, constantNode(b, 5.0f), zero, azimutAmount), "sink.vibratoRateHz");
     toSink(b, crossfadeNodes(b, constantNode(b, 4.0f), zero, azimutAmount), "sink.tremoloRateHz");
 
-    toSink(b, crossfadeNodes(b, zero, azimut.noiseAmount, azimutAmount), "sink.noiseAmount");
-    toSink(b, crossfadeNodes(b, constantNode(b, 0.5f), azimut.noiseLpCoef, azimutAmount), "sink.noiseLpCoef");
+    toSink(b, crossfadeNodes(b, zero, azimutTimbre.noiseAmount, azimutAmount), "sink.noiseAmount");
+    toSink(b, crossfadeNodes(b, constantNode(b, 0.5f), azimutTimbre.noiseLpCoef, azimutAmount), "sink.noiseLpCoef");
 
     for (int i = 0; i < 4; ++i) {
         toSink(b, crossfadeNodes(b, simplePan, azimut.panL[i], azimutAmount), "sink.panL", { static_cast<float>(i) });
