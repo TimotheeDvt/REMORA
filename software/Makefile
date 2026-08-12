@@ -17,3 +17,4 @@ clean:
 # Shorthand aliases
 c: configure
 b: build
+ccb: clean configure build
