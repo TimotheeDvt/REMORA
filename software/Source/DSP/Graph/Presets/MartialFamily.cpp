@@ -197,7 +197,7 @@ std::unique_ptr<NodeGraph> buildMartialMomentum() {
     NodeId spinPhase = scale(b, spinClass, 2, 1.5f); // continuous spin count
     NodeId sineVal = b.add("math.sine");
     b.wire(spinPhase, sineVal);
-    NodeId targetLpf = b.add("math.mapRange", { -1.0f, 1.0f, 400.0f, 20000.0f });
+    NodeId targetLpf = b.add("math.mapRangeLog", { -1.0f, 1.0f, 400.0f, 20000.0f });
     b.wire(sineVal, targetLpf);
     toSink(b, onePole(b, targetLpf, 0.03f), "sink.lpfCutoffHz");
 

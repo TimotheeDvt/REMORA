@@ -54,7 +54,7 @@ std::unique_ptr<NodeGraph> buildAzimutPlus() {
     NodeId speedNormRaw = b.add("math.mapRange", { kGyroscopeFloor, kGyroscopeCeiling, 0.0f, 1.0f });
     b.wire(core.gyroMagnitude, speedNormRaw);
     NodeId speedNorm = clampNode(b, speedNormRaw, 0.0f, 1.0f);
-    NodeId target = b.add("math.mapRange", { 0.0f, 1.0f, 400.0f, 20000.0f });
+    NodeId target = b.add("math.mapRangeLog", { 0.0f, 1.0f, 400.0f, 20000.0f });
     b.wire(speedNorm, target);
     toSink(b, onePole(b, target, 0.03f), "sink.lpfCutoffHz");
     return graph;

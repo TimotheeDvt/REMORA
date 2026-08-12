@@ -121,7 +121,7 @@ NodeId buildSpinCountLpfHz(GraphBuilder& b, const AzimutCoreOutputs& core) {
     NodeId spinPhase = scale(b, core.spinClassNode, 2, 1.5f); // continuous spin count
     NodeId sineVal = b.add("math.sine");
     b.wire(spinPhase, sineVal);
-    NodeId target = b.add("math.mapRange", { -1.0f, 1.0f, 400.0f, 20000.0f });
+    NodeId target = b.add("math.mapRangeLog", { -1.0f, 1.0f, 400.0f, 20000.0f });
     b.wire(sineVal, target);
     return onePole(b, target, 0.03f);
 }

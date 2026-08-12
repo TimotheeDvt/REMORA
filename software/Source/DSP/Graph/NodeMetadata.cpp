@@ -273,6 +273,20 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         [](const float* in, int, const std::vector<float>& p, NodeState*, float* out) {
             out[0] = juce::jmap(in[0], p[0], p[1], p[2], p[3]);
         }));
+    nodes.push_back(math("math.mapRangeLog", "Map Range (Log)", "Shaping",
+        "Input range: any (nominally [inMin, inMax])\nOutput range: unclamped, extrapolates outside [inMin, inMax]\n"
+        "Formula: f(value) = outMin * (outMax/outMin)^t, t = (value-inMin)/(inMax-inMin)\n"
+        "Logarithmic (exponential) mapping: equal steps in the input produce equal ratios in the output, "
+        "matching how pitch/frequency is perceived (unlike Map Range's equal steps -> equal differences).\n"
+        "outMin and outMax must both be > 0 (falls back to a linear map otherwise).",
+        { "value" }, { 0.0f, 1.0f, 20.0f, 2000.0f }, { "inMin", "inMax", "outMin", "outMax" },
+        [](const float* in, int, const std::vector<float>& p, NodeState*, float* out) {
+            const float inMin = p[0], inMax = p[1], outMin = p[2], outMax = p[3];
+            const float denom = inMax - inMin;
+            const float t = std::abs(denom) > 1e-6f ? (in[0] - inMin) / denom : 0.0f;
+            out[0] = (outMin > 1e-6f && outMax > 1e-6f) ? outMin * std::pow(outMax / outMin, t)
+                                                          : juce::jmap(t, 0.0f, 1.0f, outMin, outMax);
+        }));
     nodes.push_back(math("math.clamp", "Clamp", "Shaping",
         "Input range: any\nOutput range: [min ; max]\nFormula: f(value) = clamp(value, min, max)",
         { "value" }, { 0.0f, 1.0f }, { "min", "max" },
