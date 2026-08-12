@@ -13,6 +13,8 @@ std::unique_ptr<NodeGraph> buildBowedChord() {
 
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
+    NodeId synth = addAdditiveSynth(b);
+    NodeId gain = addGeneralGain(b);
 
     NodeId pitch = b.add("source.pitch");
     NodeId midiFloat = b.add("math.mapRange", { -kPi * 0.5f, kPi * 0.5f, 36.0f, 60.0f });
@@ -21,7 +23,7 @@ std::unique_ptr<NodeGraph> buildBowedChord() {
     b.wire(midiFloat, midiNote);
     NodeId rootHz = b.add("math.semitonesToHz", { 440.0f });
     b.wire(addConst(b, midiNote, -69.0f), rootHz);
-    toSink(b, rootHz, "sink.rootHz");
+    b.wire(rootHz, synth, AdditivePort::RootHz);
 
     NodeId roll = b.add("source.roll");
     NodeId rollAbs = scale(b, absNode(b, roll), 1.0f / kPi);
@@ -42,10 +44,10 @@ std::unique_ptr<NodeGraph> buildBowedChord() {
     b.wire(highRollPair, chordIdx, 1);
     b.wire(thresholdOf(rollAbs, 0.7f), chordIdx, 2);
 
-    toSink(b, [&] { NodeId n = b.add("math.lookupTable", std::vector<float>(kChordCol0, kChordCol0 + 6)); b.wire(chordIdx, n); return n; }(), "sink.chordSemitone", { 0.0f });
-    toSink(b, [&] { NodeId n = b.add("math.lookupTable", std::vector<float>(kChordCol1, kChordCol1 + 6)); b.wire(chordIdx, n); return n; }(), "sink.chordSemitone", { 1.0f });
-    toSink(b, [&] { NodeId n = b.add("math.lookupTable", std::vector<float>(kChordCol2, kChordCol2 + 6)); b.wire(chordIdx, n); return n; }(), "sink.chordSemitone", { 2.0f });
-    toSink(b, constantNode(b, 4.0f), "sink.numVoices");
+    b.wire([&] { NodeId n = b.add("math.lookupTable", std::vector<float>(kChordCol0, kChordCol0 + 6)); b.wire(chordIdx, n); return n; }(), synth, AdditivePort::ChordSemitone0);
+    b.wire([&] { NodeId n = b.add("math.lookupTable", std::vector<float>(kChordCol1, kChordCol1 + 6)); b.wire(chordIdx, n); return n; }(), synth, AdditivePort::ChordSemitone1);
+    b.wire([&] { NodeId n = b.add("math.lookupTable", std::vector<float>(kChordCol2, kChordCol2 + 6)); b.wire(chordIdx, n); return n; }(), synth, AdditivePort::ChordSemitone2);
+    b.wire(constantNode(b, 4.0f), synth, AdditivePort::NumVoices);
 
     // bow = clamp(mapRange(gyroMag, 12, 150, 0, 1), 0, 1) - below-threshold goes negative, clamped to 0 for free.
     NodeId gyroMag = b.add("source.gyroMagnitudeRaw");
@@ -53,21 +55,21 @@ std::unique_ptr<NodeGraph> buildBowedChord() {
     b.wire(gyroMag, bowRaw);
     NodeId bow = clampNode(b, bowRaw, 0.0f, 1.0f);
 
-    toSink(b, addConst(b, scale(b, bow, 0.20f), 0.05f), "sink.masterGain");
-    toSink(b, scale(b, bow, 1.8f), "sink.driveAmt");
+    b.wire(addConst(b, scale(b, bow, 0.20f), 0.05f), gain, 0);
+    b.wire(scale(b, bow, 1.8f), synth, AdditivePort::DriveAmt);
     NodeId bowOuter = scale(b, bow, 0.90f);
     NodeId bowInner = scale(b, bow, 0.70f);
-    toSink(b, bowOuter, "sink.voiceGain", { 0.0f });
-    toSink(b, bowInner, "sink.voiceGain", { 1.0f });
-    toSink(b, bowInner, "sink.voiceGain", { 2.0f });
-    toSink(b, bowOuter, "sink.voiceGain", { 3.0f });
+    b.wire(bowOuter, synth, AdditivePort::VoiceGain0);
+    b.wire(bowInner, synth, AdditivePort::VoiceGain1);
+    b.wire(bowInner, synth, AdditivePort::VoiceGain2);
+    b.wire(bowOuter, synth, AdditivePort::VoiceGain3);
 
     NodeId accelMag = b.add("source.accelMagnitudeRaw");
 
-    toSink(b, bow, "sink.partialAmp", { 0.0f });
-    toSink(b, mulNodes(b, bow, addConst(b, scale(b, rollAbs, 0.4f), 0.3f)), "sink.partialAmp", { 1.0f });
-    toSink(b, scale(b, bow, 0.35f), "sink.partialAmp", { 2.0f });
-    toSink(b, mulNodes(b, bow, clampNode(b, scale(b, accelMag, 0.15f), 0.0f, 0.5f)), "sink.partialAmp", { 3.0f });
+    b.wire(bow, synth, AdditivePort::PartialAmp0);
+    b.wire(mulNodes(b, bow, addConst(b, scale(b, rollAbs, 0.4f), 0.3f)), synth, AdditivePort::PartialAmp1);
+    b.wire(scale(b, bow, 0.35f), synth, AdditivePort::PartialAmp2);
+    b.wire(mulNodes(b, bow, clampNode(b, scale(b, accelMag, 0.15f), 0.0f, 0.5f)), synth, AdditivePort::PartialAmp3);
 
     // noiseEnvelope charges only on an upward strike - a frame derivative of accel magnitude.
     NodeId accelDelta = b.add("math.derivative");
@@ -77,26 +79,26 @@ std::unique_ptr<NodeGraph> buildBowedChord() {
     b.wire(scale(b, excess, 0.5f), noiseEnvelope);
 
     NodeId strikeBoost = clampNode(b, scale(b, noiseEnvelope, 1.2f), 0.0f, 0.6f);
-    toSink(b, scale(b, strikeBoost, 0.4f), "sink.partialAmp", { 4.0f });
-    toSink(b, scale(b, strikeBoost, 0.25f), "sink.partialAmp", { 5.0f });
-    toSink(b, noiseEnvelope, "sink.noiseAmount");
+    b.wire(scale(b, strikeBoost, 0.4f), synth, AdditivePort::PartialAmp4);
+    b.wire(scale(b, strikeBoost, 0.25f), synth, AdditivePort::PartialAmp5);
+    b.wire(noiseEnvelope, synth, AdditivePort::NoiseAmount);
 
     NodeId gz = b.add("source.gyroZ");
     NodeId gzAbs = absNode(b, gz);
-    toSink(b, scale(b, rollAbs, 0.022f), "sink.vibratoDepth");
-    toSink(b, addConst(b, scale(b, gzAbs, 0.03f), 4.5f), "sink.vibratoRateHz");
-    toSink(b, clampNode(b, scale(b, gzAbs, 1.0f / 90.0f), 0.0f, 0.35f), "sink.tremoloDepth");
-    toSink(b, addConst(b, scale(b, gzAbs, 0.05f), 3.0f), "sink.tremoloRateHz");
+    b.wire(scale(b, rollAbs, 0.022f), synth, AdditivePort::VibratoDepth);
+    b.wire(addConst(b, scale(b, gzAbs, 0.03f), 4.5f), synth, AdditivePort::VibratoRateHz);
+    b.wire(clampNode(b, scale(b, gzAbs, 1.0f / 90.0f), 0.0f, 0.35f), synth, AdditivePort::TremoloDepth);
+    b.wire(addConst(b, scale(b, gzAbs, 0.05f), 3.0f), synth, AdditivePort::TremoloRateHz);
 
     NodeId az = b.add("source.accelZ");
     NodeId azAbsClamped = clampNode(b, scale(b, absNode(b, az), 0.18f), 0.05f, 0.90f);
-    toSink(b, subConst(b, azAbsClamped, 1.0f), "sink.noiseLpCoef");
+    b.wire(subConst(b, azAbsClamped, 1.0f), synth, AdditivePort::NoiseLpCoef);
 
     const float panL[4] = { 0.85f, 0.55f, 0.45f, 0.15f };
     const float panR[4] = { 0.15f, 0.45f, 0.55f, 0.85f };
     for (int i = 0; i < 4; ++i) {
-        toSink(b, constantNode(b, panL[i]), "sink.panL", { static_cast<float>(i) });
-        toSink(b, constantNode(b, panR[i]), "sink.panR", { static_cast<float>(i) });
+        b.wire(constantNode(b, panL[i]), synth, AdditivePort::PanL0 + i);
+        b.wire(constantNode(b, panR[i]), synth, AdditivePort::PanR0 + i);
     }
 
     return graph;

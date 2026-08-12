@@ -10,6 +10,8 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
 
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
+    NodeId synth = addAdditiveSynth(b);
+    NodeId gain = addGeneralGain(b);
 
     NodeId roll = b.add("source.roll");
     NodeId activeVoiceIndex = addConst(b, scale(b, roll, 2.0f / kPi), 1.5f);
@@ -49,8 +51,8 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
 
         NodeId voiceHz = b.add("math.semitonesToHz", { kRootFrequencyHz });
         b.wire(pitchNode, voiceHz);
-        toSink(b, voiceHz, "sink.voiceHz", { static_cast<float>(v) });
-        toSink(b, gainNode, "sink.voiceGain", { static_cast<float>(v) });
+        b.wire(voiceHz, synth, AdditivePort::VoiceHz0 + v);
+        b.wire(gainNode, synth, AdditivePort::VoiceGain0 + v);
 
         selectedGain = addNodes(b, selectedGain, mulNodes(b, voiceGate, gainNode));
         selectedHz = addNodes(b, selectedHz, mulNodes(b, voiceGate, voiceHz));
@@ -64,27 +66,27 @@ std::unique_ptr<NodeGraph> buildSpinVoice() {
     b.wire(selectedHz, hzDisplay);
     b.setLabel(hzDisplay, "Voice Hz");
 
-    toSink(b, constantNode(b, 1.0f), "sink.useIndependentVoicePitch");
-    toSink(b, constantNode(b, 4.0f), "sink.numVoices");
-    toSink(b, constantNode(b, kRootFrequencyHz), "sink.rootHz");
-    toSink(b, constantNode(b, 7.0f), "sink.chordSemitone", { 0.0f });
-    toSink(b, constantNode(b, 12.0f), "sink.chordSemitone", { 1.0f });
-    toSink(b, constantNode(b, 19.0f), "sink.chordSemitone", { 2.0f });
-    toSink(b, constantNode(b, 1.0f), "sink.masterGain");
+    b.wire(constantNode(b, 1.0f), synth, AdditivePort::UseIndependentVoicePitch);
+    b.wire(constantNode(b, 4.0f), synth, AdditivePort::NumVoices);
+    b.wire(constantNode(b, kRootFrequencyHz), synth, AdditivePort::RootHz);
+    b.wire(constantNode(b, 7.0f), synth, AdditivePort::ChordSemitone0);
+    b.wire(constantNode(b, 12.0f), synth, AdditivePort::ChordSemitone1);
+    b.wire(constantNode(b, 19.0f), synth, AdditivePort::ChordSemitone2);
+    b.wire(constantNode(b, 1.0f), gain, 0);
 
-    // partialAmp[0]=1/vibratoRate=5/tremoloRate=4/noiseLpCoef=0.5 all match the new
-    // MappingOutput defaults - omitted.
+    // partialAmp[0]=1/vibratoRate=5/tremoloRate=4/noiseLpCoef=0.5 all match the Additive
+    // Synth's own defaults - omitted.
     const float partials[5] = { 0.5f, 0.25f, 0.1f, 0.05f, 0.02f };
     for (int i = 0; i < 5; ++i)
-        toSink(b, constantNode(b, partials[i]), "sink.partialAmp", { static_cast<float>(i + 1) });
+        b.wire(constantNode(b, partials[i]), synth, AdditivePort::PartialAmp0 + (i + 1));
 
-    toSink(b, constantNode(b, 20000.0f), "sink.lpfCutoffHz");
+    b.wire(constantNode(b, 20000.0f), synth, AdditivePort::LpfCutoffHz);
 
     const float panL[4] = { 0.85f, 0.55f, 0.45f, 0.15f };
     const float panR[4] = { 0.15f, 0.45f, 0.55f, 0.85f };
     for (int i = 0; i < 4; ++i) {
-        toSink(b, constantNode(b, panL[i]), "sink.panL", { static_cast<float>(i) });
-        toSink(b, constantNode(b, panR[i]), "sink.panR", { static_cast<float>(i) });
+        b.wire(constantNode(b, panL[i]), synth, AdditivePort::PanL0 + i);
+        b.wire(constantNode(b, panR[i]), synth, AdditivePort::PanR0 + i);
     }
 
     return graph;

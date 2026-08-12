@@ -14,10 +14,10 @@ namespace Graph {
 using NodeId = int32_t;
 constexpr NodeId kInvalidNodeId = -1;
 
-// Only Spin Classification needs more than one output in the v1 catalog
-constexpr int kMaxNodeOutputs = 4;
-// Upper bound on a single node's input port count (lut3/crossfade use 3)
-constexpr int kMaxNodeInputs = 4;
+// Most node types need only a handful; the "Additive Synth" mega-sink needs one port per
+// synth parameter (AdditivePort::Count), which sets the upper bound for both.
+constexpr int kMaxNodeOutputs = 40;
+constexpr int kMaxNodeInputs = 40;
 
 // Unconnected falls back to defaultValue.
 struct InputSlot {

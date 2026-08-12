@@ -93,7 +93,8 @@ GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::No
         setSize(juce::jmax(kMinDisplayWidth, w), juce::jmax(kMinDisplayHeight, h));
         startTimerHz(30); // keeps the live display current even without a highlight in progress
     } else {
-        setSize(kWidth, preferredHeight(typeInfo, params.size()));
+        const int w = typeInfo.defaultWidth > 0.0f ? static_cast<int>(typeInfo.defaultWidth) : kWidth;
+        setSize(w, preferredHeight(typeInfo, params.size()));
     }
 }
 
@@ -182,12 +183,15 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
     }
 
     const int halfWidth = getWidth() / 2 - kPinSize - 4;
+    // A node with no outputs (e.g. a mega-sink) has no right column to reserve - give input labels
+    // the full width instead of cropping them into half the box for nothing.
+    const int inputLabelWidth = typeInfo.numOutputs > 0 ? halfWidth : (getWidth() - kPinSize - 8);
     g.setFont(10.5f);
     g.setColour(Palette::textMid);
     for (int i = 0; i < typeInfo.numInputs; ++i) {
         const int y = top + i * kRowHeight;
         const juce::String label = typeInfo.inputNames.size() > static_cast<size_t>(i) ? typeInfo.inputNames[static_cast<size_t>(i)] : juce::String();
-        g.drawText(label, kPinSize + 4, y, halfWidth, kRowHeight, juce::Justification::centredLeft, true);
+        g.drawText(label, kPinSize + 4, y, inputLabelWidth, kRowHeight, juce::Justification::centredLeft, true);
     }
     for (int i = 0; i < typeInfo.numOutputs; ++i) {
         const int y = top + i * kRowHeight;

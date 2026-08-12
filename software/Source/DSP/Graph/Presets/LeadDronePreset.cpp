@@ -32,6 +32,8 @@ std::unique_ptr<NodeGraph> buildLeadDrone() {
 
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
+    NodeId synth = addAdditiveSynth(b);
+    NodeId gain = addGeneralGain(b);
 
     // scaleStep = round(pitch * 7); semitones = table[scaleStep - kMinStep]
     NodeId pitch = b.add("source.pitch");
@@ -41,12 +43,12 @@ std::unique_ptr<NodeGraph> buildLeadDrone() {
 
     NodeId rootHz = b.add("math.semitonesToHz", { 220.0f });
     b.wire(semitones, rootHz);
-    toSink(b, rootHz, "sink.rootHz");
+    b.wire(rootHz, synth, AdditivePort::RootHz);
 
-    toSink(b, constantNode(b, 4.0f), "sink.numVoices");
-    toSink(b, subConst(b, semitones, -12.0f), "sink.chordSemitone", { 0.0f });
-    toSink(b, subConst(b, semitones, -24.0f), "sink.chordSemitone", { 1.0f });
-    toSink(b, subConst(b, semitones, -19.0f), "sink.chordSemitone", { 2.0f });
+    b.wire(constantNode(b, 4.0f), synth, AdditivePort::NumVoices);
+    b.wire(subConst(b, semitones, -12.0f), synth, AdditivePort::ChordSemitone0);
+    b.wire(subConst(b, semitones, -24.0f), synth, AdditivePort::ChordSemitone1);
+    b.wire(subConst(b, semitones, -19.0f), synth, AdditivePort::ChordSemitone2);
 
     NodeId gyroMag = b.add("source.gyroMagnitudeRaw");
     NodeId accelMag = b.add("source.accelMagnitudeRaw");
@@ -54,39 +56,39 @@ std::unique_ptr<NodeGraph> buildLeadDrone() {
 
     NodeId yawNorm = scale(b, addConst(b, yaw, kPi), 1.0f / (2.0f * kPi));
 
-    toSink(b, addConst(b, clampNode(b, scale(b, gyroMag, 0.01f), 0.0f, 0.2f), 0.8f), "sink.masterGain");
+    b.wire(addConst(b, clampNode(b, scale(b, gyroMag, 0.01f), 0.0f, 0.2f), 0.8f), gain, 0);
 
-    toSink(b, addConst(b, scale(b, clampNode(b, scale(b, accelMag, 0.1f), 0.0f, 1.0f), 0.4f), 0.6f), "sink.voiceGain", { 0.0f });
+    b.wire(addConst(b, scale(b, clampNode(b, scale(b, accelMag, 0.1f), 0.0f, 1.0f), 0.4f), 0.6f), synth, AdditivePort::VoiceGain0);
 
     NodeId droneSwell = addConst(b, scale(b, clampNode(b, scale(b, accelMag, 0.15f), 0.0f, 1.0f), 0.4f), 1.2f);
-    toSink(b, mulNodes(b, droneSwell, subNodes(b, constantNode(b, 1.0f), yawNorm)), "sink.voiceGain", { 1.0f });
-    toSink(b, mulNodes(b, droneSwell, yawNorm), "sink.voiceGain", { 2.0f });
-    toSink(b, scale(b, droneSwell, 0.8f), "sink.voiceGain", { 3.0f });
+    b.wire(mulNodes(b, droneSwell, subNodes(b, constantNode(b, 1.0f), yawNorm)), synth, AdditivePort::VoiceGain1);
+    b.wire(mulNodes(b, droneSwell, yawNorm), synth, AdditivePort::VoiceGain2);
+    b.wire(scale(b, droneSwell, 0.8f), synth, AdditivePort::VoiceGain3);
 
-    toSink(b, clampNode(b, scale(b, accelMag, 0.2f), 0.0f, 2.5f), "sink.driveAmt");
-    toSink(b, clampNode(b, scale(b, accelMag, 0.05f), 0.0f, 0.3f), "sink.noiseAmount");
-    toSink(b, constantNode(b, 0.2f), "sink.noiseLpCoef");
+    b.wire(clampNode(b, scale(b, accelMag, 0.2f), 0.0f, 2.5f), synth, AdditivePort::DriveAmt);
+    b.wire(clampNode(b, scale(b, accelMag, 0.05f), 0.0f, 0.3f), synth, AdditivePort::NoiseAmount);
+    b.wire(constantNode(b, 0.2f), synth, AdditivePort::NoiseLpCoef);
 
-    toSink(b, clampNode(b, scale(b, absNode(b, pitch), 0.0005f), 0.0f, 0.02f), "sink.vibratoDepth");
-    toSink(b, addConst(b, scale(b, gyroMag, 0.05f), 4.0f), "sink.vibratoRateHz");
+    b.wire(clampNode(b, scale(b, absNode(b, pitch), 0.0005f), 0.0f, 0.02f), synth, AdditivePort::VibratoDepth);
+    b.wire(addConst(b, scale(b, gyroMag, 0.05f), 4.0f), synth, AdditivePort::VibratoRateHz);
 
-    toSink(b, clampNode(b, scale(b, absNode(b, yaw), 0.002f), 0.0f, 0.3f), "sink.tremoloDepth");
-    toSink(b, addConst(b, scale(b, accelMag, 0.1f), 2.0f), "sink.tremoloRateHz");
+    b.wire(clampNode(b, scale(b, absNode(b, yaw), 0.002f), 0.0f, 0.3f), synth, AdditivePort::TremoloDepth);
+    b.wire(addConst(b, scale(b, accelMag, 0.1f), 2.0f), synth, AdditivePort::TremoloRateHz);
 
-    // partialAmp[0]=1 matches the new MappingOutput default - omitted.
+    // partialAmp[0]=1 matches the Additive Synth's own default - omitted.
     NodeId brightness = clampNode(b, scale(b, accelMag, 0.15f), 0.0f, 1.0f);
-    toSink(b, scale(b, brightness, 0.7f), "sink.partialAmp", { 1.0f });
-    toSink(b, scale(b, brightness, 0.5f), "sink.partialAmp", { 2.0f });
-    toSink(b, scale(b, brightness, 0.3f), "sink.partialAmp", { 3.0f });
-    toSink(b, scale(b, brightness, 0.2f), "sink.partialAmp", { 4.0f });
-    toSink(b, scale(b, brightness, 0.1f), "sink.partialAmp", { 5.0f });
+    b.wire(scale(b, brightness, 0.7f), synth, AdditivePort::PartialAmp1);
+    b.wire(scale(b, brightness, 0.5f), synth, AdditivePort::PartialAmp2);
+    b.wire(scale(b, brightness, 0.3f), synth, AdditivePort::PartialAmp3);
+    b.wire(scale(b, brightness, 0.2f), synth, AdditivePort::PartialAmp4);
+    b.wire(scale(b, brightness, 0.1f), synth, AdditivePort::PartialAmp5);
 
-    // voice 3's pan (0.5/0.5) matches the new MappingOutput default - omitted.
+    // voice 3's pan (0.5/0.5) matches the Additive Synth's own default - omitted.
     const float panL[3] = { 0.6f, 0.9f, 0.1f };
     const float panR[3] = { 0.6f, 0.1f, 0.9f };
     for (int i = 0; i < 3; ++i) {
-        toSink(b, constantNode(b, panL[i]), "sink.panL", { static_cast<float>(i) });
-        toSink(b, constantNode(b, panR[i]), "sink.panR", { static_cast<float>(i) });
+        b.wire(constantNode(b, panL[i]), synth, AdditivePort::PanL0 + i);
+        b.wire(constantNode(b, panR[i]), synth, AdditivePort::PanR0 + i);
     }
 
     return graph;

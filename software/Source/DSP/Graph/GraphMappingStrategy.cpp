@@ -10,8 +10,15 @@ GraphMappingStrategy::GraphMappingStrategy(std::unique_ptr<NodeGraph> graph, juc
         const NodeTypeInfo* info = registry.find(node.typeId);
         if (info == nullptr || info->category != NodeCategory::Sink)
             continue;
-        MonitorParam& param = addMonitorParam(info->displayName, node.typeId, info->monitorRangeMin, info->monitorRangeMax);
-        sinkMonitors_.emplace_back(node.id, &param);
+        for (int p = 0; p < info->numInputs; ++p) {
+            const juce::String label = info->numInputs > 1
+                ? info->displayName + ": " + info->inputNames[static_cast<size_t>(p)]
+                : info->displayName;
+            const float lo = info->monitorRangeMin[static_cast<size_t>(p)];
+            const float hi = info->monitorRangeMax[static_cast<size_t>(p)];
+            MonitorParam& param = addMonitorParam(label, node.typeId, lo, hi);
+            sinkMonitors_.push_back({ node.id, p, &param });
+        }
     }
 }
 
@@ -26,7 +33,7 @@ void GraphMappingStrategy::process(const StaffSoundParams& in, MappingOutput& ou
     graph_->evaluate(sourceFrame, out);
 
     for (auto& monitor : sinkMonitors_)
-        monitor.second->value.store(graph_->outputOf(monitor.first), std::memory_order_relaxed);
+        monitor.param->value.store(graph_->outputOf(monitor.nodeId, monitor.port), std::memory_order_relaxed);
 }
 
 } // namespace Graph

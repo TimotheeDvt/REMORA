@@ -23,6 +23,11 @@ struct NodeTypeInfo {
 
     int numInputs = 0;
     std::vector<juce::String> inputNames;
+    // Value an input port falls back to when left unconnected. Empty = every port defaults to 0
+    // (the InputSlot default); otherwise must be sized to numInputs. Lets a mega-sink's unwired
+    // ports fall back to a sensible neutral value instead of 0 (e.g. an unwired LPF cutoff should
+    // mean "wide open", not "fully closed").
+    std::vector<float> inputDefaults;
     std::vector<float> defaultParams;   // also defines numParams via .size()
     std::vector<juce::String> paramNames;
 
@@ -30,9 +35,14 @@ struct NodeTypeInfo {
     std::vector<juce::String> outputNames; // only meaningful when numOutputs > 1
     bool isStateful = false;
 
-    // Sink-only: range for the MonitorParam GraphMappingStrategy auto-registers.
-    float monitorRangeMin = 0.0f;
-    float monitorRangeMax = 1.0f;
+    // Node box width in the graph editor. 0 = use the standard width; set this for nodes whose
+    // port names would otherwise get cropped (e.g. a mega-sink with many long-named ports).
+    float defaultWidth = 0.0f;
+
+    // Sink-only: range for the MonitorParam(s) GraphMappingStrategy auto-registers, one pair per
+    // input port (a single-input sink has one entry; a mega-sink has one entry per parameter).
+    std::vector<float> monitorRangeMin = { 0.0f };
+    std::vector<float> monitorRangeMax = { 1.0f };
 
     DisplayKind displayKind = DisplayKind::None;
     float displayDefaultWidth = 130.0f;

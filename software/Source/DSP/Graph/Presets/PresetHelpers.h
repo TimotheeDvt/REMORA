@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../GraphBuilder.h"
+#include "SynthPorts.h"
 
 // Mirrors the "scale by a constant"/"add a constant" patterns the original hand-written mappings used.
 namespace Graph::Presets {
@@ -135,8 +136,10 @@ inline NodeId crossfadeNodes(GraphBuilder& b, NodeId a, NodeId bVal, NodeId mix)
     return n;
 }
 
-inline void toSink(GraphBuilder& b, NodeId src, const char* sinkTypeId, std::vector<float> params = {}) {
-    b.wire(src, b.add(sinkTypeId, std::move(params)));
-}
+// One "Additive Synth" mega-node per preset - wire a source into one of its named ports
+// (Graph::AdditivePort::RootHz etc.) instead of adding a separate single-purpose sink node.
+inline NodeId addAdditiveSynth(GraphBuilder& b) { return b.add("sink.additiveSynth"); }
+inline NodeId addGeneralGain(GraphBuilder& b) { return b.add("sink.generalGain"); }
+inline NodeId addGranularSynth(GraphBuilder& b) { return b.add("sink.granularSynth"); }
 
 } // namespace Graph::Presets

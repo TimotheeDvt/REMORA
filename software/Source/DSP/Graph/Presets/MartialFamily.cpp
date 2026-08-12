@@ -32,6 +32,8 @@ std::unique_ptr<NodeGraph> buildMartialEffort() {
 
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
+    NodeId synth = addAdditiveSynth(b);
+    NodeId gain = addGeneralGain(b);
 
     NodeId spinClass = b.add("source.spinClassification", { 1.0f }); // ByReferenceAzimuth
     NodeId isCCW = threshold(b, spinClass, 1, 0.0f); // spinDirection
@@ -53,11 +55,11 @@ std::unique_ptr<NodeGraph> buildMartialEffort() {
     NodeId semitones = addNodes(b, addNodes(b, baseSemitones, planeOffset), directionOffset);
     NodeId rootHz = b.add("math.semitonesToHz", { kRootFrequencyHz });
     b.wire(semitones, rootHz);
-    toSink(b, rootHz, "sink.rootHz");
+    b.wire(rootHz, synth, AdditivePort::RootHz);
 
-    toSink(b, lut3Node(b, spinClass, isCCW, zero, std::vector<float>(kChordCol0, kChordCol0 + 8)), "sink.chordSemitone", { 0.0f });
-    toSink(b, lut3Node(b, spinClass, isCCW, zero, std::vector<float>(kChordCol1, kChordCol1 + 8)), "sink.chordSemitone", { 1.0f });
-    toSink(b, lut3Node(b, spinClass, isCCW, zero, std::vector<float>(kChordCol2, kChordCol2 + 8)), "sink.chordSemitone", { 2.0f });
+    b.wire(lut3Node(b, spinClass, isCCW, zero, std::vector<float>(kChordCol0, kChordCol0 + 8)), synth, AdditivePort::ChordSemitone0);
+    b.wire(lut3Node(b, spinClass, isCCW, zero, std::vector<float>(kChordCol1, kChordCol1 + 8)), synth, AdditivePort::ChordSemitone1);
+    b.wire(lut3Node(b, spinClass, isCCW, zero, std::vector<float>(kChordCol2, kChordCol2 + 8)), synth, AdditivePort::ChordSemitone2);
 
     NodeId labanWeight = b.add("source.labanWeight");
     NodeId isMoving = b.add("source.isMoving");
@@ -65,16 +67,16 @@ std::unique_ptr<NodeGraph> buildMartialEffort() {
 
     NodeId voiceLadder = addConst(b, addNodes(b, threshold(b, labanWeight, 0.25f),
         addNodes(b, threshold(b, labanWeight, 0.55f), threshold(b, labanWeight, 0.80f))), 1.0f);
-    toSink(b, voiceLadder, "sink.numVoices");
+    b.wire(voiceLadder, synth, AdditivePort::NumVoices);
 
     NodeId melodyGain = mulNodes(b, isMoving, clampNode(b, addConst(b, scale(b, gyroMag, 0.8f / kGyroscopeCeiling), 0.2f), 0.2f, 1.0f));
-    toSink(b, melodyGain, "sink.voiceGain", { 0.0f });
-    toSink(b, scale(b, clampNode(b, scale(b, subNodes(b, labanWeight, constantNode(b, 0.25f)), 4.0f), 0.0f, 1.0f), 0.8f), "sink.voiceGain", { 1.0f });
-    toSink(b, scale(b, clampNode(b, scale(b, subNodes(b, labanWeight, constantNode(b, 0.55f)), 3.3f), 0.0f, 1.0f), 0.7f), "sink.voiceGain", { 2.0f });
-    toSink(b, scale(b, clampNode(b, scale(b, subNodes(b, labanWeight, constantNode(b, 0.80f)), 5.0f), 0.0f, 1.0f), 0.6f), "sink.voiceGain", { 3.0f });
+    b.wire(melodyGain, synth, AdditivePort::VoiceGain0);
+    b.wire(scale(b, clampNode(b, scale(b, subNodes(b, labanWeight, constantNode(b, 0.25f)), 4.0f), 0.0f, 1.0f), 0.8f), synth, AdditivePort::VoiceGain1);
+    b.wire(scale(b, clampNode(b, scale(b, subNodes(b, labanWeight, constantNode(b, 0.55f)), 3.3f), 0.0f, 1.0f), 0.7f), synth, AdditivePort::VoiceGain2);
+    b.wire(scale(b, clampNode(b, scale(b, subNodes(b, labanWeight, constantNode(b, 0.80f)), 5.0f), 0.0f, 1.0f), 0.6f), synth, AdditivePort::VoiceGain3);
 
     NodeId motionGate = standardMotionGate(b, gyroMag, kGyroscopeFloor);
-    toSink(b, standardMasterGain(b, motionGate, labanWeight, thrustPeak), "sink.masterGain");
+    b.wire(standardMasterGain(b, motionGate, labanWeight, thrustPeak), gain, 0);
 
     NodeId spaceFocus = b.add("source.labanSpaceFocus");
     NodeId peakBrightness = scale(b, thrustPeak, 0.8f);
@@ -88,24 +90,24 @@ std::unique_ptr<NodeGraph> buildMartialEffort() {
             const float peakCoeff = (i == 3) ? 0.5f : (i == 4) ? 0.7f : 0.9f;
             value = clampNode(b, addNodes(b, blended, scale(b, peakBrightness, peakCoeff)), 0.0f, 1.0f);
         }
-        toSink(b, value, "sink.partialAmp", { static_cast<float>(i) });
+        b.wire(value, synth, AdditivePort::PartialAmp0 + i);
     }
 
     NodeId driveInner = subConst(b, scale(b, spaceFocus, 0.7f), 1.0f);
     NodeId driveBase = scale(b, mulNodes(b, labanWeight, driveInner), 2.5f);
-    toSink(b, clampNode(b, addNodes(b, driveBase, scale(b, thrustPeak, 2.0f)), 0.0f, 4.0f), "sink.driveAmt");
+    b.wire(clampNode(b, addNodes(b, driveBase, scale(b, thrustPeak, 2.0f)), 0.0f, 4.0f), synth, AdditivePort::DriveAmt);
 
     NodeId suddenness = b.add("source.labanTimeSuddenness");
     NodeId noiseEnv = standardNoiseEnvelope(b, suddenness, thrustPeak, 0.9985f);
-    toSink(b, scale(b, noiseEnv, 0.4f), "sink.noiseAmount");
-    toSink(b, subConst(b, addNodes(b, addConst(b, scale(b, suddenness, 0.4f), 0.2f), scale(b, thrustPeak, 0.4f)), 1.0f), "sink.noiseLpCoef");
+    b.wire(scale(b, noiseEnv, 0.4f), synth, AdditivePort::NoiseAmount);
+    b.wire(subConst(b, addNodes(b, addConst(b, scale(b, suddenness, 0.4f), 0.2f), scale(b, thrustPeak, 0.4f)), 1.0f), synth, AdditivePort::NoiseLpCoef);
 
     NodeId flowBound = b.add("source.labanFlowBound");
     NodeId flowFree = b.add("source.labanFlowFree");
-    toSink(b, scale(b, mulNodes(b, flowFree, labanWeight), 0.020f), "sink.vibratoDepth");
-    toSink(b, addConst(b, scale(b, gyroMag, 0.005f), 4.5f), "sink.vibratoRateHz");
-    toSink(b, scale(b, mulNodes(b, flowBound, labanWeight), 0.30f), "sink.tremoloDepth");
-    toSink(b, addConst(b, scale(b, flowBound, 4.0f), 3.0f), "sink.tremoloRateHz");
+    b.wire(scale(b, mulNodes(b, flowFree, labanWeight), 0.020f), synth, AdditivePort::VibratoDepth);
+    b.wire(addConst(b, scale(b, gyroMag, 0.005f), 4.5f), synth, AdditivePort::VibratoRateHz);
+    b.wire(scale(b, mulNodes(b, flowBound, labanWeight), 0.30f), synth, AdditivePort::TremoloDepth);
+    b.wire(addConst(b, scale(b, flowBound, 4.0f), 3.0f), synth, AdditivePort::TremoloRateHz);
 
     NodeId axisX = b.add("source.rotationAxisX");
     NodeId axisY = b.add("source.rotationAxisY");
@@ -119,8 +121,8 @@ std::unique_ptr<NodeGraph> buildMartialEffort() {
     NodeId spread = addConst(b, scale(b, flowFree, 0.5f), 0.3f);
     const float coeffL[4] = { 0.10f, -0.10f, 0.40f, -0.40f };
     for (int i = 0; i < 4; ++i) {
-        toSink(b, clampNode(b, addNodes(b, addConst(b, scale(b, spread, coeffL[i]), 0.5f), panBias), 0.0f, 1.0f), "sink.panL", { static_cast<float>(i) });
-        toSink(b, clampNode(b, addNodes(b, addConst(b, scale(b, spread, -coeffL[i]), 0.5f), negPanBias), 0.0f, 1.0f), "sink.panR", { static_cast<float>(i) });
+        b.wire(clampNode(b, addNodes(b, addConst(b, scale(b, spread, coeffL[i]), 0.5f), panBias), 0.0f, 1.0f), synth, AdditivePort::PanL0 + i);
+        b.wire(clampNode(b, addNodes(b, addConst(b, scale(b, spread, -coeffL[i]), 0.5f), negPanBias), 0.0f, 1.0f), synth, AdditivePort::PanR0 + i);
     }
 
     return graph;
@@ -131,6 +133,8 @@ std::unique_ptr<NodeGraph> buildMartialMomentum() {
 
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
+    NodeId synth = addAdditiveSynth(b);
+    NodeId gain = addGeneralGain(b);
 
     NodeId spinClass = b.add("source.spinClassification", { 1.0f }); // ByReferenceAzimuth
     NodeId isCCW = threshold(b, spinClass, 1, 0.0f); // spinDirection
@@ -144,27 +148,27 @@ std::unique_ptr<NodeGraph> buildMartialMomentum() {
     NodeId currentSemitones = onePoleVariableRate(b, targetSemitones, morphSpeed);
     NodeId rootHz = b.add("math.semitonesToHz", { kRootFrequencyHz });
     b.wire(currentSemitones, rootHz);
-    toSink(b, rootHz, "sink.rootHz");
+    b.wire(rootHz, synth, AdditivePort::RootHz);
 
-    toSink(b, constantNode(b, 12.0f), "sink.chordSemitone", { 0.0f });
-    toSink(b, constantNode(b, 7.0f), "sink.chordSemitone", { 1.0f });
-    toSink(b, constantNode(b, -12.0f), "sink.chordSemitone", { 2.0f });
-    toSink(b, constantNode(b, 4.0f), "sink.numVoices");
+    b.wire(constantNode(b, 12.0f), synth, AdditivePort::ChordSemitone0);
+    b.wire(constantNode(b, 7.0f), synth, AdditivePort::ChordSemitone1);
+    b.wire(constantNode(b, -12.0f), synth, AdditivePort::ChordSemitone2);
+    b.wire(constantNode(b, 4.0f), synth, AdditivePort::NumVoices);
 
     NodeId isMoving = b.add("source.isMoving");
-    toSink(b, isMoving, "sink.voiceGain", { 0.0f });
-    toSink(b, scale(b, isMoving, 0.8f), "sink.voiceGain", { 1.0f });
-    toSink(b, scale(b, isMoving, 0.7f), "sink.voiceGain", { 2.0f });
-    toSink(b, scale(b, isMoving, 0.6f), "sink.voiceGain", { 3.0f });
+    b.wire(isMoving, synth, AdditivePort::VoiceGain0);
+    b.wire(scale(b, isMoving, 0.8f), synth, AdditivePort::VoiceGain1);
+    b.wire(scale(b, isMoving, 0.7f), synth, AdditivePort::VoiceGain2);
+    b.wire(scale(b, isMoving, 0.6f), synth, AdditivePort::VoiceGain3);
 
     constexpr float kGyroscopeFloor = 30.0f;
     NodeId labanWeight = b.add("source.labanWeight");
     NodeId thrustPeak = b.add("source.thrustPeakEnvelope");
     NodeId motionGate = standardMotionGate(b, gyroMag, kGyroscopeFloor);
-    toSink(b, standardMasterGain(b, motionGate, labanWeight, thrustPeak), "sink.masterGain");
+    b.wire(standardMasterGain(b, motionGate, labanWeight, thrustPeak), gain, 0);
 
     NodeId peakBrightness = scale(b, thrustPeak, 0.8f);
-    // partialAmp[0]=1 matches the new MappingOutput default - omitted.
+    // partialAmp[0]=1 matches the Additive Synth's own default - omitted.
     static const float kConstantGain[6] = { 1.0f, 0.60f, 0.40f, 0.30f, 0.20f, 0.15f };
     for (int i = 1; i < 6; ++i) {
         NodeId value = constantNode(b, kConstantGain[i]);
@@ -172,25 +176,25 @@ std::unique_ptr<NodeGraph> buildMartialMomentum() {
             const float peakCoeff = (i == 3) ? 0.5f : (i == 4) ? 0.7f : 0.9f;
             value = clampNode(b, addConst(b, scale(b, peakBrightness, peakCoeff), kConstantGain[i]), 0.0f, 1.0f);
         }
-        toSink(b, value, "sink.partialAmp", { static_cast<float>(i) });
+        b.wire(value, synth, AdditivePort::PartialAmp0 + i);
     }
     NodeId driveBase = addConst(b, labanWeight, 1.0f);
-    toSink(b, clampNode(b, addNodes(b, driveBase, scale(b, thrustPeak, 2.0f)), 0.0f, 4.0f), "sink.driveAmt");
+    b.wire(clampNode(b, addNodes(b, driveBase, scale(b, thrustPeak, 2.0f)), 0.0f, 4.0f), synth, AdditivePort::DriveAmt);
 
     NodeId suddenness = b.add("source.labanTimeSuddenness");
     NodeId noiseEnv = standardNoiseEnvelope(b, suddenness, thrustPeak, 0.9985f);
-    toSink(b, scale(b, noiseEnv, 0.4f), "sink.noiseAmount");
-    toSink(b, subConst(b, addNodes(b, addConst(b, scale(b, suddenness, 0.4f), 0.2f), scale(b, thrustPeak, 0.4f)), 1.0f), "sink.noiseLpCoef");
+    b.wire(scale(b, noiseEnv, 0.4f), synth, AdditivePort::NoiseAmount);
+    b.wire(subConst(b, addNodes(b, addConst(b, scale(b, suddenness, 0.4f), 0.2f), scale(b, thrustPeak, 0.4f)), 1.0f), synth, AdditivePort::NoiseLpCoef);
 
-    // No vibrato/tremolo for this preset - unwired inputs default to 0, overriding the new nonzero default.
-    b.add("sink.vibratoRateHz");
-    b.add("sink.tremoloRateHz");
+    // No vibrato/tremolo for this preset - explicitly zeroed, overriding the Additive Synth's own nonzero default.
+    b.wire(constantNode(b, 0.0f), synth, AdditivePort::VibratoRateHz);
+    b.wire(constantNode(b, 0.0f), synth, AdditivePort::TremoloRateHz);
 
     const float panL[4] = { 0.55f, 0.45f, 0.70f, 0.30f };
     const float panR[4] = { 0.45f, 0.55f, 0.30f, 0.70f };
     for (int i = 0; i < 4; ++i) {
-        toSink(b, constantNode(b, panL[i]), "sink.panL", { static_cast<float>(i) });
-        toSink(b, constantNode(b, panR[i]), "sink.panR", { static_cast<float>(i) });
+        b.wire(constantNode(b, panL[i]), synth, AdditivePort::PanL0 + i);
+        b.wire(constantNode(b, panR[i]), synth, AdditivePort::PanR0 + i);
     }
 
     // Same spin-count-driven sine oscillator as plain Azimut/Azimut Reverb.
@@ -199,7 +203,7 @@ std::unique_ptr<NodeGraph> buildMartialMomentum() {
     b.wire(spinPhase, sineVal);
     NodeId targetLpf = b.add("math.mapRangeLog", { -1.0f, 1.0f, 400.0f, 20000.0f });
     b.wire(sineVal, targetLpf);
-    toSink(b, onePole(b, targetLpf, 0.03f), "sink.lpfCutoffHz");
+    b.wire(onePole(b, targetLpf, 0.03f), synth, AdditivePort::LpfCutoffHz);
 
     return graph;
 }

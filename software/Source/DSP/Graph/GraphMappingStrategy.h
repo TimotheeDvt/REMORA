@@ -8,7 +8,7 @@
 
 namespace Graph {
 
-// The one IMappingStrategy left once every preset is a NodeGraph - auto-registers a MonitorParam per sink node.
+// The one IMappingStrategy left once every preset is a NodeGraph - auto-registers a MonitorParam per sink port.
 class GraphMappingStrategy : public IMappingStrategy {
 public:
     GraphMappingStrategy(std::unique_ptr<NodeGraph> graph, juce::String displayName, juce::String description = {});
@@ -25,7 +25,9 @@ private:
     juce::String description_;
     StaffMotionAnalyzer motion_;
     std::unique_ptr<NodeGraph> graph_;
-    std::vector<std::pair<NodeId, MonitorParam*>> sinkMonitors_;
+    // One entry per sink input port (a mega-sink node has many), not one per node.
+    struct SinkMonitor { NodeId nodeId; int port; MonitorParam* param; };
+    std::vector<SinkMonitor> sinkMonitors_;
 };
 
 } // namespace Graph

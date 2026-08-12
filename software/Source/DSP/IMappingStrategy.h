@@ -8,13 +8,13 @@
 
 struct StaffSoundParams;
 
-struct MappingOutput {
+// Everything the Additive Synth engine needs, written by the single "sink.additiveSynth" mega-node.
+struct AdditiveSynthParams {
     float rootHz = 110.0f;
     // All voices sing the same pitch as voice 0 by default (no chord).
     float chordSemitones[3] = { 0.0f, 0.0f, 0.0f };
     int numVoices = 1;
 
-    float masterGain = 0.0f;
     // Only voice 0 sounds by default; voices 1-3 are silent until a preset opts them in.
     float voiceGain[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
 
@@ -43,6 +43,30 @@ struct MappingOutput {
     float reverbWetLevel = 0.0f;   // 0 = dry/bypassed, 1 = fully wet
     float reverbRoomSize = 0.5f;   // decay length ("feedback"): 0 = short, 1 = long
     float reverbDamping  = 0.5f;   // high-frequency absorption: 0 = bright, 1 = dark
+};
+
+// Everything the Granular Synth engine needs, written by the single "sink.granularSynth" mega-node.
+// `level` defaults to 0 (silent) so presets that don't wire this node leave the engine inaudible.
+struct GranularSynthParams {
+    float positionNorm = 0.0f;    // 0-1, scan position in the internal source buffer
+    float positionSpray = 0.0f;   // 0-1, random jitter added to position per grain
+    float grainSizeMs = 60.0f;    // 5-500
+    float densityHz = 20.0f;      // 1-200 grains/sec
+    float pitchSemitones = 0.0f;  // -24..24, grain playback pitch
+    float pitchSpray = 0.0f;      // 0-12 semitones, random jitter per grain
+    float panSpread = 0.0f;       // 0-1, stereo spread of grains
+    float ampSpray = 0.0f;        // 0-1, random amplitude jitter per grain
+    float level = 0.0f;           // 0-1, engine output trim
+    float reverseAmount = 0.0f;   // 0-1, probability a grain plays reversed
+};
+
+// Written once per audio block by whichever mega-sink nodes the active preset's graph wires up.
+// `masterGain` is shared by every engine (written by "sink.generalGain"); each engine param struct
+// defaults to silent/off so an engine a preset never wires stays inaudible.
+struct MappingOutput {
+    float masterGain = 0.0f;
+    AdditiveSynthParams additive;
+    GranularSynthParams granular;
 };
 
 class IMappingStrategy {

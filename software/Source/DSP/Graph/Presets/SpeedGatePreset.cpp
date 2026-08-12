@@ -52,34 +52,37 @@ std::unique_ptr<NodeGraph> buildSpeedGate() {
     AzimutTimbreOutputs azimutTimbre = buildAzimutTimbre(b, azimut);
     NodeId azimutLpf = buildSpinCountLpfHz(b, azimut);
 
+    NodeId synth = addAdditiveSynth(b);
+    NodeId gain = addGeneralGain(b);
+
     // numVoices is NOT cross-faded - taken from azimut directly
-    toSink(b, crossfadeNodes(b, simpleRootHz, azimut.rootHz, azimutAmount), "sink.rootHz");
+    b.wire(crossfadeNodes(b, simpleRootHz, azimut.rootHz, azimutAmount), synth, AdditivePort::RootHz);
     for (int i = 0; i < 3; ++i)
-        toSink(b, crossfadeNodes(b, simpleChord[i], azimut.chordSemitone[i], azimutAmount), "sink.chordSemitone", { static_cast<float>(i) });
-    toSink(b, azimut.numVoices, "sink.numVoices");
+        b.wire(crossfadeNodes(b, simpleChord[i], azimut.chordSemitone[i], azimutAmount), synth, AdditivePort::ChordSemitone0 + i);
+    b.wire(azimut.numVoices, synth, AdditivePort::NumVoices);
 
-    toSink(b, crossfadeNodes(b, simpleGain, azimut.masterGain, azimutAmount), "sink.masterGain");
+    b.wire(crossfadeNodes(b, simpleGain, azimut.masterGain, azimutAmount), gain, 0);
     for (int i = 0; i < 4; ++i)
-        toSink(b, crossfadeNodes(b, constantNode(b, simpleVoiceGain[i]), azimut.voiceGain[i], azimutAmount), "sink.voiceGain", { static_cast<float>(i) });
+        b.wire(crossfadeNodes(b, constantNode(b, simpleVoiceGain[i]), azimut.voiceGain[i], azimutAmount), synth, AdditivePort::VoiceGain0 + i);
 
-    // partialAmp[0]: both sides of the crossfade are constant 1.0, matching the new MappingOutput
-    // default regardless of azimutAmount - omitted.
+    // partialAmp[0]: both sides of the crossfade are constant 1.0, matching the Additive Synth's
+    // own default regardless of azimutAmount - omitted.
     for (int i = 1; i < 6; ++i)
-        toSink(b, crossfadeNodes(b, constantNode(b, simplePartials[i]), azimutTimbre.partialAmp[i], azimutAmount), "sink.partialAmp", { static_cast<float>(i) });
-    toSink(b, crossfadeNodes(b, zero, azimutTimbre.driveAmt, azimutAmount), "sink.driveAmt");
+        b.wire(crossfadeNodes(b, constantNode(b, simplePartials[i]), azimutTimbre.partialAmp[i], azimutAmount), synth, AdditivePort::PartialAmp0 + i);
+    b.wire(crossfadeNodes(b, zero, azimutTimbre.driveAmt, azimutAmount), synth, AdditivePort::DriveAmt);
 
-    toSink(b, crossfadeNodes(b, constantNode(b, 5.0f), zero, azimutAmount), "sink.vibratoRateHz");
-    toSink(b, crossfadeNodes(b, constantNode(b, 4.0f), zero, azimutAmount), "sink.tremoloRateHz");
+    b.wire(crossfadeNodes(b, constantNode(b, 5.0f), zero, azimutAmount), synth, AdditivePort::VibratoRateHz);
+    b.wire(crossfadeNodes(b, constantNode(b, 4.0f), zero, azimutAmount), synth, AdditivePort::TremoloRateHz);
 
-    toSink(b, crossfadeNodes(b, zero, azimutTimbre.noiseAmount, azimutAmount), "sink.noiseAmount");
-    toSink(b, crossfadeNodes(b, constantNode(b, 0.5f), azimutTimbre.noiseLpCoef, azimutAmount), "sink.noiseLpCoef");
+    b.wire(crossfadeNodes(b, zero, azimutTimbre.noiseAmount, azimutAmount), synth, AdditivePort::NoiseAmount);
+    b.wire(crossfadeNodes(b, constantNode(b, 0.5f), azimutTimbre.noiseLpCoef, azimutAmount), synth, AdditivePort::NoiseLpCoef);
 
     for (int i = 0; i < 4; ++i) {
-        toSink(b, crossfadeNodes(b, simplePan, azimut.panL[i], azimutAmount), "sink.panL", { static_cast<float>(i) });
-        toSink(b, crossfadeNodes(b, simplePanInv, azimut.panR[i], azimutAmount), "sink.panR", { static_cast<float>(i) });
+        b.wire(crossfadeNodes(b, simplePan, azimut.panL[i], azimutAmount), synth, AdditivePort::PanL0 + i);
+        b.wire(crossfadeNodes(b, simplePanInv, azimut.panR[i], azimutAmount), synth, AdditivePort::PanR0 + i);
     }
 
-    toSink(b, crossfadeNodes(b, constantNode(b, 8000.0f), azimutLpf, azimutAmount), "sink.lpfCutoffHz");
+    b.wire(crossfadeNodes(b, constantNode(b, 8000.0f), azimutLpf, azimutAmount), synth, AdditivePort::LpfCutoffHz);
 
     return graph;
 }

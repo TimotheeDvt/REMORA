@@ -17,6 +17,8 @@ std::unique_ptr<NodeGraph> buildSpinFilter() {
 
     auto graph = std::make_unique<NodeGraph>();
     GraphBuilder b(*graph);
+    NodeId synth = addAdditiveSynth(b);
+    NodeId gain = addGeneralGain(b);
 
     NodeId gyroMag = b.add("source.gyroMagnitudeRaw");
     NodeId accelMag = b.add("source.accelMagnitudeRaw");
@@ -27,28 +29,28 @@ std::unique_ptr<NodeGraph> buildSpinFilter() {
 
     NodeId rootHz = b.add("math.semitonesToHz", { 130.81f });
     b.wire(semitones, rootHz);
-    toSink(b, rootHz, "sink.rootHz");
+    b.wire(rootHz, synth, AdditivePort::RootHz);
 
-    toSink(b, constantNode(b, 2.0f), "sink.numVoices");
-    // chordSemitone[0]=0 matches the new MappingOutput default - omitted.
-    toSink(b, constantNode(b, 7.0f), "sink.chordSemitone", { 1.0f });
+    b.wire(constantNode(b, 2.0f), synth, AdditivePort::NumVoices);
+    // chordSemitone[0]=0 matches the Additive Synth's own default - omitted.
+    b.wire(constantNode(b, 7.0f), synth, AdditivePort::ChordSemitone1);
 
     NodeId pitch = b.add("source.pitch");
     NodeId pitchNorm = clampNode(b, scale(b, addConst(b, pitch, 1.57f), 1.0f / 3.14f), 0.0f, 1.0f);
-    toSink(b, scale(b, pitchNorm, 0.025f), "sink.vibratoDepth");
-    toSink(b, addConst(b, scale(b, accelMag, 0.1f), 4.0f), "sink.vibratoRateHz");
+    b.wire(scale(b, pitchNorm, 0.025f), synth, AdditivePort::VibratoDepth);
+    b.wire(addConst(b, scale(b, accelMag, 0.1f), 4.0f), synth, AdditivePort::VibratoRateHz);
 
     NodeId yaw = b.add("source.yaw");
     NodeId yawNorm = clampNode(b, scale(b, addConst(b, yaw, 3.14f), 1.0f / 6.28f), 0.0f, 1.0f);
-    toSink(b, subNodes(b, constantNode(b, 1.0f), yawNorm), "sink.panL", { 0.0f });
-    toSink(b, yawNorm, "sink.panR", { 0.0f });
-    toSink(b, yawNorm, "sink.panL", { 1.0f });
-    toSink(b, subNodes(b, constantNode(b, 1.0f), yawNorm), "sink.panR", { 1.0f });
+    b.wire(subNodes(b, constantNode(b, 1.0f), yawNorm), synth, AdditivePort::PanL0);
+    b.wire(yawNorm, synth, AdditivePort::PanR0);
+    b.wire(yawNorm, synth, AdditivePort::PanL1);
+    b.wire(subNodes(b, constantNode(b, 1.0f), yawNorm), synth, AdditivePort::PanR1);
 
     NodeId energy = clampNode(b, addNodes(b, scale(b, gyroMag, 0.01f), scale(b, accelMag, 0.05f)), 0.0f, 1.0f);
-    toSink(b, addConst(b, scale(b, energy, 0.8f), 0.05f), "sink.masterGain");
-    toSink(b, constantNode(b, 0.9f), "sink.voiceGain", { 0.0f });
-    toSink(b, constantNode(b, 0.7f), "sink.voiceGain", { 1.0f });
+    b.wire(addConst(b, scale(b, energy, 0.8f), 0.05f), gain, 0);
+    b.wire(constantNode(b, 0.9f), synth, AdditivePort::VoiceGain0);
+    b.wire(constantNode(b, 0.7f), synth, AdditivePort::VoiceGain1);
 
     NodeId roll = b.add("source.roll");
     NodeId rollNorm = clampNode(b, scale(b, addConst(b, roll, 3.14f), 1.0f / 6.28f), 0.0f, 1.0f);
@@ -57,12 +59,12 @@ std::unique_ptr<NodeGraph> buildSpinFilter() {
     // Per-partial gain = 1/p below the cutoff, a 1-wide linear taper through it, 0 above.
     for (int p = 1; p <= 6; ++p) {
         NodeId taper = clampNode(b, addConst(b, subNodes(b, maxActivePartial, constantNode(b, static_cast<float>(p))), 1.0f), 0.0f, 1.0f);
-        toSink(b, scale(b, taper, 1.0f / static_cast<float>(p)), "sink.partialAmp", { static_cast<float>(p - 1) });
+        b.wire(scale(b, taper, 1.0f / static_cast<float>(p)), synth, AdditivePort::PartialAmp0 + (p - 1));
     }
 
-    toSink(b, scale(b, energy, 0.15f), "sink.noiseAmount");
-    toSink(b, addConst(b, scale(b, rollNorm, 0.5f), 0.05f), "sink.noiseLpCoef");
-    toSink(b, scale(b, energy, 1.5f), "sink.driveAmt");
+    b.wire(scale(b, energy, 0.15f), synth, AdditivePort::NoiseAmount);
+    b.wire(addConst(b, scale(b, rollNorm, 0.5f), 0.05f), synth, AdditivePort::NoiseLpCoef);
+    b.wire(scale(b, energy, 1.5f), synth, AdditivePort::DriveAmt);
 
     return graph;
 }

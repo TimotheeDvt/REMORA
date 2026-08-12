@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DSP/BoStaffSynth.h"
+#include "DSP/SynthManager.h"
 #include "DSP/MathHelpers.h"
 #include "DATA/IMUData.h"
 #include "DATA/OrientationPoint.h"
@@ -47,7 +47,7 @@ public:
     return oscManager.getLastMessageReceivedTicks();
   }
 
-  BoStaffSynth& getSynth() { return synth; }
+  SynthManager& getSynth() { return synth; }
 
   int getIPVersion() const { return oscManager.getIPVersion(); }
   juce::String getLastConnectedIP() const {
@@ -120,7 +120,7 @@ private:
   void timerCallback() override;
 
   OscReceiverManager oscManager;
-  BoStaffSynth synth;
+  SynthManager synth;
 
   std::atomic<int> calibState{(int)CalibState::Idle};
 

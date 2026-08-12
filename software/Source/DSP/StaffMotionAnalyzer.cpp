@@ -1,5 +1,5 @@
 #include "StaffMotionAnalyzer.h"
-#include "BoStaffSynth.h"
+#include "SynthManager.h"
 #include "../UI/DebugLog.h"
 #include <algorithm>
 #include <cmath>

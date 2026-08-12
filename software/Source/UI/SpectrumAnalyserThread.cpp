@@ -1,10 +1,10 @@
 #include "SpectrumAnalyserThread.h"
 
-SpectrumAnalyserThread::SpectrumAnalyserThread(BoStaffSynth &synthToAnalyse)
+SpectrumAnalyserThread::SpectrumAnalyserThread(SynthManager &synthToAnalyse)
     : juce::Thread("Spectrum Analyser"),
       synth(synthToAnalyse),
-      forwardFFT(BoStaffSynth::fftOrder),
-      window(BoStaffSynth::fftSize, juce::dsp::WindowingFunction<float>::hann) {
+      forwardFFT(SynthManager::fftOrder),
+      window(SynthManager::fftSize, juce::dsp::WindowingFunction<float>::hann) {
   startThread();
 }
 

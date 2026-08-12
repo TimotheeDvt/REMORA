@@ -1,8 +1,10 @@
-#include "../BoStaffSynth.h"
 #include "../IMappingStrategy.h"
 #include "../MathHelpers.h"
+#include "../SynthManager.h" // full StaffSoundParams definition, used via SourceFrame::raw
 #include "NodeMetadata.h"
+#include "Presets/SynthPorts.h"
 #include <cmath>
+#include <cstring>
 
 // Every node's full definition lives here; add a node by adding one call to buildAllNodes() below.
 
@@ -21,12 +23,6 @@ struct MathNodeState : NodeState {
 };
 
 std::unique_ptr<NodeState> makeMathState() { return std::make_unique<MathNodeState>(); }
-
-template <int N>
-int arrayIndex(const std::vector<float>& params) {
-    const float raw = params.empty() ? 0.0f : params[0];
-    return juce::jlimit(0, N - 1, static_cast<int>(std::lround(raw)));
-}
 
 NodeTypeInfo math(const char* id, const char* name, const char* subcategory, const char* description,
                    std::vector<juce::String> inputNames, std::vector<float> defaultParams,
@@ -84,8 +80,37 @@ NodeTypeInfo sink(const char* id, const char* name, const char* subcategory, con
     info.inputNames = { "value" };
     info.defaultParams = std::move(defaultParams);
     info.paramNames = std::move(paramNames);
-    info.monitorRangeMin = monitorRangeMin;
-    info.monitorRangeMax = monitorRangeMax;
+    info.monitorRangeMin = { monitorRangeMin };
+    info.monitorRangeMax = { monitorRangeMax };
+    info.sinkWrite = write;
+    return info;
+}
+
+// A sink with one input port per synth parameter, rather than one sink node per parameter - used
+// for the per-engine mega-nodes ("Additive Synth", "Granular Synth"). `def` is what the port falls
+// back to when left unwired - matching that engine param struct's own default, so a preset that
+// doesn't bother wiring e.g. reverb or vibrato gets the same "off" behavior as before.
+struct PortSpec { const char* name; float lo; float hi; float def; };
+NodeTypeInfo multiSink(const char* id, const char* name, const char* subcategory, const char* description,
+                        std::vector<PortSpec> ports, NodeTypeInfo::SinkWriteFn write) {
+    NodeTypeInfo info;
+    info.id = id;
+    info.displayName = name;
+    info.category = NodeCategory::Sink;
+    info.subcategory = subcategory;
+    info.description = description;
+    info.numInputs = static_cast<int>(ports.size());
+    int longestNameChars = 0;
+    for (const auto& p : ports) {
+        info.inputNames.push_back(juce::String(p.name));
+        info.monitorRangeMin.push_back(p.lo);
+        info.monitorRangeMax.push_back(p.hi);
+        info.inputDefaults.push_back(p.def);
+        longestNameChars = juce::jmax(longestNameChars, static_cast<int>(std::strlen(p.name)));
+    }
+    // Wide enough that the longest port name doesn't get cropped (a mega-sink has no output column
+    // to share the box with, so this width goes entirely to the input label column).
+    info.defaultWidth = 60.0f + static_cast<float>(longestNameChars) * 7.5f;
     info.sinkWrite = write;
     return info;
 }
@@ -455,75 +480,112 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         nodes.push_back(info);
     }
 
-    // Output Scalar
-    nodes.push_back(sink("sink.rootHz", "Root Hz", "Scalar",
-        "Synth's root/fundamental frequency; all voices and chord semitones are relative to this.\nRange: [20 ; 2000]",
-        20.0f, 2000.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.rootHz = in[0]; }));
-    nodes.push_back(sink("sink.numVoices", "Num Voices", "Scalar",
-        "How many of the 4 chord voices are active (rounded).\nRange: [0 ; 4]",
-        0.0f, 4.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) {
-            out.numVoices = juce::jlimit(0, 4, static_cast<int>(std::lround(in[0])));
-        }));
-    nodes.push_back(sink("sink.masterGain", "Master Gain", "Scalar", "Overall output level.\nRange: [0 ; 1]",
+    // The whole synth is one node per engine: every parameter of that engine is a named input
+    // port on it, rather than a separate single-purpose sink node per parameter. Overall output
+    // level is the only thing shared across engines, so it stays its own tiny sink.
+    nodes.push_back(sink("sink.generalGain", "General Gain", "Synth", "Overall output level, shared by every synth engine.\nRange: [0 ; 1]",
         0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.masterGain = in[0]; }));
-    nodes.push_back(sink("sink.driveAmt", "Drive Amount", "Scalar",
-        "Waveshaping/saturation drive; above ~1 pushes into audible distortion.\nRange: [0 ; 4]",
-        0.0f, 4.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.driveAmt = in[0]; }));
-    nodes.push_back(sink("sink.vibratoDepth", "Vibrato Depth", "Scalar", "Depth of pitch vibrato.\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.vibratoDepth = in[0]; }));
-    nodes.push_back(sink("sink.vibratoRateHz", "Vibrato Rate (Hz)", "Scalar", "Speed of the pitch vibrato LFO.\nRange: [0 ; 20]",
-        0.0f, 20.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.vibratoRateHz = in[0]; }));
-    nodes.push_back(sink("sink.tremoloDepth", "Tremolo Depth", "Scalar", "Depth of amplitude tremolo.\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.tremoloDepth = in[0]; }));
-    nodes.push_back(sink("sink.tremoloRateHz", "Tremolo Rate (Hz)", "Scalar", "Speed of the amplitude tremolo LFO.\nRange: [0 ; 20]",
-        0.0f, 20.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.tremoloRateHz = in[0]; }));
-    nodes.push_back(sink("sink.noiseAmount", "Noise Amount", "Scalar",
-        "Broadband noise mixed into the voices.\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.noiseAmount = in[0]; }));
-    nodes.push_back(sink("sink.noiseLpCoef", "Noise LP Coefficient", "Scalar",
-        "One-pole lowpass coefficient on the noise before mixing (0=darkest, 1=brightest).\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.noiseLpCoef = in[0]; }));
-    nodes.push_back(sink("sink.usePinkNoise", "Pink Noise", "Scalar",
-        "Switch: >0.5 colors each voice's noise pink (1/f, weighted toward low frequencies) instead of white "
-        "(flat spectrum).\nRange: 0 or 1",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.usePinkNoise = in[0] > 0.5f; }));
-    nodes.push_back(sink("sink.lpfCutoffHz", "LPF Cutoff (Hz)", "Scalar", "Cutoff of the output lowpass filter.\nRange: [20 ; 20000]",
-        20.0f, 20000.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.lpfCutoffHz = in[0]; }));
-    nodes.push_back(sink("sink.useIndependentVoicePitch", "Independent Voice Pitch", "Scalar",
-        "Switch: >0.5 makes each voice use its own Voice Hz[i] instead of Root Hz + chord.\nRange: 0 or 1",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.useIndependentVoicePitch = in[0] > 0.5f; }));
-    nodes.push_back(sink("sink.reverbWetLevel", "Reverb Wet Level", "Scalar", "Reverb mix, dry to wet.\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.reverbWetLevel = in[0]; }));
-    nodes.push_back(sink("sink.reverbRoomSize", "Reverb Room Size", "Scalar", "Reverb decay length ('feedback').\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.reverbRoomSize = in[0]; }));
-    nodes.push_back(sink("sink.reverbDamping", "Reverb Damping", "Scalar", "Reverb high-frequency absorption.\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.reverbDamping = in[0]; }));
 
-    // Output Indexed Array
-    nodes.push_back(sink("sink.chordSemitone", "Chord Semitone[i]", "Indexed Array",
-        "Semitone offset from Root Hz, chord voice 'index' (0-2).\nRange: [-24 ; 24]",
-        -24.0f, 24.0f, [](const float* in, const std::vector<float>& p, MappingOutput& out) { out.chordSemitones[arrayIndex<3>(p)] = in[0]; },
-        { 0.0f }, { "index" }));
-    nodes.push_back(sink("sink.voiceGain", "Voice Gain[i]", "Indexed Array",
-        "Per-voice gain, voice 'index' (0-3).\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>& p, MappingOutput& out) { out.voiceGain[arrayIndex<4>(p)] = in[0]; },
-        { 0.0f }, { "index" }));
-    nodes.push_back(sink("sink.partialAmp", "Partial Amp[i]", "Indexed Array",
-        "Amplitude of harmonic partial 'index' (0-5).\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>& p, MappingOutput& out) { out.partialAmps[arrayIndex<6>(p)] = in[0]; },
-        { 0.0f }, { "index" }));
-    nodes.push_back(sink("sink.panL", "Pan L[i]", "Indexed Array",
-        "Left-channel gain, voice 'index' (0-3).\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>& p, MappingOutput& out) { out.panL[arrayIndex<4>(p)] = in[0]; },
-        { 0.0f }, { "index" }));
-    nodes.push_back(sink("sink.panR", "Pan R[i]", "Indexed Array",
-        "Right-channel gain, voice 'index' (0-3).\nRange: [0 ; 1]",
-        0.0f, 1.0f, [](const float* in, const std::vector<float>& p, MappingOutput& out) { out.panR[arrayIndex<4>(p)] = in[0]; },
-        { 0.0f }, { "index" }));
-    nodes.push_back(sink("sink.voiceHz", "Voice Hz[i]", "Indexed Array",
-        "Independent frequency, voice 'index' (0-3); only used when Independent Voice Pitch is on.\nRange: [20 ; 2000]",
-        20.0f, 2000.0f, [](const float* in, const std::vector<float>& p, MappingOutput& out) { out.voiceHz[arrayIndex<4>(p)] = in[0]; },
-        { 0.0f }, { "index" }));
+    nodes.push_back(multiSink("sink.additiveSynth", "Additive Synth", "Synth",
+        "The additive/subtractive-hybrid voice engine (4 voices x 6 harmonic partials, drive, noise, "
+        "vibrato/tremolo, filter, reverb) - every parameter it exposes, in one node.",
+        {
+            { "Root Hz", 20.0f, 2000.0f, 110.0f },
+            { "Num Voices", 0.0f, 4.0f, 1.0f },
+            { "Drive Amount", 0.0f, 4.0f, 0.0f },
+            { "Vibrato Depth", 0.0f, 1.0f, 0.0f },
+            { "Vibrato Rate (Hz)", 0.0f, 20.0f, 5.0f },
+            { "Tremolo Depth", 0.0f, 1.0f, 0.0f },
+            { "Tremolo Rate (Hz)", 0.0f, 20.0f, 4.0f },
+            { "Noise Amount", 0.0f, 1.0f, 0.0f },
+            { "Noise LP Coefficient", 0.0f, 1.0f, 0.5f },
+            { "Pink Noise", 0.0f, 1.0f, 0.0f },
+            { "LPF Cutoff (Hz)", 20.0f, 20000.0f, 20000.0f },
+            { "Independent Voice Pitch", 0.0f, 1.0f, 0.0f },
+            { "Reverb Wet Level", 0.0f, 1.0f, 0.0f },
+            { "Reverb Room Size", 0.0f, 1.0f, 0.5f },
+            { "Reverb Damping", 0.0f, 1.0f, 0.5f },
+            { "Chord Semitone 0", -24.0f, 24.0f, 0.0f },
+            { "Chord Semitone 1", -24.0f, 24.0f, 0.0f },
+            { "Chord Semitone 2", -24.0f, 24.0f, 0.0f },
+            { "Voice Gain 0", 0.0f, 1.0f, 1.0f },
+            { "Voice Gain 1", 0.0f, 1.0f, 0.0f },
+            { "Voice Gain 2", 0.0f, 1.0f, 0.0f },
+            { "Voice Gain 3", 0.0f, 1.0f, 0.0f },
+            { "Partial Amp 0", 0.0f, 1.0f, 1.0f },
+            { "Partial Amp 1", 0.0f, 1.0f, 0.0f },
+            { "Partial Amp 2", 0.0f, 1.0f, 0.0f },
+            { "Partial Amp 3", 0.0f, 1.0f, 0.0f },
+            { "Partial Amp 4", 0.0f, 1.0f, 0.0f },
+            { "Partial Amp 5", 0.0f, 1.0f, 0.0f },
+            { "Pan L 0", 0.0f, 1.0f, 0.5f },
+            { "Pan L 1", 0.0f, 1.0f, 0.5f },
+            { "Pan L 2", 0.0f, 1.0f, 0.5f },
+            { "Pan L 3", 0.0f, 1.0f, 0.5f },
+            { "Pan R 0", 0.0f, 1.0f, 0.5f },
+            { "Pan R 1", 0.0f, 1.0f, 0.5f },
+            { "Pan R 2", 0.0f, 1.0f, 0.5f },
+            { "Pan R 3", 0.0f, 1.0f, 0.5f },
+            { "Voice Hz 0", 20.0f, 2000.0f, 110.0f },
+            { "Voice Hz 1", 20.0f, 2000.0f, 110.0f },
+            { "Voice Hz 2", 20.0f, 2000.0f, 110.0f },
+            { "Voice Hz 3", 20.0f, 2000.0f, 110.0f },
+        },
+        [](const float* in, const std::vector<float>&, MappingOutput& out) {
+            using namespace AdditivePort;
+            AdditiveSynthParams& a = out.additive;
+            a.rootHz = in[RootHz];
+            a.numVoices = juce::jlimit(0, 4, static_cast<int>(std::lround(in[NumVoices])));
+            a.driveAmt = in[DriveAmt];
+            a.vibratoDepth = in[VibratoDepth];
+            a.vibratoRateHz = in[VibratoRateHz];
+            a.tremoloDepth = in[TremoloDepth];
+            a.tremoloRateHz = in[TremoloRateHz];
+            a.noiseAmount = in[NoiseAmount];
+            a.noiseLpCoef = in[NoiseLpCoef];
+            a.usePinkNoise = in[UsePinkNoise] > 0.5f;
+            a.lpfCutoffHz = in[LpfCutoffHz];
+            a.useIndependentVoicePitch = in[UseIndependentVoicePitch] > 0.5f;
+            a.reverbWetLevel = in[ReverbWetLevel];
+            a.reverbRoomSize = in[ReverbRoomSize];
+            a.reverbDamping = in[ReverbDamping];
+            for (int i = 0; i < 3; ++i) a.chordSemitones[i] = in[ChordSemitone0 + i];
+            for (int i = 0; i < 4; ++i) a.voiceGain[i] = in[VoiceGain0 + i];
+            for (int i = 0; i < 6; ++i) a.partialAmps[i] = in[PartialAmp0 + i];
+            for (int i = 0; i < 4; ++i) a.panL[i] = in[PanL0 + i];
+            for (int i = 0; i < 4; ++i) a.panR[i] = in[PanR0 + i];
+            for (int i = 0; i < 4; ++i) a.voiceHz[i] = in[VoiceHz0 + i];
+        }));
+
+    nodes.push_back(multiSink("sink.granularSynth", "Granular Synth", "Synth",
+        "The grain-cloud engine, scanning an internal evolving wavetable - every parameter it "
+        "exposes, in one node. Level defaults to 0 (silent) so unused presets stay quiet.",
+        {
+            { "Position", 0.0f, 1.0f, 0.0f },
+            { "Position Spray", 0.0f, 1.0f, 0.0f },
+            { "Grain Size (ms)", 5.0f, 500.0f, 60.0f },
+            { "Density (Hz)", 1.0f, 200.0f, 20.0f },
+            { "Pitch (semitones)", -24.0f, 24.0f, 0.0f },
+            { "Pitch Spray", 0.0f, 12.0f, 0.0f },
+            { "Pan Spread", 0.0f, 1.0f, 0.0f },
+            { "Amp Spray", 0.0f, 1.0f, 0.0f },
+            { "Level", 0.0f, 1.0f, 0.0f },
+            { "Reverse Amount", 0.0f, 1.0f, 0.0f },
+        },
+        [](const float* in, const std::vector<float>&, MappingOutput& out) {
+            using namespace GranularPort;
+            GranularSynthParams& g = out.granular;
+            g.positionNorm = in[Position];
+            g.positionSpray = in[PositionSpray];
+            g.grainSizeMs = in[GrainSizeMs];
+            g.densityHz = in[DensityHz];
+            g.pitchSemitones = in[PitchSemitones];
+            g.pitchSpray = in[PitchSpray];
+            g.panSpread = in[PanSpread];
+            g.ampSpray = in[AmpSpray];
+            g.level = in[Level];
+            g.reverseAmount = in[ReverseAmount];
+        }));
 
     return nodes;
 }

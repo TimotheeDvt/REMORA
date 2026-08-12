@@ -16,6 +16,9 @@ NodeInstance* NodeGraph::addNodeWithId(NodeId id, const juce::String& typeId, st
     inst.id = id;
     inst.typeId = typeId;
     inst.inputs.resize(static_cast<size_t>(info->numInputs));
+    if (info->inputDefaults.size() == inst.inputs.size())
+        for (size_t p = 0; p < inst.inputs.size(); ++p)
+            inst.inputs[p].defaultValue = info->inputDefaults[p];
     inst.params = params.empty() ? info->defaultParams : std::move(params);
     if (info->isStateful && info->makeState)
         inst.state = info->makeState();
@@ -239,9 +242,10 @@ void NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
             case NodeCategory::Sink:
                 if (info->sinkWrite)
                     info->sinkWrite(inputValues, n.params, out);
-                // Sinks have no output of their own - stash the value that flowed into them so
+                // Sinks have no output of their own - stash the values that flowed into each port so
                 // liveOutputValue()/tooltips/monitor knobs can show "what's being sent to this sink".
-                n.lastOutputs[0] = inputValues[0];
+                for (size_t p = 0; p < n.inputs.size() && p < static_cast<size_t>(kMaxNodeOutputs); ++p)
+                    n.lastOutputs[p] = inputValues[p];
                 break;
         }
     }
