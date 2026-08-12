@@ -483,6 +483,10 @@ std::vector<NodeTypeInfo> buildAllNodes() {
     nodes.push_back(sink("sink.noiseLpCoef", "Noise LP Coefficient", "Scalar",
         "One-pole lowpass coefficient on the noise before mixing (0=darkest, 1=brightest).\nRange: [0 ; 1]",
         0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.noiseLpCoef = in[0]; }));
+    nodes.push_back(sink("sink.usePinkNoise", "Pink Noise", "Scalar",
+        "Switch: >0.5 colors each voice's noise pink (1/f, weighted toward low frequencies) instead of white "
+        "(flat spectrum).\nRange: 0 or 1",
+        0.0f, 1.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.usePinkNoise = in[0] > 0.5f; }));
     nodes.push_back(sink("sink.lpfCutoffHz", "LPF Cutoff (Hz)", "Scalar", "Cutoff of the output lowpass filter.\nRange: [20 ; 20000]",
         20.0f, 20000.0f, [](const float* in, const std::vector<float>&, MappingOutput& out) { out.lpfCutoffHz = in[0]; }));
     nodes.push_back(sink("sink.useIndependentVoicePitch", "Independent Voice Pitch", "Scalar",

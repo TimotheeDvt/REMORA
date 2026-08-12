@@ -29,6 +29,7 @@ struct MappingOutput {
 
     float noiseAmount = 0.0f;
     float noiseLpCoef = 0.5f;
+    bool  usePinkNoise = false;
 
     // Panning disabled by default - equal gain to both channels for every voice.
     float panL[4] = { 0.5f, 0.5f, 0.5f, 0.5f };

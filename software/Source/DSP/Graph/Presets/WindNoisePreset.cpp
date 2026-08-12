@@ -20,6 +20,7 @@ std::unique_ptr<NodeGraph> buildWindNoise() {
     toSink(b, constantNode(b, 0.5f), "sink.masterGain");
 
     toSink(b, scale(b, energy, 0.9f), "sink.noiseAmount");
+    toSink(b, constantNode(b, 1.0f), "sink.usePinkNoise");
 
     NodeId noiseCoef = b.add("math.mapRange", { 0.0f, 1.0f, 0.97f, 0.75f });
     b.wire(energy, noiseCoef);

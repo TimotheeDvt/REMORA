@@ -280,7 +280,7 @@ void BoStaffSynth::processBlock(juce::AudioBuffer<float> &buffer,
 
             float voiceSample = voices[v].tick(voiceFreq, sampleRateRecip,
                                                mappingOut.partialAmps, noiseOut * 0.3f,
-                                               rngState, driveAmt);
+                                               rngState, driveAmt, mappingOut.usePinkNoise);
             voiceSample *= voiceGain;
 
             mixL += voiceSample * mappingOut.panL[v];

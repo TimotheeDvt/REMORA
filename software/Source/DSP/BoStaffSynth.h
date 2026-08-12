@@ -25,6 +25,18 @@ struct StaffSoundParams {
     bool  isReceivingValidData = false;
 };
 
+// Paul Kellet's "economy" 3-pole pink noise filter (-3dB/octave approximation, cheap enough per-voice).
+struct PinkNoiseFilter {
+    float b0 = 0.0f, b1 = 0.0f, b2 = 0.0f;
+
+    float process(float white) noexcept {
+        b0 = 0.99765f * b0 + white * 0.0990460f;
+        b1 = 0.96300f * b1 + white * 0.2965164f;
+        b2 = 0.57000f * b2 + white * 1.0526913f;
+        return (b0 + b1 + b2 + white * 0.1848f) * 0.11f;
+    }
+};
+
 struct SynthVoice {
     static constexpr int kPartials = 6;
 
@@ -34,6 +46,8 @@ struct SynthVoice {
 
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> partialAmp[kPartials];
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> voiceAmp;
+
+    PinkNoiseFilter pinkFilter;
 
     static constexpr int kCombSize = 2048;
     float combBuffer[kCombSize] = {};
@@ -51,7 +65,7 @@ struct SynthVoice {
 
     float tick(float fundamentalHz, float sampleRateRecip,
                const float partialTargets[kPartials],
-               float noiseAmt, uint32_t& rng, float driveAmt)
+               float noiseAmt, uint32_t& rng, float driveAmt, bool usePinkNoise)
     {
         constexpr float twoPi = 6.28318530717958f;
         for (int p = 0; p < kPartials; ++p)
@@ -67,7 +81,8 @@ struct SynthVoice {
         }
 
         rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
-        float noise = static_cast<float>(rng) * (2.0f / 4294967296.0f) - 1.0f;
+        float whiteNoise = static_cast<float>(rng) * (2.0f / 4294967296.0f) - 1.0f;
+        float noise = usePinkNoise ? pinkFilter.process(whiteNoise) : whiteNoise;
         out += noise * noiseAmt;
 
         if (driveAmt > 0.0f) {
