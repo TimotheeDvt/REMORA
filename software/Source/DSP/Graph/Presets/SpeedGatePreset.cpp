@@ -71,8 +71,8 @@ std::unique_ptr<NodeGraph> buildSpeedGate() {
         b.wire(crossfadeNodes(b, constantNode(b, simplePartials[i]), azimutTimbre.partialAmp[i], azimutAmount), synth, AdditivePort::PartialAmp0 + i);
     b.wire(crossfadeNodes(b, zero, azimutTimbre.driveAmt, azimutAmount), synth, AdditivePort::DriveAmt);
 
-    b.wire(crossfadeNodes(b, constantNode(b, 5.0f), zero, azimutAmount), synth, AdditivePort::VibratoRateHz);
-    b.wire(crossfadeNodes(b, constantNode(b, 4.0f), zero, azimutAmount), synth, AdditivePort::TremoloRateHz);
+    // No vibrato/tremolo on either side of this crossfade - VibratoDepth/TremoloDepth are left at
+    // their own 0 default (never wired below), which alone silences both regardless of rate.
 
     b.wire(crossfadeNodes(b, zero, azimutTimbre.noiseAmount, azimutAmount), synth, AdditivePort::NoiseAmount);
     b.wire(crossfadeNodes(b, constantNode(b, 0.5f), azimutTimbre.noiseLpCoef, azimutAmount), synth, AdditivePort::NoiseLpCoef);

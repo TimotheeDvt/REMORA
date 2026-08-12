@@ -25,9 +25,8 @@ void wireCoreToSinks(GraphBuilder& b, NodeId synth, NodeId gain, const AzimutCor
         b.wire(core.panL[i], synth, AdditivePort::PanL0 + i);
         b.wire(core.panR[i], synth, AdditivePort::PanR0 + i);
     }
-    // No vibrato/tremolo for Azimut - explicitly zeroed, overriding the Additive Synth's own nonzero default.
-    b.wire(constantNode(b, 0.0f), synth, AdditivePort::VibratoRateHz);
-    b.wire(constantNode(b, 0.0f), synth, AdditivePort::TremoloRateHz);
+    // No vibrato/tremolo for Azimut - VibratoDepth/TremoloDepth are left at their own 0 default (never
+    // wired below), which alone silences both regardless of rate, so there's nothing to wire here.
 }
 
 } // namespace

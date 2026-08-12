@@ -111,6 +111,7 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
         slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
         slider.setRange(0.0, 200.0, 5.0);
         slider.setValue(defaultValue, juce::dontSendNotification);
+        slider.setDoubleClickReturnValue(true, defaultValue);
         slider.setTooltip(tooltip);
         slider.onValueChange = [&slider, &callback] {
             if (callback)

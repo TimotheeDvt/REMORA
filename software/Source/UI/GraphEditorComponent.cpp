@@ -147,8 +147,6 @@ void GraphEditorComponent::rerunAutoLayout() {
     canvas.repaint();
 }
 
-// Reimplements d3-dag's grid layout (https://github.com/erikbrinkman/d3-dag)
-// but with a few tweaks to make it more suitable for our use case and more compatible horizontally.
 void GraphEditorComponent::autoLayout() {
     if (currentGraph == nullptr)
         return;
@@ -225,58 +223,58 @@ void GraphEditorComponent::autoLayout() {
         kids.erase(std::unique(kids.begin(), kids.end()), kids.end());
     }
 
-    // Greedy lane assignment, mirroring d3-dag's laneGreedy() defaults (topDown, compressed,
-    // one-sided). laneReservedUntil[lane] is the rank up to which that lane is claimed by an
-    // in-flight edge; a lane becomes eligible again once we've passed that rank.
-    std::vector<int> laneReservedUntil;
-    auto pickLane = [&](int checkAfter, int storeAsRank, int targetLane) {
-        int best = -1;
-        for (int lane = 0; lane < static_cast<int>(laneReservedUntil.size()); ++lane) {
-            if (laneReservedUntil[static_cast<size_t>(lane)] > checkAfter)
-                continue;
-            const int dist = std::abs(targetLane - lane);
-            const int bestDist = best == -1 ? 0 : std::abs(targetLane - best);
-            if (best == -1 || dist < bestDist || (dist == bestDist && lane < best))
-                best = lane;
-        }
-        const int chosen = best == -1 ? static_cast<int>(laneReservedUntil.size()) : best;
-        if (chosen == static_cast<int>(laneReservedUntil.size()))
-            laneReservedUntil.push_back(storeAsRank);
-        else
-            laneReservedUntil[static_cast<size_t>(chosen)] = storeAsRank;
-        return chosen;
-    };
+    std::unordered_map<Graph::NodeId, const Graph::NodeInstance*> nodeById;
+    for (const auto& n : nodes)
+        nodeById[n.id] = &n;
 
     std::unordered_map<Graph::NodeId, int> laneOf;
+    int nextRow = 0;
+    std::function<int(Graph::NodeId)> layoutRows = [&](Graph::NodeId id) -> int {
+        auto already = laneOf.find(id);
+        if (already != laneOf.end())
+            return already->second;
+
+        std::vector<Graph::NodeId> parents;
+        if (const Graph::NodeInstance* node = nodeById[id])
+            for (const auto& slot : node->inputs)
+                if (slot.sourceNode != Graph::kInvalidNodeId && !isClustered(slot.sourceNode))
+                    parents.push_back(slot.sourceNode);
+
+        if (parents.empty()) {
+            const int row = nextRow++;
+            laneOf[id] = row;
+            return row;
+        }
+
+        long long sum = 0;
+        for (Graph::NodeId parent : parents)
+            sum += layoutRows(parent);
+        const int row = static_cast<int>(sum / static_cast<long long>(parents.size()));
+        laneOf[id] = row;
+        return row;
+    };
+
+    // Roots = nothing downstream consumes this node's output (sinks always qualify; anything else
+    // with no consumers is a dead end, laid out the same way so it still lands somewhere sane).
     for (Graph::NodeId id : ordered) {
         if (isClustered(id))
             continue;
-        if (laneOf.count(id) == 0)
-            laneOf[id] = pickLane(rankOf[id] - 1, rankOf[id], 0);
-
         auto it = childrenOf.find(id);
-        if (it == childrenOf.end())
-            continue;
-
-        // Farthest-away children get first pick of a lane close to their parent's. Display children are
-        // excluded - they get their own cluster below and shouldn't reserve a lane in the main graph.
-        std::vector<Graph::NodeId> kids = it->second;
-        kids.erase(std::remove_if(kids.begin(), kids.end(), [&](Graph::NodeId k) { return isClustered(k); }),
-                   kids.end());
-        std::sort(kids.begin(), kids.end(), [&](Graph::NodeId a, Graph::NodeId b) { return rankOf[a] > rankOf[b]; });
-        for (Graph::NodeId child : kids) {
-            if (laneOf.count(child) > 0)
-                continue;
-            laneOf[child] = pickLane(rankOf[id], rankOf[child], laneOf[id]);
-        }
+        if (it == childrenOf.end() || it->second.empty())
+            layoutRows(id);
     }
+    // Anything left over only feeds clustered (display) nodes and so was never reached as an
+    // ancestor of a root above - still needs a row of its own.
+    for (Graph::NodeId id : ordered)
+        if (!isClustered(id) && laneOf.count(id) == 0)
+            layoutRows(id);
 
     // Rank -> x (all nodes share a fixed width, so this is just the usual column spacing).
     // Lane -> y (each lane is a row as tall as the tallest node ever placed in it).
     const float columnGap = static_cast<float>(GraphNodeComponent::kWidth) + rankSep;
     const float rowGap = nodeSep;
 
-    const int numLanes = static_cast<int>(laneReservedUntil.size());
+    const int numLanes = nextRow;
     std::vector<float> laneHeight(static_cast<size_t>(numLanes), 0.0f);
     int maxRank = 0;
     for (const auto& n : nodes) {
