@@ -1,4 +1,4 @@
-.PHONY: all configure build clean c b
+.PHONY: all configure build clean c b ccb
 
 all: configure build
 
