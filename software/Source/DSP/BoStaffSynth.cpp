@@ -61,6 +61,9 @@ BoStaffSynth::BoStaffSynth() {
         "Same 4-voice roll-select/pitch-glide mapping as Spin Voices, but every voice's pitch snaps to the "
         "nearest note of a major scale, and the graph displays every voice's gain and scale degree (not Hz), "
         "not just the selected voice's."));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildWindNoise(), "Wind Noise",
+        "No pitch, no chord - just filtered noise. Staff motion (gyro+accel energy) swells and dies down like "
+        "gusts of wind, opening the noise filter and the master lowpass brighter the faster you move."));
 }
 
 BoStaffSynth::~BoStaffSynth() {}
