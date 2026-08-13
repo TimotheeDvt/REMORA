@@ -589,6 +589,34 @@ std::vector<NodeTypeInfo> buildAllNodes() {
             g.reverseAmount = in[ReverseAmount];
         }));
 
+    nodes.push_back(multiSink("sink.pinkTromboneSynth", "Pink Trombone", "Synth",
+        "Vocal tract physical model (LF-model glottal source into a digital-waveguide vocal tract, "
+        "oral + nasal branches) - every parameter it exposes, in one node. Level defaults to 0 "
+        "(silent) so unused presets stay quiet.",
+        {
+            { "Frequency (Hz)", 40.0f, 600.0f, 140.0f },
+            { "Tenseness", 0.0f, 1.0f, 0.6f },
+            { "Tongue Position", 0.0f, 1.0f, 0.5f },
+            { "Tongue Height", 1.5f, 3.5f, 2.75f },
+            { "Constriction Position", 0.0f, 1.0f, 0.5f },
+            { "Constriction Diameter", 0.0f, 4.0f, 4.0f },
+            { "Fricative Intensity", 0.0f, 1.0f, 0.0f },
+            { "Level", 0.0f, 1.0f, 0.0f },
+        },
+        [](const float* in, const std::vector<float>&, MappingOutput& out) {
+            using namespace PinkTrombonePort;
+            out.pinkTromboneActive = true;
+            PinkTromboneParams& v = out.pinkTrombone;
+            v.frequencyHz = in[FrequencyHz];
+            v.tenseness = in[Tenseness];
+            v.tongueIndexNorm = in[TongueIndexNorm];
+            v.tongueDiameter = in[TongueDiameter];
+            v.constrictionIndexNorm = in[ConstrictionIndexNorm];
+            v.constrictionDiameter = in[ConstrictionDiameter];
+            v.fricativeIntensity = in[FricativeIntensity];
+            v.level = in[Level];
+        }));
+
     return nodes;
 }
 

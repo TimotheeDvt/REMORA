@@ -27,4 +27,12 @@ enum : int {
 };
 } // namespace GranularPort
 
+namespace PinkTrombonePort {
+enum : int {
+    FrequencyHz, Tenseness, TongueIndexNorm, TongueDiameter,
+    ConstrictionIndexNorm, ConstrictionDiameter, FricativeIntensity, Level,
+    Count
+};
+} // namespace PinkTrombonePort
+
 } // namespace Graph

@@ -25,6 +25,10 @@ SynthManager::SynthManager() {
     granularEngine = granular.get();
     engines.push_back(std::move(granular));
 
+    auto pinkTrombone = std::make_unique<PinkTromboneEngine>();
+    pinkTromboneEngine = pinkTrombone.get();
+    engines.push_back(std::move(pinkTrombone));
+
     engineScratch.resize(engines.size());
 
     // Each mapping is a Presets::build*() node graph wrapped in the one generic GraphMappingStrategy.
@@ -73,6 +77,11 @@ SynthManager::SynthManager() {
         "Same 4-voice roll-select/pitch-glide mapping as Spin Voices, but every voice's pitch snaps to the "
         "nearest note of a major scale, and the graph displays every voice's gain and scale degree (not Hz), "
         "not just the selected voice's."));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildVocalTract(), "Vocal Tract",
+        "A physically-modeled voice (glottal source into a digital-waveguide vocal tract) instead of the "
+        "additive engine. Pitch angle sets the glottal pitch; roll and yaw shape the vowel (tongue height "
+        "and front-back position); motion energy and Laban 'Weight' drive volume and vocal tenseness; sharp "
+        "thrust jabs pinch the tract near the lips for consonant-like bursts."));
 }
 
 SynthManager::~SynthManager() {}
@@ -161,10 +170,11 @@ void SynthManager::processBlock(juce::AudioBuffer<float> &buffer,
         masterGain.setTargetValue(mappingOut.masterGain);
     }
 
-    const bool engineActive[] = { mappingOut.additiveActive, mappingOut.granularActive };
+    const bool engineActive[] = { mappingOut.additiveActive, mappingOut.granularActive, mappingOut.pinkTromboneActive };
 
     if (engineActive[0]) additiveEngine->setParams(mappingOut.additive);
     if (engineActive[1]) granularEngine->setParams(mappingOut.granular);
+    if (engineActive[2]) pinkTromboneEngine->setParams(mappingOut.pinkTrombone);
 
     for (size_t e = 0; e < engines.size(); ++e) {
         if (!engineActive[e])

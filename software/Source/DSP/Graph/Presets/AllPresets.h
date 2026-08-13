@@ -20,5 +20,6 @@ std::unique_ptr<NodeGraph> buildMartialMomentum();
 std::unique_ptr<NodeGraph> buildSpinVoice();
 std::unique_ptr<NodeGraph> buildSpinVoiceScale();
 std::unique_ptr<NodeGraph> buildSpeedGate();
+std::unique_ptr<NodeGraph> buildVocalTract();
 
 } // namespace Graph::Presets

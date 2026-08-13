@@ -141,5 +141,6 @@ inline NodeId crossfadeNodes(GraphBuilder& b, NodeId a, NodeId bVal, NodeId mix)
 inline NodeId addAdditiveSynth(GraphBuilder& b) { return b.add("sink.additiveSynth"); }
 inline NodeId addGeneralGain(GraphBuilder& b) { return b.add("sink.generalGain"); }
 inline NodeId addGranularSynth(GraphBuilder& b) { return b.add("sink.granularSynth"); }
+inline NodeId addPinkTromboneSynth(GraphBuilder& b) { return b.add("sink.pinkTromboneSynth"); }
 
 } // namespace Graph::Presets

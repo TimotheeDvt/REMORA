@@ -60,6 +60,20 @@ struct GranularSynthParams {
     float reverseAmount = 0.0f;   // 0-1, probability a grain plays reversed
 };
 
+// Everything the Pink Trombone (vocal tract) engine needs, written by the single
+// "sink.pinkTromboneSynth" mega-node. `level` defaults to 0 (silent) so presets that don't wire
+// this node leave the engine inaudible.
+struct PinkTromboneParams {
+    float frequencyHz = 140.0f;         // 40-600, glottal pitch
+    float tenseness = 0.6f;             // 0-1, vocal fold tension: breathy (low) to pressed (high)
+    float tongueIndexNorm = 0.5f;       // 0-1, front-back tongue position along its allowed range
+    float tongueDiameter = 2.75f;       // ~1.5-3.5, tongue height: smaller = narrower/raised, larger = wider/lowered
+    float constrictionIndexNorm = 0.5f; // 0-1, position along the tract of an extra constriction
+    float constrictionDiameter = 4.0f;  // 0-4, diameter of that constriction; >= ~3.7 is a no-op (open)
+    float fricativeIntensity = 0.0f;    // 0-1, turbulence noise injected at the constriction
+    float level = 0.0f;                 // 0-1, engine output trim
+};
+
 // Written once per audio block by whichever mega-sink nodes the active preset's graph wires up.
 // `masterGain` is shared by every engine (written by "sink.generalGain"); each engine param struct
 // defaults to silent/off so an engine a preset never wires stays inaudible.
@@ -67,8 +81,10 @@ struct MappingOutput {
     float masterGain = 0.0f;
     AdditiveSynthParams additive;
     GranularSynthParams granular;
+    PinkTromboneParams pinkTrombone;
     bool additiveActive = false;
     bool granularActive = false;
+    bool pinkTromboneActive = false;
 };
 
 class IMappingStrategy {

@@ -8,6 +8,7 @@
 #include "Engines/AdditiveSynthEngine.h"
 #include "Engines/GranularSynthEngine.h"
 #include "Engines/ISynthEngine.h"
+#include "Engines/PinkTromboneEngine.h"
 #include "Graph/NodeGraph.h"
 #include "IMappingStrategy.h"
 #include <memory>
@@ -69,6 +70,7 @@ private:
   std::vector<juce::AudioBuffer<float>> engineScratch;
   AdditiveSynthEngine* additiveEngine = nullptr;
   GranularSynthEngine* granularEngine = nullptr;
+  PinkTromboneEngine* pinkTromboneEngine = nullptr;
 
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> masterGain{0.f};
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> muteGain{1.f};
