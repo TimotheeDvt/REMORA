@@ -10,8 +10,10 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -155,152 +157,483 @@ void GraphEditorComponent::autoLayout() {
     if (nodes.empty())
         return;
 
-    std::unordered_map<Graph::NodeId, bool> isDisplayCategory;
+    using Graph::NodeId;
+
+    std::unordered_map<NodeId, bool> isDisplayCategory;
     for (const auto& n : nodes) {
         const Graph::NodeTypeInfo* info = Graph::NodeTypeRegistry::instance().find(n.typeId);
         isDisplayCategory[n.id] = info != nullptr && info->category == Graph::NodeCategory::Display;
     }
     const bool doCluster = clusterDisplays;
-    auto isClustered = [&](Graph::NodeId id) { return doCluster && isDisplayCategory[id]; };
+    auto isClustered = [&](NodeId id) { return doCluster && isDisplayCategory[id]; };
 
-    // Raw (possibly duplicated, one per connected input slot) parent -> child edges, used to compute a
-    // topological order via Kahn's algorithm.
-    std::unordered_map<Graph::NodeId, std::vector<Graph::NodeId>> rawChildrenOf;
-    std::unordered_map<Graph::NodeId, int> pendingParents;
-    for (const auto& n : nodes)
-        pendingParents[n.id] = 0;
-    for (const auto& n : nodes)
-        for (const auto& slot : n.inputs)
-            if (slot.sourceNode != Graph::kInvalidNodeId) {
-                rawChildrenOf[slot.sourceNode].push_back(n.id);
-                ++pendingParents[n.id];
-            }
+    std::unordered_map<NodeId, const Graph::NodeInstance*> nodeById;
+    std::unordered_map<NodeId, std::vector<NodeId>> parentsOf, childrenOf;
+    std::vector<NodeId> layoutIds;
+    for (const auto& n : nodes) {
+        nodeById[n.id] = &n;
+        if (!isClustered(n.id)) {
+            layoutIds.push_back(n.id);
+            parentsOf[n.id];
+            childrenOf[n.id];
+        }
+    }
+    std::unordered_map<NodeId, std::unordered_map<NodeId, std::vector<int>>> inPortsFromParent;  // [child][parent]
+    std::unordered_map<NodeId, std::unordered_map<NodeId, std::vector<int>>> outPortsToChild;     // [parent][child]
+    for (const auto& n : nodes) {
+        if (isClustered(n.id))
+            continue;
+        for (size_t portIdx = 0; portIdx < n.inputs.size(); ++portIdx) {
+            const auto& slot = n.inputs[portIdx];
+            if (slot.sourceNode == Graph::kInvalidNodeId || isClustered(slot.sourceNode))
+                continue;
+            parentsOf[n.id].push_back(slot.sourceNode);
+            childrenOf[slot.sourceNode].push_back(n.id);
+            inPortsFromParent[n.id][slot.sourceNode].push_back(static_cast<int>(portIdx));
+            outPortsToChild[slot.sourceNode][n.id].push_back(slot.sourceOutputPort);
+        }
+    }
+    for (auto& [id, v] : parentsOf) {
+        std::sort(v.begin(), v.end());
+        v.erase(std::unique(v.begin(), v.end()), v.end());
+    }
+    for (auto& [id, v] : childrenOf) {
+        std::sort(v.begin(), v.end());
+        v.erase(std::unique(v.begin(), v.end()), v.end());
+    }
 
-    std::vector<Graph::NodeId> ordered;
-    ordered.reserve(nodes.size());
+    std::unordered_map<NodeId, int> pendingParents;
+    for (NodeId id : layoutIds)
+        pendingParents[id] = static_cast<int>(parentsOf[id].size());
+
+    std::vector<NodeId> ordered;
+    ordered.reserve(layoutIds.size());
     {
-        std::vector<Graph::NodeId> ready;
-        for (const auto& n : nodes)
-            if (pendingParents[n.id] == 0)
-                ready.push_back(n.id);
+        std::vector<NodeId> ready;
+        for (NodeId id : layoutIds)
+            if (pendingParents[id] == 0)
+                ready.push_back(id);
 
         for (size_t head = 0; head < ready.size(); ++head) {
-            const Graph::NodeId id = ready[head];
+            const NodeId id = ready[head];
             ordered.push_back(id);
-            auto it = rawChildrenOf.find(id);
-            if (it == rawChildrenOf.end())
-                continue;
-            for (Graph::NodeId child : it->second)
+            for (NodeId child : childrenOf[id])
                 if (--pendingParents[child] == 0)
                     ready.push_back(child);
         }
 
-        // A cycle shouldn't be possible (NodeGraph::connect() rejects them), but rather than drop
-        // nodes if one slips through, just tack on whatever's left in its original order.
-        if (ordered.size() < nodes.size()) {
-            std::set<Graph::NodeId> seen(ordered.begin(), ordered.end());
-            for (const auto& n : nodes)
-                if (seen.count(n.id) == 0)
-                    ordered.push_back(n.id);
+        if (ordered.size() < layoutIds.size()) {
+            std::set<NodeId> seen(ordered.begin(), ordered.end());
+            for (NodeId id : layoutIds)
+                if (seen.count(id) == 0)
+                    ordered.push_back(id);
         }
     }
 
-    std::unordered_map<Graph::NodeId, int> rankOf;
-    for (const auto& n : nodes)
-        rankOf[n.id] = 0;
-    for (Graph::NodeId id : ordered) {
-        auto it = rawChildrenOf.find(id);
-        if (it == rawChildrenOf.end())
-            continue;
-        for (Graph::NodeId child : it->second)
+    std::unordered_map<NodeId, int> rankOf;
+    for (NodeId id : layoutIds)
+        rankOf[id] = 0;
+    for (NodeId id : ordered)
+        for (NodeId child : childrenOf[id])
             rankOf[child] = std::max(rankOf[child], rankOf[id] + 1);
+
+    for (auto it = ordered.rbegin(); it != ordered.rend(); ++it) {
+        const auto& kids = childrenOf[*it];
+        if (kids.empty())
+            continue;
+        int minChildRank = std::numeric_limits<int>::max();
+        for (NodeId c : kids)
+            minChildRank = std::min(minChildRank, rankOf[c]);
+        rankOf[*it] = std::max(rankOf[*it], minChildRank - 1);
     }
 
-    // Deduplicated children per node (d3-dag's gridChildren is a Set), used for lane assignment.
-    std::unordered_map<Graph::NodeId, std::vector<Graph::NodeId>> childrenOf = rawChildrenOf;
-    for (auto& [id, kids] : childrenOf) {
-        std::sort(kids.begin(), kids.end());
-        kids.erase(std::unique(kids.begin(), kids.end()), kids.end());
+    {
+        std::set<int> distinctRanks;
+        for (NodeId id : layoutIds)
+            distinctRanks.insert(rankOf[id]);
+        std::unordered_map<int, int> remap;
+        int next = 0;
+        for (int r : distinctRanks)
+            remap[r] = next++;
+        for (NodeId id : layoutIds)
+            rankOf[id] = remap[rankOf[id]];
     }
 
-    std::unordered_map<Graph::NodeId, const Graph::NodeInstance*> nodeById;
-    for (const auto& n : nodes)
-        nodeById[n.id] = &n;
+    int maxRank = 0;
+    for (NodeId id : layoutIds)
+        maxRank = std::max(maxRank, rankOf[id]);
 
-    std::unordered_map<Graph::NodeId, int> laneOf;
-    int nextRow = 0;
-    std::function<int(Graph::NodeId)> layoutRows = [&](Graph::NodeId id) -> int {
-        auto already = laneOf.find(id);
-        if (already != laneOf.end())
-            return already->second;
-
-        std::vector<Graph::NodeId> parents;
-        if (const Graph::NodeInstance* node = nodeById[id])
-            for (const auto& slot : node->inputs)
-                if (slot.sourceNode != Graph::kInvalidNodeId && !isClustered(slot.sourceNode))
-                    parents.push_back(slot.sourceNode);
-
-        if (parents.empty()) {
-            const int row = nextRow++;
-            laneOf[id] = row;
-            return row;
+    std::unordered_map<NodeId, std::vector<NodeId>> chainParents = parentsOf, chainChildren = childrenOf;
+    std::unordered_map<NodeId, int> layoutRank = rankOf;
+    std::vector<NodeId> dummyIds;
+    {
+        NodeId nextDummyId = -2; // -1 is kInvalidNodeId
+        for (const auto& [pid, kids] : childrenOf) {
+            for (NodeId cid : kids) {
+                const int rp = rankOf[pid];
+                const int rc = rankOf[cid];
+                NodeId prev = pid;
+                for (int r = rp + 1; r < rc; ++r) {
+                    const NodeId d = nextDummyId--;
+                    dummyIds.push_back(d);
+                    layoutRank[d] = r;
+                    chainChildren[prev].push_back(d);
+                    chainParents[d].push_back(prev);
+                    prev = d;
+                }
+                if (prev != pid) {
+                    auto& pc = chainChildren[pid];
+                    pc.erase(std::remove(pc.begin(), pc.end(), cid), pc.end());
+                    auto& cp = chainParents[cid];
+                    cp.erase(std::remove(cp.begin(), cp.end(), pid), cp.end());
+                    chainChildren[prev].push_back(cid);
+                    chainParents[cid].push_back(prev);
+                }
+            }
         }
+    }
 
-        long long sum = 0;
-        for (Graph::NodeId parent : parents)
-            sum += layoutRows(parent);
-        const int row = static_cast<int>(sum / static_cast<long long>(parents.size()));
-        laneOf[id] = row;
-        return row;
+    std::vector<std::vector<NodeId>> layers(static_cast<size_t>(maxRank) + 1);
+    for (NodeId id : ordered)
+        layers[static_cast<size_t>(rankOf[id])].push_back(id);
+    for (NodeId d : dummyIds)
+        layers[static_cast<size_t>(layoutRank[d])].push_back(d);
+
+    std::unordered_map<NodeId, int> orderIndex;
+    auto rebuildOrderIndex = [&]() {
+        orderIndex.clear();
+        for (const auto& layer : layers)
+            for (size_t i = 0; i < layer.size(); ++i)
+                orderIndex[layer[i]] = static_cast<int>(i);
+    };
+    rebuildOrderIndex();
+
+    std::unordered_map<NodeId, int> numInputPorts, numOutputPorts;
+    for (NodeId id : layoutIds) {
+        const Graph::NodeInstance* n = nodeById[id];
+        const Graph::NodeTypeInfo* info = n != nullptr ? Graph::NodeTypeRegistry::instance().find(n->typeId) : nullptr;
+        numInputPorts[id] = n != nullptr ? std::max(1, static_cast<int>(n->inputs.size())) : 1;
+        numOutputPorts[id] = info != nullptr ? std::max(1, info->numOutputs) : 1;
+    }
+
+    // Pixel y-offset (relative to the node's own top) of port `portIndex`, matching
+    // GraphNodeComponent::resized()'s pin layout.
+    auto portPixelY = [&](NodeId id, int portIndex) -> float {
+        const Graph::NodeInstance* n = nodeById[id];
+        if (n == nullptr)
+            return 0.0f;
+        const Graph::NodeTypeInfo* info = Graph::NodeTypeRegistry::instance().find(n->typeId);
+        const float top = static_cast<float>(GraphNodeComponent::kHeaderHeight) +
+                           static_cast<float>(n->params.size()) * static_cast<float>(GraphNodeComponent::kParamRowHeight);
+        if (info != nullptr && info->displayKind != Graph::DisplayKind::None) {
+            const float h = static_cast<float>(GraphNodeComponent::preferredHeight(*info, n->params.size()));
+            return (top + h) * 0.5f;
+        }
+        return top + static_cast<float>(portIndex) * static_cast<float>(GraphNodeComponent::kRowHeight) +
+               static_cast<float>(GraphNodeComponent::kRowHeight) * 0.5f;
     };
 
-    // Roots = nothing downstream consumes this node's output (sinks always qualify; anything else
-    // with no consumers is a dead end, laid out the same way so it still lands somewhere sane).
-    for (Graph::NodeId id : ordered) {
-        if (isClustered(id))
-            continue;
-        auto it = childrenOf.find(id);
-        if (it == childrenOf.end() || it->second.empty())
-            layoutRows(id);
+    auto fractionOf = [](int idx, int count) {
+        return count > 1 ? static_cast<double>(idx) / static_cast<double>(count - 1) : 0.5;
+    };
+
+    // [child][parent] -> the input port(s) on `child` that connect to `parent`, as both a fraction
+    // (0..1, for ordering) and an actual pixel offset (for y-placement). Averaged if more than one.
+    std::unordered_map<NodeId, std::unordered_map<NodeId, double>> childPortFraction;
+    std::unordered_map<NodeId, std::unordered_map<NodeId, float>> childPortY;
+    for (const auto& [child, byParent] : inPortsFromParent)
+        for (const auto& [parent, ports] : byParent) {
+            double fracSum = 0.0;
+            float ySum = 0.0f;
+            for (int p : ports) {
+                fracSum += fractionOf(p, numInputPorts[child]);
+                ySum += portPixelY(child, p);
+            }
+            childPortFraction[child][parent] = fracSum / static_cast<double>(ports.size());
+            childPortY[child][parent] = ySum / static_cast<float>(ports.size());
+        }
+
+    // [parent][child] -> same, for the output port(s) on `parent` used for edges to `child`.
+    std::unordered_map<NodeId, std::unordered_map<NodeId, double>> parentPortFraction;
+    std::unordered_map<NodeId, std::unordered_map<NodeId, float>> parentPortY;
+    for (const auto& [parent, byChild] : outPortsToChild)
+        for (const auto& [child, ports] : byChild) {
+            double fracSum = 0.0;
+            float ySum = 0.0f;
+            for (int p : ports) {
+                fracSum += fractionOf(p, numOutputPorts[parent]);
+                ySum += portPixelY(parent, p);
+            }
+            parentPortFraction[parent][child] = fracSum / static_cast<double>(ports.size());
+            parentPortY[parent][child] = ySum / static_cast<float>(ports.size());
+        }
+
+    // 0.5 (centre) fallback covers dummy nodes and dummy-chain hops, which have no real ports.
+    auto orderingFraction = [&](NodeId neighbour, NodeId owner, bool neighbourIsParent) -> double {
+        const auto& table = neighbourIsParent ? parentPortFraction : childPortFraction;
+        auto it = table.find(neighbour);
+        if (it == table.end())
+            return 0.5;
+        auto it2 = it->second.find(owner);
+        return it2 != it->second.end() ? it2->second : 0.5;
+    };
+
+    auto medianOf = [&](NodeId owner, const std::vector<NodeId>& neighbours, bool neighboursAreParents) -> double {
+        if (neighbours.empty())
+            return -1.0;
+        std::vector<double> pos;
+        pos.reserve(neighbours.size());
+        for (NodeId nb : neighbours)
+            pos.push_back(orderIndex[nb] + orderingFraction(nb, owner, neighboursAreParents));
+        std::sort(pos.begin(), pos.end());
+        const size_t m = pos.size() / 2;
+        if (pos.size() % 2 == 1)
+            return pos[m];
+        if (pos.size() == 2)
+            return (pos[0] + pos[1]) * 0.5;
+        const double left = pos[m - 1] - pos[0];
+        const double right = pos.back() - pos[m];
+        if (std::abs(left + right) < 1e-9)
+            return (pos[m - 1] + pos[m]) * 0.5;
+        return (pos[m - 1] * right + pos[m] * left) / (left + right);
+    };
+
+    auto crossingsBetween = [&](size_t upperLayer) -> long long {
+        std::vector<std::pair<double, double>> edges;
+        for (NodeId id : layers[upperLayer])
+            for (NodeId child : chainChildren[id])
+                if (layoutRank[child] == static_cast<int>(upperLayer) + 1)
+                    edges.emplace_back(orderIndex[id] + orderingFraction(id, child, true),
+                                        orderIndex[child] + orderingFraction(child, id, false));
+        long long total = 0;
+        for (size_t i = 0; i < edges.size(); ++i)
+            for (size_t j = i + 1; j < edges.size(); ++j)
+                if ((edges[i].first - edges[j].first) * (edges[i].second - edges[j].second) < 0)
+                    ++total;
+        return total;
+    };
+
+    auto totalCrossings = [&]() -> long long {
+        long long total = 0;
+        for (size_t r = 0; r + 1 < layers.size(); ++r)
+            total += crossingsBetween(r);
+        return total;
+    };
+
+    auto transposePass = [&]() {
+        bool improved = true;
+        int guard = 0;
+        while (improved && guard++ < 4) {
+            improved = false;
+            for (size_t r = 0; r < layers.size(); ++r) {
+                auto& layer = layers[r];
+                for (size_t i = 0; i + 1 < layer.size(); ++i) {
+                    const long long before = (r > 0 ? crossingsBetween(r - 1) : 0) + crossingsBetween(r);
+                    std::swap(layer[i], layer[i + 1]);
+                    std::swap(orderIndex[layer[i]], orderIndex[layer[i + 1]]);
+                    const long long after = (r > 0 ? crossingsBetween(r - 1) : 0) + crossingsBetween(r);
+                    if (after < before) {
+                        improved = true;
+                    } else {
+                        std::swap(layer[i], layer[i + 1]);
+                        std::swap(orderIndex[layer[i]], orderIndex[layer[i + 1]]);
+                    }
+                }
+            }
+        }
+    };
+
+    std::vector<std::vector<NodeId>> bestLayers = layers;
+    long long bestCrossings = totalCrossings();
+
+    constexpr int kSweeps = 8;
+    for (int sweep = 0; sweep < kSweeps && bestCrossings > 0; ++sweep) {
+        const bool downward = (sweep % 2 == 0);
+        auto sweepLayer = [&](size_t r, const std::unordered_map<NodeId, std::vector<NodeId>>& neighbourMap,
+                               size_t neighbourLayerSize, bool neighboursAreParents) {
+            auto& layer = layers[r];
+            const double neighbourScale = neighbourLayerSize > 1 ? static_cast<double>(neighbourLayerSize - 1) : 1.0;
+            const double ownScale = layer.size() > 1 ? static_cast<double>(layer.size() - 1) : 1.0;
+            std::vector<std::pair<double, NodeId>> keyed;
+            keyed.reserve(layer.size());
+            for (size_t i = 0; i < layer.size(); ++i) {
+                const double med = medianOf(layer[i], neighbourMap.at(layer[i]), neighboursAreParents);
+                const double key = med < 0.0 ? static_cast<double>(i) / ownScale : med / neighbourScale;
+                keyed.emplace_back(key, layer[i]);
+            }
+            std::stable_sort(keyed.begin(), keyed.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+            for (size_t i = 0; i < layer.size(); ++i)
+                layer[i] = keyed[i].second;
+            rebuildOrderIndex();
+        };
+
+        if (downward) {
+            for (size_t r = 1; r < layers.size(); ++r)
+                sweepLayer(r, chainParents, layers[r - 1].size(), true);
+        } else {
+            for (size_t r = layers.size() - 1; r-- > 0;)
+                sweepLayer(r, chainChildren, layers[r + 1].size(), false);
+        }
+
+        transposePass();
+
+        const long long crossings = totalCrossings();
+        if (crossings < bestCrossings) {
+            bestCrossings = crossings;
+            bestLayers = layers;
+        }
     }
-    // Anything left over only feeds clustered (display) nodes and so was never reached as an
-    // ancestor of a root above - still needs a row of its own.
-    for (Graph::NodeId id : ordered)
-        if (!isClustered(id) && laneOf.count(id) == 0)
-            layoutRows(id);
+    layers = bestLayers;
+    rebuildOrderIndex();
 
-    // Rank -> x (all nodes share a fixed width, so this is just the usual column spacing).
-    // Lane -> y (each lane is a row as tall as the tallest node ever placed in it).
-    const float columnGap = static_cast<float>(GraphNodeComponent::kWidth) + rankSep;
-    const float rowGap = nodeSep;
-
-    const int numLanes = nextRow;
-    std::vector<float> laneHeight(static_cast<size_t>(numLanes), 0.0f);
-    int maxRank = 0;
-    for (const auto& n : nodes) {
-        maxRank = std::max(maxRank, rankOf[n.id]);
-        if (isClustered(n.id))
-            continue;
-        const Graph::NodeTypeInfo* info = Graph::NodeTypeRegistry::instance().find(n.typeId);
-        const float h = static_cast<float>(info != nullptr ? GraphNodeComponent::preferredHeight(*info, n.params.size())
+    std::unordered_map<NodeId, float> heightOf;
+    for (NodeId id : layoutIds) {
+        const Graph::NodeInstance* n = nodeById[id];
+        const Graph::NodeTypeInfo* info = n != nullptr ? Graph::NodeTypeRegistry::instance().find(n->typeId) : nullptr;
+        heightOf[id] = static_cast<float>(info != nullptr ? GraphNodeComponent::preferredHeight(*info, n->params.size())
                                                             : GraphNodeComponent::kHeaderHeight);
-        float& slot = laneHeight[static_cast<size_t>(laneOf[n.id])];
-        slot = std::max(slot, h);
+    }
+    for (NodeId d : dummyIds)
+        heightOf[d] = static_cast<float>(GraphNodeComponent::kRowHeight);
+
+    const float rowGap = nodeSep;
+    std::unordered_map<NodeId, float> yOf;
+
+    auto isotonicPlace = [](const std::vector<double>& targets, const std::vector<double>& gaps) {
+        const size_t n = targets.size();
+        std::vector<double> offset(n, 0.0);
+        for (size_t i = 1; i < n; ++i)
+            offset[i] = offset[i - 1] + gaps[i - 1];
+
+        struct Block { double sum; int count; };
+        std::vector<Block> stack;
+        for (size_t i = 0; i < n; ++i) {
+            Block b{ targets[i] - offset[i], 1 };
+            while (!stack.empty() && stack.back().sum / stack.back().count > b.sum / b.count) {
+                b.sum += stack.back().sum;
+                b.count += stack.back().count;
+                stack.pop_back();
+            }
+            stack.push_back(b);
+        }
+
+        std::vector<double> result(n);
+        size_t idx = 0;
+        for (const auto& b : stack) {
+            const double value = b.sum / b.count;
+            for (int k = 0; k < b.count; ++k, ++idx)
+                result[idx] = value + offset[idx];
+        }
+        return result;
+    };
+
+    for (auto& layer : layers) {
+        float y = 0.0f;
+        for (NodeId id : layer) {
+            yOf[id] = y;
+            y += heightOf[id] + rowGap;
+        }
     }
 
-    std::vector<float> laneTop(static_cast<size_t>(numLanes), 0.0f);
-    float y = 0.0f;
-    for (int lane = 0; lane < numLanes; ++lane) {
-        laneTop[static_cast<size_t>(lane)] = y;
-        y += laneHeight[static_cast<size_t>(lane)] + rowGap;
+    // 0.5*height (centre) fallback covers dummy nodes and dummy-chain hops, same as orderingFraction.
+    auto parentOutY = [&](NodeId parent, NodeId child) -> float {
+        auto it = parentPortY.find(parent);
+        if (it != parentPortY.end()) {
+            auto it2 = it->second.find(child);
+            if (it2 != it->second.end())
+                return it2->second;
+        }
+        return heightOf[parent] * 0.5f;
+    };
+    auto childInY = [&](NodeId child, NodeId parent) -> float {
+        auto it = childPortY.find(child);
+        if (it != childPortY.end()) {
+            auto it2 = it->second.find(parent);
+            if (it2 != it->second.end())
+                return it2->second;
+        }
+        return heightOf[child] * 0.5f;
+    };
+
+    auto relaxLayer = [&](size_t r, const std::unordered_map<NodeId, std::vector<NodeId>>& neighbourMap,
+                           bool neighboursAreParents) {
+        auto& layer = layers[r];
+        if (layer.empty())
+            return;
+        std::vector<double> targets(layer.size());
+        for (size_t i = 0; i < layer.size(); ++i) {
+            const NodeId id = layer[i];
+            const auto& neighbours = neighbourMap.at(id);
+            if (neighbours.empty()) {
+                targets[i] = yOf[id];
+            } else {
+                double sum = 0.0;
+                for (NodeId nb : neighbours) {
+                    if (neighboursAreParents)
+                        sum += (yOf[nb] + parentOutY(nb, id)) - childInY(id, nb);
+                    else
+                        sum += (yOf[nb] + childInY(nb, id)) - parentOutY(id, nb);
+                }
+                targets[i] = sum / static_cast<double>(neighbours.size());
+            }
+        }
+        std::vector<double> gaps(layer.size() - 1);
+        for (size_t i = 0; i + 1 < layer.size(); ++i)
+            gaps[i] = heightOf[layer[i]] + rowGap;
+        const std::vector<double> placed = isotonicPlace(targets, gaps);
+        for (size_t i = 0; i < layer.size(); ++i)
+            yOf[layer[i]] = static_cast<float>(placed[i]);
+    };
+
+    constexpr int kRelaxIterations = 6;
+    for (int iter = 0; iter < kRelaxIterations; ++iter) {
+        if (iter % 2 == 0) {
+            for (size_t r = 0; r < layers.size(); ++r)
+                relaxLayer(r, chainParents, true); // rank 0 has no parents, so it anchors this pass
+        } else {
+            for (size_t r = layers.size(); r-- > 0;)
+                relaxLayer(r, chainChildren, false); // the last rank has no children, so it anchors this pass
+        }
     }
 
-    for (const auto& n : nodes) {
-        if (isClustered(n.id))
-            continue;
-        const float x = static_cast<float>(rankOf[n.id]) * columnGap;
-        currentGraph->setNodePosition(n.id, x, laneTop[static_cast<size_t>(laneOf[n.id])]);
+    auto effectiveWidth = [&](NodeId id) -> float {
+        const Graph::NodeInstance* n = nodeById[id];
+        const Graph::NodeTypeInfo* info = n != nullptr ? Graph::NodeTypeRegistry::instance().find(n->typeId) : nullptr;
+        if (n == nullptr || info == nullptr)
+            return static_cast<float>(GraphNodeComponent::kWidth);
+        if (info->displayKind != Graph::DisplayKind::None) {
+            const float w = n->w > 0.0f ? n->w : info->displayDefaultWidth;
+            return std::max(static_cast<float>(GraphNodeComponent::kMinDisplayWidth), w);
+        }
+        const bool compact = info->id == "math.constant" && info->defaultParams.size() == 1;
+        const bool resizable = info->defaultWidth > 0.0f;
+        const float defaultW = compact ? static_cast<float>(GraphNodeComponent::kCompactWidth)
+                                        : (resizable ? info->defaultWidth : static_cast<float>(GraphNodeComponent::kWidth));
+        return (resizable && n->w > 0.0f) ? n->w : defaultW;
+    };
+
+    constexpr float kExtraGapPerWire = 8.0f;
+    std::vector<float> maxWidthByRank(static_cast<size_t>(maxRank) + 1, static_cast<float>(GraphNodeComponent::kWidth));
+    std::vector<int> maxFanInByRank(static_cast<size_t>(maxRank) + 1, 0);
+    for (NodeId id : layoutIds) {
+        const Graph::NodeInstance* n = nodeById[id];
+        int wireCount = 0;
+        if (n != nullptr)
+            for (const auto& slot : n->inputs)
+                if (slot.sourceNode != Graph::kInvalidNodeId)
+                    ++wireCount;
+        const size_t rank = static_cast<size_t>(rankOf[id]);
+        maxFanInByRank[rank] = std::max(maxFanInByRank[rank], wireCount);
+        maxWidthByRank[rank] = std::max(maxWidthByRank[rank], effectiveWidth(id));
     }
+    std::vector<float> xOfRank(static_cast<size_t>(maxRank) + 1, 0.0f);
+    for (int r = 1; r <= maxRank; ++r) {
+        const float extra = static_cast<float>(std::max(0, maxFanInByRank[static_cast<size_t>(r)] - 1)) * kExtraGapPerWire;
+        xOfRank[static_cast<size_t>(r)] =
+            xOfRank[static_cast<size_t>(r - 1)] + maxWidthByRank[static_cast<size_t>(r - 1)] + rankSep + extra;
+    }
+    for (NodeId id : layoutIds)
+        currentGraph->setNodePosition(id, xOfRank[static_cast<size_t>(rankOf[id])], yOf[id]);
 
     std::vector<Graph::NodeId> displayIds;
     for (const auto& n : nodes)
@@ -312,7 +645,8 @@ void GraphEditorComponent::autoLayout() {
         constexpr int kDisplayCols = 3;
         constexpr float kCellWidth = 240.0f;   // covers the widest default display (Scope, 220px) plus margin
         constexpr float kCellHeight = 160.0f;  // covers the tallest default display (Meter/Scope, 130px) plus margin
-        const float clusterX0 = static_cast<float>(maxRank + 1) * columnGap;
+        const float clusterX0 =
+            xOfRank[static_cast<size_t>(maxRank)] + maxWidthByRank[static_cast<size_t>(maxRank)] + rankSep;
         for (size_t i = 0; i < displayIds.size(); ++i) {
             const int col = static_cast<int>(i) % kDisplayCols;
             const int row = static_cast<int>(i) / kDisplayCols;
