@@ -32,6 +32,9 @@ SynthManager::SynthManager() {
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSimple(), "Simple (Pitch+Roll)",
         "Pitch angle sets the root frequency; roll amount sets the volume. A single sine voice with no chord "
         "or filtering - the most direct staff-to-pitch mapping."));
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildWindNoise(), "Wind Noise",
+        "No pitch, no chord - just filtered noise. Staff motion (gyro+accel energy) swells and dies down like "
+        "gusts of wind, opening the noise filter and the master lowpass brighter the faster you move."));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBowedChord(), "Bowed Chord",
         "Pitch angle is quantized to a chromatic scale for the root note; yaw and roll select the chord voicing. "
         "Gyro speed acts like bow pressure, driving volume, drive and brightness, and sharp jabs add a noise strike."));
@@ -70,9 +73,6 @@ SynthManager::SynthManager() {
         "Same 4-voice roll-select/pitch-glide mapping as Spin Voices, but every voice's pitch snaps to the "
         "nearest note of a major scale, and the graph displays every voice's gain and scale degree (not Hz), "
         "not just the selected voice's."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildWindNoise(), "Wind Noise",
-        "No pitch, no chord - just filtered noise. Staff motion (gyro+accel energy) swells and dies down like "
-        "gusts of wind, opening the noise filter and the master lowpass brighter the faster you move."));
 }
 
 SynthManager::~SynthManager() {}
@@ -161,10 +161,14 @@ void SynthManager::processBlock(juce::AudioBuffer<float> &buffer,
         masterGain.setTargetValue(mappingOut.masterGain);
     }
 
-    additiveEngine->setParams(mappingOut.additive);
-    granularEngine->setParams(mappingOut.granular);
+    const bool engineActive[] = { mappingOut.additiveActive, mappingOut.granularActive };
+
+    if (engineActive[0]) additiveEngine->setParams(mappingOut.additive);
+    if (engineActive[1]) granularEngine->setParams(mappingOut.granular);
 
     for (size_t e = 0; e < engines.size(); ++e) {
+        if (!engineActive[e])
+            continue;
         auto& scratch = engineScratch[e];
         scratch.setSize(buffer.getNumChannels(), numSamples, false, false, true);
         scratch.clear();

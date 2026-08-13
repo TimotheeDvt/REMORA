@@ -67,6 +67,8 @@ struct MappingOutput {
     float masterGain = 0.0f;
     AdditiveSynthParams additive;
     GranularSynthParams granular;
+    bool additiveActive = false;
+    bool granularActive = false;
 };
 
 class IMappingStrategy {

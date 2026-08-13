@@ -533,6 +533,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         },
         [](const float* in, const std::vector<float>&, MappingOutput& out) {
             using namespace AdditivePort;
+            out.additiveActive = true;
             AdditiveSynthParams& a = out.additive;
             a.rootHz = in[RootHz];
             a.numVoices = juce::jlimit(0, 4, static_cast<int>(std::lround(in[NumVoices])));
@@ -574,6 +575,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         },
         [](const float* in, const std::vector<float>&, MappingOutput& out) {
             using namespace GranularPort;
+            out.granularActive = true;
             GranularSynthParams& g = out.granular;
             g.positionNorm = in[Position];
             g.positionSpray = in[PositionSpray];

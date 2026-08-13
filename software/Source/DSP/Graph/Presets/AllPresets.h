@@ -7,6 +7,7 @@
 namespace Graph::Presets {
 
 std::unique_ptr<NodeGraph> buildSimple();
+std::unique_ptr<NodeGraph> buildWindNoise();
 std::unique_ptr<NodeGraph> buildLeadDrone();
 std::unique_ptr<NodeGraph> buildSpinFilter();
 std::unique_ptr<NodeGraph> buildBowedChord();
@@ -19,6 +20,5 @@ std::unique_ptr<NodeGraph> buildMartialMomentum();
 std::unique_ptr<NodeGraph> buildSpinVoice();
 std::unique_ptr<NodeGraph> buildSpinVoiceScale();
 std::unique_ptr<NodeGraph> buildSpeedGate();
-std::unique_ptr<NodeGraph> buildWindNoise();
 
 } // namespace Graph::Presets
