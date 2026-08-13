@@ -33,17 +33,19 @@ GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::No
     setWantsKeyboardFocus(true);
 
     const bool editable = editor.isGraphEditable();
+    const bool compact = isCompactValueNode();
     for (size_t i = 0; i < params.size(); ++i) {
         auto* label = paramNameLabels.add(new juce::Label({}, paramLabelFor(i)));
         label->setFont(juce::Font(juce::FontOptions().withHeight(9.5f)));
         label->setColour(juce::Label::textColourId, Palette::textMid);
         label->setJustificationType(juce::Justification::centredLeft);
         label->setInterceptsMouseClicks(false, false);
-        addAndMakeVisible(label);
+        if (!compact)
+            addAndMakeVisible(label);
 
         auto* box = paramEditors.add(new juce::TextEditor());
         box->setFont(juce::Font(juce::FontOptions().withHeight(10.5f)));
-        box->setJustification(juce::Justification::centredRight);
+        box->setJustification(compact ? juce::Justification::centred : juce::Justification::centredRight);
         box->setText(juce::String(params[i], 3), false);
         box->setReadOnly(!editable);
         box->setSelectAllWhenFocused(true);
@@ -57,43 +59,14 @@ GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::No
         addAndMakeVisible(box);
     }
 
-    if (hasValueSlider(typeInfo)) {
-        const float initialValue = params[0];
-        float lo = juce::jmin(initialValue * 0.5f, initialValue * 2.0f);
-        float hi = juce::jmax(initialValue * 0.5f, initialValue * 2.0f);
-        if (juce::approximatelyEqual(lo, hi)) {
-            lo = -1.0f;
-            hi = 1.0f;
-        }
-
-        valueSlider = std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
-        valueSlider->setRange(lo, hi);
-        valueSlider->setValue(initialValue, juce::dontSendNotification);
-        valueSlider->setChangeNotificationOnlyOnRelease(false);
-        valueSlider->setEnabled(editable);
-        auto* box = paramEditors.getFirst();
-        valueSlider->onValueChange = [this, box] {
-            const float sliderValue = static_cast<float>(valueSlider->getValue());
-            params[0] = sliderValue;
-            box->setText(juce::String(sliderValue, 3), false);
-            editor.updateNodeParam(nodeId, 0, sliderValue);
-        };
-        box->onFocusLost = [this, box] {
-            const float typedValue = box->getText().getFloatValue();
-            params[0] = typedValue;
-            valueSlider->setValue(typedValue, juce::dontSendNotification);
-            editor.updateNodeParam(nodeId, 0, typedValue);
-        };
-        addAndMakeVisible(*valueSlider);
-    }
-
     if (typeInfo.displayKind != Graph::DisplayKind::None) {
         const int w = initialW > 0.0f ? static_cast<int>(initialW) : static_cast<int>(typeInfo.displayDefaultWidth);
         const int h = initialH > 0.0f ? static_cast<int>(initialH) : static_cast<int>(typeInfo.displayDefaultHeight);
         setSize(juce::jmax(kMinDisplayWidth, w), juce::jmax(kMinDisplayHeight, h));
         startTimerHz(30); // keeps the live display current even without a highlight in progress
     } else {
-        const int defaultW = typeInfo.defaultWidth > 0.0f ? static_cast<int>(typeInfo.defaultWidth) : kWidth;
+        const int defaultW = compact ? kCompactWidth
+            : (typeInfo.defaultWidth > 0.0f ? static_cast<int>(typeInfo.defaultWidth) : kWidth);
         const int w = (isWidthResizable() && initialW > 0.0f) ? static_cast<int>(initialW) : defaultW;
         setSize(w, preferredHeight(typeInfo, params.size()));
     }
@@ -105,23 +78,17 @@ juce::String GraphNodeComponent::paramLabelFor(size_t index) const {
     return "v" + juce::String(static_cast<int>(index));
 }
 
-bool GraphNodeComponent::hasValueSlider(const Graph::NodeTypeInfo& typeInfo) {
-    return typeInfo.id == "math.constant" && !typeInfo.defaultParams.empty();
-}
-
-int GraphNodeComponent::paramsHeight(const Graph::NodeTypeInfo& typeInfo, size_t paramCount) {
-    return static_cast<int>(paramCount) * kParamRowHeight
-        + (hasValueSlider(typeInfo) ? kSliderRowHeight : 0);
+int GraphNodeComponent::paramsHeight(size_t paramCount) {
+    return static_cast<int>(paramCount) * kParamRowHeight;
 }
 
 int GraphNodeComponent::preferredHeight(const Graph::NodeTypeInfo& typeInfo, size_t paramCount) {
     const int rows = juce::jmax(1, typeInfo.numInputs, typeInfo.numOutputs);
-    return kHeaderHeight + paramsHeight(typeInfo, paramCount) + rows * kRowHeight + 6;
+    return kHeaderHeight + paramsHeight(paramCount) + rows * kRowHeight + 6;
 }
 
 int GraphNodeComponent::portsTop() const noexcept {
-    return kHeaderHeight + static_cast<int>(params.size()) * kParamRowHeight
-        + (valueSlider != nullptr ? kSliderRowHeight : 0);
+    return kHeaderHeight + static_cast<int>(params.size()) * kParamRowHeight;
 }
 
 void GraphNodeComponent::paint(juce::Graphics& g) {
@@ -134,13 +101,15 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
     g.fillRoundedRectangle(header, 4.0f);
     g.fillRect(header.withTop(header.getBottom() - 4.0f)); // square off the bottom corners of the header
 
-    auto infoArea = header.removeFromRight(static_cast<float>(kHeaderHeight));
+    const bool showInfoButton = !isCompactValueNode();
+    auto infoArea = showInfoButton ? header.removeFromRight(static_cast<float>(kHeaderHeight))
+                                    : juce::Rectangle<float>();
 
     g.setColour(Palette::textHi);
     g.setFont(12.0f);
     g.drawText(displayCaption(), header.reduced(6.0f, 0.0f), juce::Justification::centred, true);
 
-    {
+    if (showInfoButton) {
         auto circle = infoArea.withSizeKeepingCentre(13.0f, 13.0f);
         g.setColour(Palette::textHi.withAlpha(0.85f));
         g.drawEllipse(circle, 1.2f);
@@ -271,18 +240,19 @@ void GraphNodeComponent::paintDisplay(juce::Graphics& g, juce::Rectangle<int> ar
 }
 
 void GraphNodeComponent::resized() {
-    infoButtonBounds = { getWidth() - kHeaderHeight, 0, kHeaderHeight, kHeaderHeight };
+    const bool compact = isCompactValueNode();
+    infoButtonBounds = compact ? juce::Rectangle<int>()
+                                : juce::Rectangle<int>(getWidth() - kHeaderHeight, 0, kHeaderHeight, kHeaderHeight);
 
     for (int i = 0; i < paramEditors.size(); ++i) {
         const int y = kHeaderHeight + i * kParamRowHeight;
+        if (compact) {
+            paramEditors.getUnchecked(i)->setBounds(4, y, getWidth() - 8, kParamRowHeight - 2);
+            continue;
+        }
         const int nameWidth = getWidth() * 2 / 5;
         paramNameLabels.getUnchecked(i)->setBounds(4, y, nameWidth - 4, kParamRowHeight);
         paramEditors.getUnchecked(i)->setBounds(nameWidth, y, getWidth() - nameWidth - 4, kParamRowHeight - 2);
-    }
-
-    if (valueSlider != nullptr) {
-        const int y = kHeaderHeight + static_cast<int>(paramEditors.size()) * kParamRowHeight;
-        valueSlider->setBounds(4, y, getWidth() - 8, kSliderRowHeight - 2);
     }
 
     const int top = portsTop();
@@ -400,7 +370,8 @@ void GraphNodeComponent::beginLabelEdit() {
     box->onReturnKey = [box] { box->giveAwayKeyboardFocus(); };
     box->onFocusLost = [this] { commitLabelEdit(); };
     addAndMakeVisible(box);
-    box->setBounds(4, 0, juce::jmax(10, infoButtonBounds.getX() - 4), kHeaderHeight);
+    const int rightEdge = infoButtonBounds.isEmpty() ? getWidth() : infoButtonBounds.getX();
+    box->setBounds(4, 0, juce::jmax(10, rightEdge - 4), kHeaderHeight);
     box->grabKeyboardFocus();
     box->selectAll();
 }

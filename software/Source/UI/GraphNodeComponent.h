@@ -12,13 +12,13 @@ public:
     static constexpr int kWidth = 140;
     static constexpr int kHeaderHeight = 22;
     static constexpr int kParamRowHeight = 18;
-    static constexpr int kSliderRowHeight = 18;
     static constexpr int kRowHeight = 20;
     static constexpr int kPinSize = 12;
     static constexpr int kResizeGripSize = 14;
     static constexpr int kMinDisplayWidth = 70;
     static constexpr int kMinDisplayHeight = 50;
     static constexpr int kMinSinkWidth = 100;
+    static constexpr int kCompactWidth = 64;
 
     GraphNodeComponent(GraphEditorComponent& editor, Graph::NodeId nodeId, const Graph::NodeTypeInfo& typeInfo,
                        std::vector<float> params, float initialW = 0.0f, float initialH = 0.0f,
@@ -51,7 +51,6 @@ private:
     juce::OwnedArray<GraphPinComponent> outputPins;
     juce::OwnedArray<juce::Label> paramNameLabels;
     juce::OwnedArray<juce::TextEditor> paramEditors;
-    std::unique_ptr<juce::Slider> valueSlider;
     std::unique_ptr<juce::TextEditor> labelEditor;
 
     juce::Rectangle<int> infoButtonBounds;
@@ -65,8 +64,7 @@ private:
     std::vector<float> scopeHistory;
 
     int portsTop() const noexcept;
-    static int paramsHeight(const Graph::NodeTypeInfo& typeInfo, size_t paramCount);
-    static bool hasValueSlider(const Graph::NodeTypeInfo& typeInfo);
+    static int paramsHeight(size_t paramCount);
     juce::String paramLabelFor(size_t index) const;
     juce::String displayCaption() const { return nodeLabel.isNotEmpty() ? nodeLabel : typeInfo.displayName; }
     void beginLabelEdit();
@@ -76,6 +74,9 @@ private:
     void paintResizeGrip(juce::Graphics& g) const;
     bool isWidthResizable() const noexcept {
         return typeInfo.displayKind == Graph::DisplayKind::None && typeInfo.defaultWidth > 0.0f;
+    }
+    bool isCompactValueNode() const noexcept {
+        return typeInfo.id == "math.constant" && typeInfo.defaultParams.size() == 1;
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GraphNodeComponent)
