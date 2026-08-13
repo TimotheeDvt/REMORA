@@ -18,6 +18,7 @@ public:
     static constexpr int kResizeGripSize = 14;
     static constexpr int kMinDisplayWidth = 70;
     static constexpr int kMinDisplayHeight = 50;
+    static constexpr int kMinSinkWidth = 100;
 
     GraphNodeComponent(GraphEditorComponent& editor, Graph::NodeId nodeId, const Graph::NodeTypeInfo& typeInfo,
                        std::vector<float> params, float initialW = 0.0f, float initialH = 0.0f,
@@ -72,6 +73,10 @@ private:
     void commitLabelEdit();
     void showInfoPopup();
     void paintDisplay(juce::Graphics& g, juce::Rectangle<int> area);
+    void paintResizeGrip(juce::Graphics& g) const;
+    bool isWidthResizable() const noexcept {
+        return typeInfo.displayKind == Graph::DisplayKind::None && typeInfo.defaultWidth > 0.0f;
+    }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GraphNodeComponent)
 };

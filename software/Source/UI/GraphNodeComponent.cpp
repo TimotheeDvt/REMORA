@@ -93,7 +93,8 @@ GraphNodeComponent::GraphNodeComponent(GraphEditorComponent& editorIn, Graph::No
         setSize(juce::jmax(kMinDisplayWidth, w), juce::jmax(kMinDisplayHeight, h));
         startTimerHz(30); // keeps the live display current even without a highlight in progress
     } else {
-        const int w = typeInfo.defaultWidth > 0.0f ? static_cast<int>(typeInfo.defaultWidth) : kWidth;
+        const int defaultW = typeInfo.defaultWidth > 0.0f ? static_cast<int>(typeInfo.defaultWidth) : kWidth;
+        const int w = (isWidthResizable() && initialW > 0.0f) ? static_cast<int>(initialW) : defaultW;
         setSize(w, preferredHeight(typeInfo, params.size()));
     }
 }
@@ -170,15 +171,7 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
 
     if (typeInfo.displayKind != Graph::DisplayKind::None) {
         paintDisplay(g, { kPinSize + 2, top, getWidth() - (kPinSize + 2) * 2, getHeight() - top - 2 });
-
-        auto grip = juce::Rectangle<float>(static_cast<float>(getWidth() - kResizeGripSize),
-                                            static_cast<float>(getHeight() - kResizeGripSize),
-                                            static_cast<float>(kResizeGripSize), static_cast<float>(kResizeGripSize));
-        g.setColour(Palette::textLo);
-        for (int i = 1; i <= 3; ++i) {
-            const float o = static_cast<float>(i) * 3.5f;
-            g.drawLine(grip.getRight() - o, grip.getBottom(), grip.getRight(), grip.getBottom() - o, 1.2f);
-        }
+        paintResizeGrip(g);
         return;
     }
 
@@ -197,6 +190,20 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
         const int y = top + i * kRowHeight;
         const juce::String label = typeInfo.outputNames.size() > static_cast<size_t>(i) ? typeInfo.outputNames[static_cast<size_t>(i)] : juce::String();
         g.drawText(label, getWidth() / 2, y, halfWidth, kRowHeight, juce::Justification::centredRight, true);
+    }
+
+    if (isWidthResizable())
+        paintResizeGrip(g);
+}
+
+void GraphNodeComponent::paintResizeGrip(juce::Graphics& g) const {
+    auto grip = juce::Rectangle<float>(static_cast<float>(getWidth() - kResizeGripSize),
+                                        static_cast<float>(getHeight() - kResizeGripSize),
+                                        static_cast<float>(kResizeGripSize), static_cast<float>(kResizeGripSize));
+    g.setColour(Palette::textLo);
+    for (int i = 1; i <= 3; ++i) {
+        const float o = static_cast<float>(i) * 3.5f;
+        g.drawLine(grip.getRight() - o, grip.getBottom(), grip.getRight(), grip.getBottom() - o, 1.2f);
     }
 }
 
@@ -311,7 +318,8 @@ void GraphNodeComponent::mouseDown(const juce::MouseEvent& e) {
         showInfoPopup();
         return;
     }
-    if (typeInfo.displayKind != Graph::DisplayKind::None && !e.mods.isPopupMenu() && !e.mods.isCtrlDown()) {
+    if ((typeInfo.displayKind != Graph::DisplayKind::None || isWidthResizable())
+        && !e.mods.isPopupMenu() && !e.mods.isCtrlDown()) {
         const juce::Rectangle<int> grip(getWidth() - kResizeGripSize, getHeight() - kResizeGripSize,
                                          kResizeGripSize, kResizeGripSize);
         if (grip.contains(e.getPosition())) {
@@ -340,8 +348,9 @@ void GraphNodeComponent::mouseDown(const juce::MouseEvent& e) {
 void GraphNodeComponent::mouseDrag(const juce::MouseEvent& e) {
     if (isResizing) {
         const auto delta = e.getOffsetFromDragStart();
-        const int newW = juce::jmax(kMinDisplayWidth, resizeStartSize.x + delta.x);
-        const int newH = juce::jmax(kMinDisplayHeight, resizeStartSize.y + delta.y);
+        const bool widthOnly = isWidthResizable();
+        const int newW = juce::jmax(widthOnly ? kMinSinkWidth : kMinDisplayWidth, resizeStartSize.x + delta.x);
+        const int newH = widthOnly ? resizeStartSize.y : juce::jmax(kMinDisplayHeight, resizeStartSize.y + delta.y);
         setSize(newW, newH);
         editor.nodeResized(nodeId, static_cast<float>(newW), static_cast<float>(newH));
         return;
