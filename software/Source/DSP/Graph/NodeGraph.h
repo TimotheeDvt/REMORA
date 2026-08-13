@@ -48,10 +48,12 @@ public:
     void setNodeParam(NodeId id, int index, float value);
 
     void prepare(double sampleRate);
-    void evaluate(const SourceFrame& sources, MappingOutput& out);
 
-    // Used by GraphMappingStrategy to feed the auto-registered MonitorParams.
+    bool evaluate(const SourceFrame& sources, MappingOutput& out);
+
     float outputOf(NodeId id, int port = 0) const;
+
+    bool tryOutputOf(NodeId id, int port, float& result) const;
 
     std::unique_ptr<juce::XmlElement> toXml() const;
     static std::unique_ptr<NodeGraph> fromXml(const juce::XmlElement& xml);

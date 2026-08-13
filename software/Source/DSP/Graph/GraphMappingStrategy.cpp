@@ -27,13 +27,21 @@ void GraphMappingStrategy::prepare(double sampleRate) {
     graph_->prepare(sampleRate);
 }
 
-void GraphMappingStrategy::process(const StaffSoundParams& in, MappingOutput& out) {
+bool GraphMappingStrategy::process(const StaffSoundParams& in, MappingOutput& out) {
     const StaffMotionAnalyzer::DerivedMotionFrame frame = motion_.computeFrame(in);
     const SourceFrame sourceFrame{ in, frame, motion_ };
-    graph_->evaluate(sourceFrame, out);
 
-    for (auto& monitor : sinkMonitors_)
-        monitor.param->value.store(graph_->outputOf(monitor.nodeId, monitor.port), std::memory_order_relaxed);
+    MappingOutput fresh;
+    if (!graph_->evaluate(sourceFrame, fresh))
+        return false;
+    out = fresh;
+
+    for (auto& monitor : sinkMonitors_) {
+        float value;
+        if (graph_->tryOutputOf(monitor.nodeId, monitor.port, value))
+            monitor.param->value.store(value, std::memory_order_relaxed);
+    }
+    return true;
 }
 
 } // namespace Graph

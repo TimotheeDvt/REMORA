@@ -203,8 +203,11 @@ void NodeGraph::prepare(double sampleRate) {
     recomputeTopoOrder();
 }
 
-void NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
-    const juce::ScopedLock sl(lock_);
+bool NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
+    const juce::ScopedTryLock sl(lock_);
+    if (!sl.isLocked())
+        return false;
+
     const NodeTypeRegistry& registry = NodeTypeRegistry::instance();
 
     for (NodeId id : topoOrder_) {
@@ -249,6 +252,7 @@ void NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
                 break;
         }
     }
+    return true;
 }
 
 NodeCounts NodeGraph::countNodesByCategory() const {
@@ -279,6 +283,18 @@ float NodeGraph::outputOf(NodeId id, int port) const {
         return 0.0f;
     const int clampedPort = juce::jlimit(0, kMaxNodeOutputs - 1, port);
     return nodes_[static_cast<size_t>(idx)].lastOutputs[static_cast<size_t>(clampedPort)];
+}
+
+bool NodeGraph::tryOutputOf(NodeId id, int port, float& result) const {
+    const juce::ScopedTryLock sl(lock_);
+    if (!sl.isLocked())
+        return false;
+    const int idx = indexOf(id);
+    if (idx < 0)
+        return false;
+    const int clampedPort = juce::jlimit(0, kMaxNodeOutputs - 1, port);
+    result = nodes_[static_cast<size_t>(idx)].lastOutputs[static_cast<size_t>(clampedPort)];
+    return true;
 }
 
 std::unique_ptr<juce::XmlElement> NodeGraph::toXml() const {

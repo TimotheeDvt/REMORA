@@ -105,7 +105,7 @@ public:
 
     virtual ~IMappingStrategy() = default;
     virtual void prepare(double sampleRate) { (void)sampleRate; }
-    virtual void process(const StaffSoundParams& in, MappingOutput& out) = 0;
+    virtual bool process(const StaffSoundParams& in, MappingOutput& out) = 0;
     virtual const char* getName() const = 0;
     // What the preset does/sounds like, shown to the performer picking a mapping. Empty if not written yet.
     virtual const juce::String& getDescription() const { static const juce::String empty; return empty; }

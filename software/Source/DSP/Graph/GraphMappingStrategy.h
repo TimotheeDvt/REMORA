@@ -16,7 +16,7 @@ public:
     const char* getName() const override { return name_.toRawUTF8(); }
     const juce::String& getDescription() const override { return description_; }
     void prepare(double sampleRate) override;
-    void process(const StaffSoundParams& in, MappingOutput& out) override;
+    bool process(const StaffSoundParams& in, MappingOutput& out) override;
 
     NodeGraph& getGraph() noexcept { return *graph_; }
 

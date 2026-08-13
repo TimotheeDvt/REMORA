@@ -158,16 +158,16 @@ void SynthManager::processBlock(juce::AudioBuffer<float> &buffer,
         // fade the shared gain to silence over masterGain's ~10ms smoothing window.
         masterGain.setTargetValue(0.0f);
     } else {
-        mappingOut = MappingOutput{};
-
         const int activeIndex = activeMappingIndex.load();
+        bool updated = false;
         {
             const juce::ScopedLock sl(mappingsLock);
             if (activeIndex >= 0 && activeIndex < static_cast<int>(mappings.size()))
-                mappings[static_cast<size_t>(activeIndex)]->process(params, mappingOut);
+                updated = mappings[static_cast<size_t>(activeIndex)]->process(params, mappingOut);
         }
 
-        masterGain.setTargetValue(mappingOut.masterGain);
+        if (updated)
+            masterGain.setTargetValue(mappingOut.masterGain);
     }
 
     const bool engineActive[] = { mappingOut.additiveActive, mappingOut.granularActive, mappingOut.pinkTromboneActive };
