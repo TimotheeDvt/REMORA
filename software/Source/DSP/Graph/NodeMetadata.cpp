@@ -76,6 +76,7 @@ NodeTypeInfo sink(const char* id, const char* name, const char* subcategory, con
     info.category = NodeCategory::Sink;
     info.subcategory = subcategory;
     info.description = description;
+    info.numOutputs = 0; // sinks are terminal - no output pin/column to draw or connect from
     info.numInputs = 1;
     info.inputNames = { "value" };
     info.defaultParams = std::move(defaultParams);
@@ -99,18 +100,22 @@ NodeTypeInfo multiSink(const char* id, const char* name, const char* subcategory
     info.category = NodeCategory::Sink;
     info.subcategory = subcategory;
     info.description = description;
+    info.numOutputs = 0; // sinks are terminal - no output pin/column to draw or connect from
     info.numInputs = static_cast<int>(ports.size());
-    int longestNameChars = 0;
+    info.monitorRangeMin.clear();
+    info.monitorRangeMax.clear();
+    int longestLabelChars = 0;
     for (const auto& p : ports) {
         info.inputNames.push_back(juce::String(p.name));
         info.monitorRangeMin.push_back(p.lo);
         info.monitorRangeMax.push_back(p.hi);
         info.inputDefaults.push_back(p.def);
-        longestNameChars = juce::jmax(longestNameChars, static_cast<int>(std::strlen(p.name)));
+        const juce::String rangePrefix = "[" + formatRangeNumber(p.lo) + ", " + formatRangeNumber(p.hi) + "] ";
+        longestLabelChars = juce::jmax(longestLabelChars, rangePrefix.length() + static_cast<int>(std::strlen(p.name)));
     }
     // Wide enough that the longest port name doesn't get cropped (a mega-sink has no output column
     // to share the box with, so this width goes entirely to the input label column).
-    info.defaultWidth = 60.0f + static_cast<float>(longestNameChars) * 7.5f;
+    info.defaultWidth = 60.0f + static_cast<float>(longestLabelChars) * 7.5f;
     info.sinkWrite = write;
     return info;
 }

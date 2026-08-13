@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GraphTypes.h"
+#include <cmath>
 #include <functional>
 #include <unordered_map>
 #include <vector>
@@ -58,6 +59,12 @@ struct NodeTypeInfo {
 
     std::function<std::unique_ptr<NodeState>()> makeState; // set only if isStateful
 };
+
+inline juce::String formatRangeNumber(float v) {
+    return (std::abs(v - std::round(v)) < 0.001f)
+        ? juce::String(static_cast<int>(std::round(v)))
+        : juce::String(v, 2);
+}
 
 // Lazily-populated singleton catalog of every node type - see NodeMetadata.cpp.
 class NodeTypeRegistry {

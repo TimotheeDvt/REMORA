@@ -181,9 +181,14 @@ void GraphNodeComponent::paint(juce::Graphics& g) {
     const int inputLabelWidth = typeInfo.numOutputs > 0 ? halfWidth : (getWidth() - kPinSize - 8);
     g.setFont(10.5f);
     g.setColour(Palette::textMid);
+    const bool showRanges = isWidthResizable(); // mega-sinks only - the ones with room/reason for it
     for (int i = 0; i < typeInfo.numInputs; ++i) {
         const int y = top + i * kRowHeight;
-        const juce::String label = typeInfo.inputNames.size() > static_cast<size_t>(i) ? typeInfo.inputNames[static_cast<size_t>(i)] : juce::String();
+        juce::String label = typeInfo.inputNames.size() > static_cast<size_t>(i) ? typeInfo.inputNames[static_cast<size_t>(i)] : juce::String();
+        if (showRanges && typeInfo.monitorRangeMin.size() > static_cast<size_t>(i) && typeInfo.monitorRangeMax.size() > static_cast<size_t>(i)) {
+            label = "[" + Graph::formatRangeNumber(typeInfo.monitorRangeMin[static_cast<size_t>(i)]) + ", "
+                        + Graph::formatRangeNumber(typeInfo.monitorRangeMax[static_cast<size_t>(i)]) + "] " + label;
+        }
         g.drawText(label, kPinSize + 4, y, inputLabelWidth, kRowHeight, juce::Justification::centredLeft, true);
     }
     for (int i = 0; i < typeInfo.numOutputs; ++i) {
@@ -476,12 +481,14 @@ void GraphNodeComponent::showInfoPopup() {
         text << "\n";
     }
 
-    text << "Outputs:\n";
-    for (int i = 0; i < typeInfo.numOutputs; ++i) {
-        const juce::String n = typeInfo.outputNames.size() > static_cast<size_t>(i)
-            ? typeInfo.outputNames[static_cast<size_t>(i)]
-            : (typeInfo.numOutputs > 1 ? ("out" + juce::String(i)) : juce::String("out"));
-        text << "  - " << n << "\n";
+    if (typeInfo.numOutputs > 0) {
+        text << "Outputs:\n";
+        for (int i = 0; i < typeInfo.numOutputs; ++i) {
+            const juce::String n = typeInfo.outputNames.size() > static_cast<size_t>(i)
+                ? typeInfo.outputNames[static_cast<size_t>(i)]
+                : (typeInfo.numOutputs > 1 ? ("out" + juce::String(i)) : juce::String("out"));
+            text << "  - " << n << "\n";
+        }
     }
 
     if (!params.empty()) {
