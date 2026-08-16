@@ -45,12 +45,12 @@ mpu_screw_x_2 = 80;
 staff_pos = [20, 0, -case_length/2 - 50];
 staff_rot = [0, 90, 0];
 
-button_pos = [-30-22.5, -8, 13];
+button_pos = [-30-22.5, -8, 13.8];
 button_rot = [0, 0, 0];
 
 // LIPO BATTERY BOX (ghost) + CORNER SUPPORTS
 battery_box_pos      = [18, 0, 7];
-battery_box_size     = [61.5, 40, 6.5];
+battery_box_size     = [62, 40, 6.5];
 battery_box_corner_r = 3;
 
 battery_support_leg       = 10;
@@ -236,7 +236,7 @@ module standard_hole_cuts(draw_button_shere = false) {
 
     // button
     translate([button_pos[0]+22.5, 0, 16])    cylinder(r = screw_head_d + 1, h = 15);
-
+    scale([2, 1, 1.2]) translate([button_pos[0]+37, 0, 26]) sphere(r = screw_head_d+2);
     // Cable pass-through
     translate([button_pos[0]-3, -3.5, 16]) cube([3, 7, 5]);
     translate([-8,  -3.5, 16]) cube([3, 7, 5]);
@@ -318,3 +318,5 @@ if (show_cap) {
             cube([cut_width, case_width + 10, case_height * 2]);
     }
 }
+
+// translate([0, 0, preview_lift_cap]) color("red", 0.5) scale([2, 1, 1.2]) translate([button_pos[0]+37, 0, 25]) sphere(r = screw_head_d+2);
