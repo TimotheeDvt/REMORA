@@ -284,7 +284,7 @@ computer's own Wi-Fi hotspot directly rather than a dedicated access point, whic
 single pairing step at the cost of the range and interference sensitivity Discussion returns to
 (\S\ref{sec:limitations}).
 \begin{center}
-  \includegraphics[angle=270, width=0.6\linewidth]{Assets/TEMP_hardware_wiring.png}
+  \includegraphics[angle=270, width=0.6\linewidth]{Assets/hardware_wiring.jpg}
 
   \small
   \refstepcounter{figure}\label{fig:hardware}
@@ -488,8 +488,10 @@ false triggers during forceful spins (too low) against missed soft stabs (too hi
 
 \subsection{Software: Mapping Architecture}
 \textit{\texttt{NodeGraph}/\texttt{NodeTypeRegistry}: four node categories - Source (IMU,\\
-Laban features), Math (arithmetic, shaping, dynamics, lookup tables), Sink (synth parameters), and
-Display (resizable, performer-facing live monitors, \S\ref{sec:live-patching}) - each a
+Laban features), Math (arithmetic, shaping, dynamics, lookup tables), Sink (synth-engine
+parameters, one resizable ``mega-node'' per engine exposing every one of that engine's parameters
+as its own typed input port, \S\ref{sec:synthesis}),
+and Display (resizable, performer-facing live monitors, \S\ref{sec:live-patching}) - each a
 small typed function registered once. A graph is nodes plus typed wiring, serialised to/from the
 Extensible Markup Language (XML) as
 a preset; \texttt{GraphMappingStrategy} makes the graph the only mapping path the synth talks to,
@@ -527,6 +529,18 @@ Table~\ref{tab:preset-nodes} shows the generalisation claim directly: each of th
 thrust transients), \preset{Martial Effort}/\preset{Martial Momentum}, \preset{Spin Voices}, and \preset{Speed Gate} - is built once via \texttt{GraphBuilder}
 and is structurally just a particular wiring of the same node catalog. Counts are read directly off
 the constructed graphs (\texttt{NodeGraph::nodes()}).
+
+Four further presets - \preset{Wind Noise}, \preset{Azimut Kinetic}, \preset{Spin Voices (Scale)}, and
+\preset{Vocal Tract} - sit outside that generalisation claim: unlike the eleven above, none of them
+was ever a separate hand-coded C++ mapping class first: they were authored directly as graph
+patches, so they demonstrate the catalog's expressiveness going forward rather than its ability to
+reproduce a prior hand-built design. \preset{Vocal Tract} is also the one preset that drives the
+vocal-tract engine instead of the additive one (\S\ref{sec:synthesis}). Counting these, the catalog
+currently ships fifteen presets in total.
+% TODO before submission: regenerate Table~\ref{tab:preset-nodes} node counts from a live build -
+% the Sink column for every existing row is stale (per-parameter sink nodes were consolidated into
+% per-engine mega-nodes, changing the Sink/Nodes totals), and the four new rows below need real
+% counts in place of the "tbd" placeholders.
 \begin{table}[htbp]
 \centering
 \small
@@ -537,6 +551,7 @@ the constructed graphs (\texttt{NodeGraph::nodes()}).
 Preset & Nodes & Source & Math & Sink \\
 \midrule
 Simple         & 7  & 2 & 3   & 2 \\
+Wind Noise     & \textit{tbd} & \textit{tbd} & \textit{tbd} & \textit{tbd} \\
 Bowed Chord    & 110 & 25 & 54  & 31 \\
 Lead+Drone     & 96 & 23 & 45  & 28 \\
 Spin Filter    & 105 & 30 & 54  & 21 \\
@@ -545,11 +560,18 @@ Martial Momentum & 109 & 32 & 48  & 29 \\
 Azimut         & 113 & 32 & 52  & 29 \\
 Azimut+        & 113 & 32 & 52  & 29 \\
 Azimut Reverb  & 123 & 33 & 58  & 32 \\
+Azimut Kinetic & \textit{tbd} & \textit{tbd} & \textit{tbd} & \textit{tbd} \\
 Speed Gate       & 181 & 87 & 95 & 29 \\
 Spin Voices      & 99 & 34 & 36  & 29 \\
+Spin Voices (Scale) & \textit{tbd} & \textit{tbd} & \textit{tbd} & \textit{tbd} \\
+Vocal Tract    & \textit{tbd} & \textit{tbd} & \textit{tbd} & \textit{tbd} \\
 \bottomrule
 \end{tabular}
 \end{table}
+% TODO before submission: the "63 of 79" figures below are stale on both ends - the registered
+% node-type catalog is smaller now (mega-node sink consolidation removed ~17 per-parameter sink
+% types), and the "63 used" count needs recomputing against whatever the new total is. Recompute
+% both from a live build rather than editing these numbers by hand.
 Across all eleven presets, only 63 of the catalog's 79 registered node types are ever
 instantiated - 42 of those source/math primitives, the rest sink writers. A full development cycle
 of hand-built mapping design, spanning a solo tilt-controlled mapping through the fully Laban-driven
@@ -610,12 +632,21 @@ hit-testable afterward for rewiring or deletion via context menu, which for an e
 offers jumping the view straight to its source or destination node, briefly highlighted on arrival
 so the jump is easy to follow in a large patch. New nodes are added from a categorised picker at any
 canvas position, each entry annotated with a short description of its behaviour; a search bar
-over the same picker jumps directly to a node type by name. An auto-layout pass untangles a freshly
-loaded preset into left-to-right source-to-sink columns. Hovering any node or pin surfaces its
+over the same picker jumps directly to a node type by name. An auto-layout pass ranks every node by
+longest path from a source, pulls sink-only nodes as late as their wiring allows, threads
+dummy nodes through any connection that spans more than one rank so a long wire does not cut across
+intervening columns, and orders nodes within each resulting layer to reduce crossings - a layered
+graph-drawing pass rather than a fixed column assignment, so a freshly loaded preset still untangles
+left-to-right from source to sink but copes with the deeper, more irregular graphs later presets
+produce. Hovering any node or pin surfaces its
 current, live-updating value as a tooltip, and three dedicated Display node types - a numeric
 readout, a level meter, and a scrolling scope - can be dropped inline on any wire and freely
 resized, giving the performer a live, in-patch view of a signal without altering it (all three are
-pure passthrough: the graph carries exactly the same value with or without one attached). A
+pure passthrough: the graph carries exactly the same value with or without one attached). Sink
+mega-nodes (\S\ref{sec:synthesis}) are themselves width-resizable and label each port with its valid
+range (e.g.\ \texttt{[20, 20000] LPF Cutoff}), so a wide parameter surface stays legible without a
+separate details panel; at the opposite end of the size scale, constant-value nodes render as a
+compact numeric box with no slider, so the canvas is not dominated by its simplest node type. A
 dirty-state indicator tracks whether the active patch has diverged from its saved preset, with
 one-click revert - so a performer can improvise a mapping change mid-rehearsal and either keep or
 discard it, treating the mapping itself as something authored and iterated on at the same level as
@@ -634,15 +665,28 @@ reading bare names.
 \end{center}
 
 \subsection{Software: Synthesis Engine}
-Every mapping graph, regardless of preset, writes into the same \texttt{BoStaffSynth}: a shared
-four-voice additive engine exposing one mapping-agnostic parameter surface (gain, drive, noise,
-filter cutoff, pan, reverb send) that sink nodes address by name. Keeping the synthesis engine
-itself ignorant of which preset is driving it is what lets a graph be swapped or rewired live
-without reinitialising audio.
-
-\subsubsection*{Additive Synthesis Engine} \
+\label{sec:synthesis}
+Every mapping graph writes into a shared \texttt{SynthManager}, which owns a small, pluggable set
+of synthesis engines behind one \texttt{ISynthEngine} interface (\texttt{prepare}/\texttt{render})
+rather than a single hard-coded voice: an additive engine, a granular engine, and a physically
+modelled vocal-tract engine. Each engine reads its own parameter struct - one field of the shared
+\texttt{MappingOutput} the active graph writes every block, addressed through that engine's sink
+mega-node (\S\ref{sec:named-mappings}) - and renders it into its own scratch buffer;
+\texttt{SynthManager::processBlock} sums whichever engines the active preset actually wires in and
+applies one shared master-gain/mute stage on top, keeping the engines themselves ignorant of which
+preset or graph is driving them - which is what lets a graph be swapped or rewired live without
+reinitialising audio. An engine a preset's graph leaves unwired is skipped entirely that block - no
+parameter update, no render call - rather than rendered silently and discarded, so the additive-only
+presets that make up most of the catalog never pay the granular or vocal-tract engines' cost.
 \begin{flushright}
-\coderef{\texttt{BoStaffSynth::processBlock}}
+\coderef{\texttt{ISynthEngine}} \coderef{\texttt{SynthManager::processBlock}}
+\end{flushright}
+
+\subsubsection*{Additive Engine}
+The original, still default, engine; every preset in Table~\ref{tab:preset-nodes} except
+\preset{Vocal Tract} drives it.
+\begin{flushright}
+\coderef{\texttt{AdditiveSynthEngine::render}}
 \coderef{\texttt{SynthVoice::tick}}
 \end{flushright}
 
@@ -676,8 +720,8 @@ offsets over $200$\,ms rather than jumping.
 \textbf{Noise and filtering.} An xorshift32 pseudo-random number generator (PRNG) feeds a one-pole
 lowpass (coefficient \texttt{noiseLpCoef}) before being mixed in at \texttt{noiseAmount}; the summed
 stereo output passes through a JUCE state-variable Topology-Preserving Transform (TPT) lowpass, its
-cutoff set directly each block from the graph's
-\texttt{sink.lpfCutoffHz} (only range-clamped, not ramped), and an optional Schroeder-style
+cutoff set directly each block from the \texttt{sink.additiveSynth} mega-node's \textit{LPF Cutoff}
+port (only range-clamped, not ramped), and an optional Schroeder-style
 \texttt{juce::dsp::Reverb} send whose wet level \emph{is} ramped through a per-sample
 \texttt{SmoothedValue} to avoid zippering when the active mapping changes.
 
@@ -692,6 +736,33 @@ signed offset applied to it, giving the equal-tempered result $f$.
 \coderef{\texttt{convertSemitonesToHertz}}
 \end{flushright}
 
+\subsubsection*{Granular Engine}
+Has no audio input and bundles no sample assets: on \texttt{prepare} it synthesises its own
+roughly 2-second internal source buffer (a slowly evolving harmonic bed layered with lightly
+filtered noise), then continuously spawns and scans up to 64 overlapping grains across that buffer,
+each with its own position, playback rate (a negative rate plays a grain backward), pan, and
+amplitude envelope, driven every block by the mapping's granular parameter struct. Silent by
+default, so a preset that never wires \texttt{sink.granularSynth} costs nothing beyond the skipped
+check above. Currently used by \preset{Wind Noise}.
+\begin{flushright}
+\coderef{\texttt{GranularSynthEngine::buildSourceBuffer}}
+\coderef{\texttt{GranularSynthEngine::spawnGrain}}
+\end{flushright}
+
+\subsubsection*{Vocal-Tract Engine}
+The one engine not built for this project: an LF-model glottal source excites a digital-waveguide
+vocal tract with oral and nasal branches, run at 2$\times$ oversampling, with two RBJ-cookbook
+bandpass filters colouring raw white noise into breath and frication noise before it reaches the
+model. The model itself is a C++ port (via \texttt{cutelabnyc/pink-trombone-cpp}, MIT-licensed) of
+Neil Thapen's \textit{Pink Trombone}; REMORA's contribution at this layer is the driver around it -
+control-rate parameter updates from the graph's \texttt{sink.pinkTromboneSynth} mega-node each
+block - not the vocal-tract model itself. It is the one engine so far with a dedicated preset,
+\preset{Vocal Tract} (\S\ref{sec:named-mappings}), rather than being an option within an
+otherwise-additive mapping.
+\begin{flushright}
+\coderef{\texttt{PinkTromboneEngine::render}}
+\end{flushright}
+
 \subsection{Development Iterations}
 The node-graph engine above did not arrive fully formed; it is the result of three iterations in
 which generalisation followed rather than preceded hand-built mapping design. The first was
@@ -703,6 +774,13 @@ vocabulary (chords, Laban Effort, world-frame facing, transient detection) on to
 really just arithmetic, shaping, and a handful of stateful primitives wired together in a fixed
 pattern. The third iteration rebuilt the mapping layer as the small generic graph engine described
 above, porting all eleven prior mappings over as presets rather than deleting them.
+
+Since that third iteration, the same graph engine has absorbed two further kinds of growth without a
+fourth architectural rewrite: a pluggable synthesis layer behind the sink nodes
+(\S\ref{sec:synthesis}), adding granular and vocal-tract engines alongside the original additive
+one, and four more presets - \preset{Wind Noise}, \preset{Azimut Kinetic}, \preset{Spin Voices
+(Scale)}, \preset{Vocal Tract} - authored directly as graph patches with no hand-coded precursor to
+port (\S\ref{sec:named-mappings}).
 
 \section{Evaluation}
 \label{sec:evaluation}
@@ -813,7 +891,12 @@ study would need to answer.
 before REMORA is exposed to inputs beyond the author's own testing: incoming OSC messages are read
 without confirming their argument types match what the receiver expects, dropped or reordered
 packets are not detected as such, and the handoff of a sensor snapshot from the network thread to
-the audio thread retries in a tight spin loop rather than degrading gracefully under contention.
+the audio thread retries in a tight spin loop rather than degrading gracefully under contention. A
+related lock has since been addressed rather than left open: graph evaluation used to share a
+blocking lock with the UI thread editing the live patch, so a rewire mid-performance could stall the
+audio thread; \texttt{NodeGraph::evaluate} now takes a \texttt{ScopedTryLock} and simply reuses the
+previous block's mapping output on contention instead of blocking - the same graceful-degradation
+pattern the sensor-handoff spin loop above still lacks.
 
 \textbf{Hardware.} The enclosure carries a 2000\,mAh LiPo battery, sized to comfortably outlast a
 single rehearsal or set at the firmware's steady 100\,Hz sampling rate, but runtime under REMORA's
@@ -844,7 +927,11 @@ math, and sink node primitives, evaluated as a DAG once per audio block and rewi
 recompiling - reproduces all eleven mapping strategies developed over the course of the project as
 ordinary, live-editable presets (Table~\ref{tab:preset-nodes}), from a minimal tilt-to-pitch patch to the fully
 Laban-driven \preset{Martial} and \preset{Speed Gate} mappings, grounded in an explicit, code-traceable account of
-calibration, orientation tracking, and movement-quality extraction (\S\ref{sec:named-mappings}).
+calibration, orientation tracking, and movement-quality extraction (\S\ref{sec:named-mappings}). The
+same architecture has since kept absorbing growth without another rewrite: a pluggable synthesis
+layer added granular and vocal-tract engines alongside the original additive one
+(\S\ref{sec:synthesis}), and four more presets were authored directly as graph patches rather than
+ported from hand-written code, taking the catalog to fifteen presets in current use.
 
 What remains uncertain is exactly what \S\ref{sec:evaluation} makes explicit: whether these claims hold for a
 performer other than the author, and whether the primitive catalog and facing estimate fare under
