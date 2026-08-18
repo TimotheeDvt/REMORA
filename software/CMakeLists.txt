@@ -24,6 +24,24 @@ juce_add_binary_data(REMORAData SOURCES Assets/logo.svg)
 file(GLOB_RECURSE SOURCE_FILES "Source/*.cpp" "Source/*.h")
 target_sources(REMORA PRIVATE ${SOURCE_FILES})
 
+# Timestamp marking the last time any preset source changed, so Graph::PresetManager::syncFactoryPreset
+# can tell a stale on-disk FACTORY/*.xml from one a user has hand-edited since the build
+file(GLOB PRESET_SOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/DSP/Graph/Presets/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/DSP/Graph/Presets/*.h")
+set(PRESET_BUILD_VERSION 0)
+foreach(presetSourceFile ${PRESET_SOURCE_FILES})
+    file(TIMESTAMP "${presetSourceFile}" presetSourceFileTime "%s" UTC)
+    if(presetSourceFileTime GREATER PRESET_BUILD_VERSION)
+        set(PRESET_BUILD_VERSION ${presetSourceFileTime})
+    endif()
+endforeach()
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/DSP/Graph/Presets/PresetBuildVersion.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/PresetBuildVersion.h"
+    @ONLY)
+target_include_directories(REMORA PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
 target_compile_definitions(REMORA PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0

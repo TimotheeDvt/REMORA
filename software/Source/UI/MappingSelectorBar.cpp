@@ -16,6 +16,11 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
     addAndMakeVisible(descriptionLabel);
 
     refreshMappingCombo(processor.getMappingStrategy());
+
+    for (int i = 0; i < processor.getSynth().getMappingCount(); ++i)
+        if (auto* graphMapping = dynamic_cast<Graph::GraphMappingStrategy*>(processor.getSynth().getMapping(i)))
+            presetFileByMappingIndex[i] = Graph::PresetManager::instance().factoryFilePathForName(graphMapping->getName());
+
     mappingCombo.onChange = [this] {
         const int newStrategyIndex = mappingCombo.getSelectedId() - 1;
         processor.setMappingStrategy(newStrategyIndex);

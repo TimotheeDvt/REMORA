@@ -22,6 +22,12 @@ public:
     bool savePreset(const juce::File& file, const NodeGraph& graph) const;
     std::unique_ptr<NodeGraph> loadPreset(const juce::File& file) const;
 
+    // Subfolder holding factory-preset XML snapshots regenerated from Source/DSP/Graph/Presets/*.cpp.
+    juce::File getFactoryFolder() const;
+    juce::File factoryFilePathForName(const juce::String& presetName) const;
+
+    std::unique_ptr<NodeGraph> syncFactoryPreset(const juce::String& name, std::unique_ptr<NodeGraph> (*build)()) const;
+
 private:
     PresetManager();
 

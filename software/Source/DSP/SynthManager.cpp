@@ -4,6 +4,7 @@
 
 #include "Graph/GraphMappingStrategy.h"
 #include "Graph/Presets/AllPresets.h"
+#include "Graph/PresetManager.h"
 
 void SynthManager::pushNextSampleIntoFifo(float sample) noexcept {
     if (fifoIndex == fftSize) {
@@ -33,16 +34,21 @@ SynthManager::SynthManager() {
 
     // Each mapping is a Presets::build*() node graph wrapped in the one generic GraphMappingStrategy.
     using Graph::GraphMappingStrategy;
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSimple(), "Simple (Pitch+Roll)",
+    auto& presets = Graph::PresetManager::instance();
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(
+        presets.syncFactoryPreset("Simple (Pitch+Roll)", Graph::Presets::buildSimple), "Simple (Pitch+Roll)",
         "Pitch angle sets the root frequency; roll amount sets the volume. A single sine voice with no chord "
         "or filtering - the most direct staff-to-pitch mapping."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildWindNoise(), "Wind Noise",
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(
+        presets.syncFactoryPreset("Wind Noise", Graph::Presets::buildWindNoise), "Wind Noise",
         "No pitch, no chord - just filtered noise. Staff motion (gyro+accel energy) swells and dies down like "
         "gusts of wind, opening the noise filter and the master lowpass brighter the faster you move."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildBowedChord(), "Bowed Chord",
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(
+        presets.syncFactoryPreset("Bowed Chord", Graph::Presets::buildBowedChord), "Bowed Chord",
         "Pitch angle is quantized to a chromatic scale for the root note; yaw and roll select the chord voicing. "
         "Gyro speed acts like bow pressure, driving volume, drive and brightness, and sharp jabs add a noise strike."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildLeadDrone(), "Lead + Drone",
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(
+        presets.syncFactoryPreset("Lead + Drone", Graph::Presets::buildLeadDrone), "Lead + Drone",
         "Pitch angle is quantized to a major scale for the root note, shared by a 4-voice drone chord. Motion "
         "intensity (gyro/accel magnitude) sets the volume and swells the drone, while yaw crossfades two drone voices."));
     // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinFilter(), "Spin Filter",
@@ -51,7 +57,8 @@ SynthManager::SynthManager() {
     // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildMartialEffort(), "Martial Effort",
     //     "Spin speed sets the root note on a pentatonic minor scale, shifted by the spin's plane (vertical/horizontal) "
     //     "and direction, which also picks the chord quality. Volume blends motion, Laban 'Weight' (force) and thrust jabs."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildMartialMomentum(), "Martial Momentum",
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(
+        presets.syncFactoryPreset("Martial Momentum", Graph::Presets::buildMartialMomentum), "Martial Momentum",
         "Root note is chosen from four fixed pitches by spin plane and direction, gliding to the new note at a "
         "speed set by spin momentum. Volume is gated by movement plus Laban 'Weight' and thrust jabs."));
     // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimut(), "Azimut",
@@ -63,21 +70,25 @@ SynthManager::SynthManager() {
     // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutReverb(), "Azimut Reverb",
     //     "Same pitch/volume mapping as Azimut. Free, fluid motion (Laban 'Flow Free') opens up a longer, brighter "
     //     "reverb tail; bound, controlled motion collapses it back toward dry."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutKinetic(), "Azimut Kinetic",
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(
+        presets.syncFactoryPreset("Azimut Kinetic", Graph::Presets::buildAzimutKinetic), "Azimut Kinetic",
         "Same pitch/volume mapping as Azimut, but timbre is one-to-many: a single rotation-speed value fans out "
         "to the filter cutoff, harmonic brightness, drive, noise, vibrato/tremolo depth and reverb all at once - "
         "still and calm sounds like a pure sine, fast spins turn buzzy, driven, noisy and drenched in reverb."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpeedGate(), "Speed Gate",
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(
+        presets.syncFactoryPreset("Speed Gate", Graph::Presets::buildSpeedGate), "Speed Gate",
         "Below a speed threshold, pitch angle drives a simple pentatonic melody with roll controlling volume; "
         "above it, staff speed crossfades smoothly into the full Azimut mapping, with no clicks at the transition."));
     // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoice(), "Spin Voices",
     //     "Roll angle selects which of 4 independent voices is currently 'live'; the active voice's pitch glides "
     //     "with pitch angle and its volume follows Laban 'Weight', while the other voices hold their last pitch/gain."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoiceScale(), "Spin Voices (Scale)",
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(
+        presets.syncFactoryPreset("Spin Voices (Scale)", Graph::Presets::buildSpinVoiceScale), "Spin Voices (Scale)",
         "Same 4-voice roll-select/pitch-glide mapping as Spin Voices, but every voice's pitch snaps to the "
         "nearest note of a major scale, and the graph displays every voice's gain and scale degree (not Hz), "
         "not just the selected voice's."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildVocalTract(), "Vocal Tract",
+    mappings.push_back(std::make_unique<GraphMappingStrategy>(
+        presets.syncFactoryPreset("Vocal Tract", Graph::Presets::buildVocalTract), "Vocal Tract",
         "A physically-modeled voice (glottal source into a digital-waveguide vocal tract) instead of the "
         "additive engine. Pitch angle sets the glottal pitch; roll and yaw shape the vowel (tongue height "
         "and front-back position); motion energy and Laban 'Weight' drive volume and vocal tenseness; sharp "

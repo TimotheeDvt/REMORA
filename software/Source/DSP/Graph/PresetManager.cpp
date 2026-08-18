@@ -1,4 +1,5 @@
 #include "PresetManager.h"
+#include "PresetBuildVersion.h"
 
 namespace Graph {
 
@@ -61,6 +62,30 @@ std::unique_ptr<NodeGraph> PresetManager::loadPreset(const juce::File& file) con
     if (xml == nullptr)
         return nullptr;
     return NodeGraph::fromXml(*xml);
+}
+
+juce::File PresetManager::getFactoryFolder() const {
+    const juce::File folder = getPresetFolder().getChildFile("FACTORY");
+    folder.createDirectory();
+    return folder;
+}
+
+juce::File PresetManager::factoryFilePathForName(const juce::String& presetName) const {
+    return getFactoryFolder().getChildFile(juce::File::createLegalFileName(presetName) + ".xml");
+}
+
+std::unique_ptr<NodeGraph> PresetManager::syncFactoryPreset(const juce::String& name, std::unique_ptr<NodeGraph> (*build)()) const {
+    const juce::File file = factoryFilePathForName(name);
+    const juce::Time buildTime(static_cast<juce::int64>(kPresetBuildVersionUnixSeconds) * 1000);
+
+    if (!file.existsAsFile() || file.getLastModificationTime() < buildTime) {
+        auto graph = build();
+        savePreset(file, *graph);
+        return graph;
+    }
+    if (auto loaded = loadPreset(file))
+        return loaded;
+    return build();
 }
 
 } // namespace Graph
