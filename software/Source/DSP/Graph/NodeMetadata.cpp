@@ -24,6 +24,28 @@ struct MathNodeState : NodeState {
 
 std::unique_ptr<NodeState> makeMathState() { return std::make_unique<MathNodeState>(); }
 
+struct RandomHoldState : NodeState {
+    uint32_t rngState = 0x9e3779b9u;
+    float held[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    bool flag = false; // true while the trigger input is above 0.5, for rising-edge detection
+
+    void reset() override {
+        rngState = 0x9e3779b9u;
+        for (float& v : held) v = 0.0f;
+        flag = false;
+    }
+};
+
+std::unique_ptr<NodeState> makeRandomHoldState() { return std::make_unique<RandomHoldState>(); }
+
+// xorshift32, advances `state` in place and returns a new pseudo-random value in [-1, 1].
+float nextRandomBipolar(uint32_t& state) {
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+    return static_cast<float>(state) * (1.0f / 4294967295.0f) * 2.0f - 1.0f;
+}
+
 NodeTypeInfo math(const char* id, const char* name, const char* subcategory, const char* description,
                    std::vector<juce::String> inputNames, std::vector<float> defaultParams,
                    std::vector<juce::String> paramNames, NodeTypeInfo::MathEvalFn eval, bool stateful = false) {
@@ -451,6 +473,32 @@ std::vector<NodeTypeInfo> buildAllNodes() {
             if (in[1] > 0.5f) s->a = MathHelpers::applyOnePoleFilter(s->a, in[0], p[0]);
             out[0] = s->a;
         }, true));
+
+    {
+        NodeTypeInfo info;
+        info.id = "math.sampleHoldRandom";
+        info.displayName = "Random Sample & Hold";
+        info.category = NodeCategory::Math;
+        info.subcategory = "Random";
+        info.description =
+            "On each rising edge of 'trigger' (crosses above 0.5), draws 4 independent pseudo-random "
+            "values and holds them until the next trigger.\nInput range: any\nOutput range: [-1 ; 1] per channel";
+        info.numInputs = 1;
+        info.inputNames = { "trigger" };
+        info.numOutputs = 4;
+        info.outputNames = { "rand0", "rand1", "rand2", "rand3" };
+        info.isStateful = true;
+        info.makeState = makeRandomHoldState;
+        info.mathEval = [](const float* in, int, const std::vector<float>&, NodeState* state, float* out) {
+            auto* s = static_cast<RandomHoldState*>(state);
+            const bool above = in[0] > 0.5f;
+            if (above && !s->flag)
+                for (float& v : s->held) v = nextRandomBipolar(s->rngState);
+            s->flag = above;
+            for (int i = 0; i < 4; ++i) out[i] = s->held[i];
+        };
+        nodes.push_back(std::move(info));
+    }
 
     // Performer-facing live displays - their own category (not Math), but evaluated identically
     // (passthrough) so they can be dropped inline on any wire without changing what it carries.

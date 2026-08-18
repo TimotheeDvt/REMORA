@@ -109,33 +109,53 @@ std::unique_ptr<NodeGraph> buildAzimutKinetic() {
         b.wire(core.panR[i], synth, AdditivePort::PanR0 + i);
     }
 
-    // The one hub node: normalized, smoothed rotation speed. Everything timbral below reads only this.
     NodeId speedNormRaw = b.add("math.mapRange", { kGyroscopeFloor, kGyroscopeCeiling, 0.0f, 1.0f });
     b.wire(core.gyroMagnitude, speedNormRaw);
     NodeId energy = onePole(b, clampNode(b, speedNormRaw, 0.0f, 1.0f), 0.05f);
 
+    NodeId spinCountDelta = b.add("math.derivative");
+    b.wire(core.spinClassNode, 2, spinCountDelta, 0); // continuous spin count
+    NodeId rotationPulse = threshold(b, spinCountDelta, 0.5f); // 1 for the block a rotation completes on
+    NodeId randHold = b.add("math.sampleHoldRandom");
+    b.wire(rotationPulse, randHold);
+
+    auto driftChannel = [&](int port) {
+        NodeId tap = b.add("math.passthrough");
+        b.wire(randHold, port, tap, 0);
+        return onePole(b, tap, 0.05f);
+    };
+    NodeId driftCutoff = driftChannel(0);
+    NodeId driftDrive = driftChannel(1);
+    NodeId driftNoise = driftChannel(2);
+    NodeId driftColor = driftChannel(3);
+
+    NodeId energyWithDrift = clampNode(b, addNodes(b, energy, scale(b, driftCutoff, 0.18f)), 0.0f, 1.0f);
     NodeId lpf = b.add("math.mapRangeLog", { 0.0f, 1.0f, 300.0f, 18000.0f });
-    b.wire(energy, lpf);
+    b.wire(energyWithDrift, lpf);
     b.wire(onePole(b, lpf, 0.03f), synth, AdditivePort::LpfCutoffHz);
 
-    // Pure sine at rest, increasingly buzzy/harmonic as motion energy climbs.
     const float partialPeak[5] = { 0.75f, 0.55f, 0.45f, 0.30f, 0.20f };
     for (int p = 0; p < 5; ++p) {
         NodeId amp = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, partialPeak[p] });
         b.wire(energy, amp);
-        b.wire(amp, synth, AdditivePort::PartialAmp0 + (p + 1));
+        NodeId ampDrifted = clampNode(b, addNodes(b, amp, scale(b, driftColor, partialPeak[p] * 0.4f)),
+                                       0.0f, partialPeak[p] * 1.4f);
+        b.wire(ampDrifted, synth, AdditivePort::PartialAmp0 + (p + 1));
     }
 
     NodeId drive = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, 3.0f });
     b.wire(energy, drive);
-    b.wire(drive, synth, AdditivePort::DriveAmt);
+    NodeId driveDrifted = clampNode(b, addNodes(b, drive, scale(b, driftDrive, 0.6f)), 0.0f, 3.5f);
+    b.wire(driveDrifted, synth, AdditivePort::DriveAmt);
 
     NodeId noiseAmt = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, 0.35f });
     b.wire(energy, noiseAmt);
-    b.wire(noiseAmt, synth, AdditivePort::NoiseAmount);
+    NodeId noiseAmtDrifted = clampNode(b, addNodes(b, noiseAmt, scale(b, driftNoise, 0.12f)), 0.0f, 0.6f);
+    b.wire(noiseAmtDrifted, synth, AdditivePort::NoiseAmount);
     NodeId noiseColor = b.add("math.mapRange", { 0.0f, 1.0f, 0.85f, 0.15f });
     b.wire(energy, noiseColor);
-    b.wire(noiseColor, synth, AdditivePort::NoiseLpCoef);
+    NodeId noiseColorDrifted = clampNode(b, addNodes(b, noiseColor, scale(b, driftNoise, 0.15f)), 0.05f, 0.95f);
+    b.wire(noiseColorDrifted, synth, AdditivePort::NoiseLpCoef);
 
     NodeId vibDepth = b.add("math.mapRange", { 0.0f, 1.0f, 0.0f, 0.025f });
     b.wire(energy, vibDepth);
@@ -148,7 +168,8 @@ std::unique_ptr<NodeGraph> buildAzimutKinetic() {
 
     NodeId reverbWet = b.add("math.mapRange", { 0.0f, 1.0f, 0.05f, 0.45f });
     b.wire(energy, reverbWet);
-    b.wire(reverbWet, synth, AdditivePort::ReverbWetLevel);
+    NodeId reverbWetDrifted = clampNode(b, addNodes(b, reverbWet, scale(b, driftColor, 0.1f)), 0.0f, 0.6f);
+    b.wire(reverbWetDrifted, synth, AdditivePort::ReverbWetLevel);
     NodeId reverbRoom = b.add("math.mapRange", { 0.0f, 1.0f, 0.3f, 0.9f });
     b.wire(energy, reverbRoom);
     b.wire(reverbRoom, synth, AdditivePort::ReverbRoomSize);
