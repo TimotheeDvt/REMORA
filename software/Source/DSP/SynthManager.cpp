@@ -45,24 +45,24 @@ SynthManager::SynthManager() {
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildLeadDrone(), "Lead + Drone",
         "Pitch angle is quantized to a major scale for the root note, shared by a 4-voice drone chord. Motion "
         "intensity (gyro/accel magnitude) sets the volume and swells the drone, while yaw crossfades two drone voices."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinFilter(), "Spin Filter",
-        "Spin speed (raw gyro magnitude) sets the root note on a pentatonic scale - faster spins climb higher. "
-        "Overall motion energy sets the volume, while roll sweeps a harmonic low-pass filter across the tone."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildMartialEffort(), "Martial Effort",
-        "Spin speed sets the root note on a pentatonic minor scale, shifted by the spin's plane (vertical/horizontal) "
-        "and direction, which also picks the chord quality. Volume blends motion, Laban 'Weight' (force) and thrust jabs."));
+    // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinFilter(), "Spin Filter",
+    //     "Spin speed (raw gyro magnitude) sets the root note on a pentatonic scale - faster spins climb higher. "
+    //     "Overall motion energy sets the volume, while roll sweeps a harmonic low-pass filter across the tone."));
+    // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildMartialEffort(), "Martial Effort",
+    //     "Spin speed sets the root note on a pentatonic minor scale, shifted by the spin's plane (vertical/horizontal) "
+    //     "and direction, which also picks the chord quality. Volume blends motion, Laban 'Weight' (force) and thrust jabs."));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildMartialMomentum(), "Martial Momentum",
         "Root note is chosen from four fixed pitches by spin plane and direction, gliding to the new note at a "
         "speed set by spin momentum. Volume is gated by movement plus Laban 'Weight' and thrust jabs."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimut(), "Azimut",
-        "Root note is picked from spin plane, direction, and whether the staff faces north or south, gliding to "
-        "its target at a spin-speed-driven rate. Volume comes from motion, Laban 'Weight' and thrust jabs."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutPlus(), "Azimut+",
-        "Same pitch/volume mapping as Azimut (root from spin plane/direction/facing, volume from motion and "
-        "Laban 'Weight'), but the filter cutoff tracks rotation speed directly instead of cycling with spin count."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutReverb(), "Azimut Reverb",
-        "Same pitch/volume mapping as Azimut. Free, fluid motion (Laban 'Flow Free') opens up a longer, brighter "
-        "reverb tail; bound, controlled motion collapses it back toward dry."));
+    // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimut(), "Azimut",
+    //     "Root note is picked from spin plane, direction, and whether the staff faces north or south, gliding to "
+    //     "its target at a spin-speed-driven rate. Volume comes from motion, Laban 'Weight' and thrust jabs."));
+    // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutPlus(), "Azimut+",
+    //     "Same pitch/volume mapping as Azimut (root from spin plane/direction/facing, volume from motion and "
+    //     "Laban 'Weight'), but the filter cutoff tracks rotation speed directly instead of cycling with spin count."));
+    // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutReverb(), "Azimut Reverb",
+    //     "Same pitch/volume mapping as Azimut. Free, fluid motion (Laban 'Flow Free') opens up a longer, brighter "
+    //     "reverb tail; bound, controlled motion collapses it back toward dry."));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildAzimutKinetic(), "Azimut Kinetic",
         "Same pitch/volume mapping as Azimut, but timbre is one-to-many: a single rotation-speed value fans out "
         "to the filter cutoff, harmonic brightness, drive, noise, vibrato/tremolo depth and reverb all at once - "
@@ -70,9 +70,9 @@ SynthManager::SynthManager() {
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpeedGate(), "Speed Gate",
         "Below a speed threshold, pitch angle drives a simple pentatonic melody with roll controlling volume; "
         "above it, staff speed crossfades smoothly into the full Azimut mapping, with no clicks at the transition."));
-    mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoice(), "Spin Voices",
-        "Roll angle selects which of 4 independent voices is currently 'live'; the active voice's pitch glides "
-        "with pitch angle and its volume follows Laban 'Weight', while the other voices hold their last pitch/gain."));
+    // mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoice(), "Spin Voices",
+    //     "Roll angle selects which of 4 independent voices is currently 'live'; the active voice's pitch glides "
+    //     "with pitch angle and its volume follows Laban 'Weight', while the other voices hold their last pitch/gain."));
     mappings.push_back(std::make_unique<GraphMappingStrategy>(Graph::Presets::buildSpinVoiceScale(), "Spin Voices (Scale)",
         "Same 4-voice roll-select/pitch-glide mapping as Spin Voices, but every voice's pitch snaps to the "
         "nearest note of a major scale, and the graph displays every voice's gain and scale degree (not Hz), "
