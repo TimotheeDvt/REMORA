@@ -73,11 +73,12 @@ AzimutCoreOutputs buildAzimutCore(GraphBuilder& b) {
     core.chordSemitone[2] = constantNode(b, -12.0f);
     core.numVoices = constantNode(b, 4.0f);
 
-    // melody_gain == is_moving ? 1 : 0, which is exactly source.isMoving.
-    core.voiceGain[0] = isMoving;
-    core.voiceGain[1] = scale(b, isMoving, 0.8f);
-    core.voiceGain[2] = scale(b, isMoving, 0.7f);
-    core.voiceGain[3] = scale(b, isMoving, 0.6f);
+    // melody_gain == is_moving ? 1 : 0, smoothed so voices swell in/out instead of snapping.
+    NodeId voiceGainEnv = onePole(b, isMoving, 0.05f);
+    core.voiceGain[0] = voiceGainEnv;
+    core.voiceGain[1] = scale(b, voiceGainEnv, 0.8f);
+    core.voiceGain[2] = scale(b, voiceGainEnv, 0.7f);
+    core.voiceGain[3] = scale(b, voiceGainEnv, 0.6f);
 
     NodeId motionGate = standardMotionGate(b, gyroMag, kGyroscopeFloor);
 

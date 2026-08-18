@@ -35,11 +35,12 @@ std::unique_ptr<NodeGraph> buildSpeedGate() {
     NodeId roll = b.add("source.roll");
     NodeId simpleGain = addConst(b, scale(b, absNode(b, roll), 0.20f / kPi), 0.05f);
 
-    // yaw is atan2-derived, already within [-pi, pi], so yawNorm is within [-1, 1] and simplePan within
-    // [0.15, 0.85] - no clamps needed.
+    // yaw is atan2-derived, already within [-pi, pi], so yawNorm is within [-1, 1] and simplePanRaw within
+    // [0.15, 0.85] - no clamps needed. Smoothed so pan glides across instead of snapping side to side.
     NodeId yaw = b.add("source.yaw");
     NodeId yawNorm = scale(b, yaw, 1.0f / kPi);
-    NodeId simplePan = addConst(b, scale(b, yawNorm, 0.35f), 0.5f);
+    NodeId simplePanRaw = addConst(b, scale(b, yawNorm, 0.35f), 0.5f);
+    NodeId simplePan = onePole(b, simplePanRaw, 0.1f);
     NodeId simplePanInv = subConst(b, simplePan, 1.0f);
 
     const float simpleVoiceGain[4] = { 1.0f, 0.8f, 0.7f, 0.6f };

@@ -33,10 +33,10 @@ std::unique_ptr<NodeGraph> buildWindNoise() {
     b.wire(energy, lpf);
     b.wire(lpf, synth, AdditivePort::LpfCutoffHz);
 
-    // A little reverb for open-air space.
-    b.wire(constantNode(b, 0.18f), synth, AdditivePort::ReverbWetLevel);
-    b.wire(constantNode(b, 0.6f), synth, AdditivePort::ReverbRoomSize);
-    b.wire(constantNode(b, 0.35f), synth, AdditivePort::ReverbDamping);
+    // A big, airy reverb tail for open-air space.
+    b.wire(constantNode(b, 0.28f), synth, AdditivePort::ReverbWetLevel);
+    b.wire(constantNode(b, 0.85f), synth, AdditivePort::ReverbRoomSize);
+    b.wire(constantNode(b, 0.18f), synth, AdditivePort::ReverbDamping);
 
     return graph;
 }
