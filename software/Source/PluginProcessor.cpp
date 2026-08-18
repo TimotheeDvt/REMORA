@@ -185,8 +185,7 @@ void REMORAProcessor::prepareToPlay(double sampleRate,
 
 void REMORAProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                          juce::MidiBuffer &) {
-  // Tick age avoids messagesPerSecond's 1s update latency.
-  constexpr double kMaxDataAgeMs = 500.0;
+  constexpr double kMaxDataAgeMs = 150.0;
   const int64_t lastTicks = oscManager.getLastMessageReceivedTicks();
   const double dataAgeMs = (lastTicks > 0)
       ? juce::Time::highResolutionTicksToSeconds(

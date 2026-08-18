@@ -101,6 +101,7 @@ void SynthManager::prepareToPlay(double sampleRate, int samplesPerBlock) {
 
     masterGain.reset(sampleRate, 0.010);
     masterGain.setCurrentAndTargetValue(0.0f);
+    wasReceivingValidData = true;
 
     muteGain.reset(sampleRate, 0.020);
     muteGain.setCurrentAndTargetValue(isSoundEnabled() ? 1.0f : 0.0f);
@@ -153,11 +154,21 @@ void SynthManager::processBlock(juce::AudioBuffer<float> &buffer,
 
     muteGain.setTargetValue(isSoundEnabled() ? 1.0f : 0.0f);
 
+    constexpr float kNormalGainRampSeconds = 0.010f;
+    constexpr float kDropoutFadeSeconds = 0.120f;
+
     if (!params.isReceivingValidData) {
-        // Don't re-evaluate the mapping on stale/lost sensor data - freeze pitch/timbre and just
-        // fade the shared gain to silence over masterGain's ~10ms smoothing window.
+        if (wasReceivingValidData) {
+            masterGain.reset(currentSampleRate, kDropoutFadeSeconds);
+            wasReceivingValidData = false;
+        }
         masterGain.setTargetValue(0.0f);
     } else {
+        if (!wasReceivingValidData) {
+            masterGain.reset(currentSampleRate, kNormalGainRampSeconds);
+            wasReceivingValidData = true;
+        }
+
         const int activeIndex = activeMappingIndex.load();
         bool updated = false;
         {

@@ -119,9 +119,8 @@ private:
     static constexpr float kVelocityDecayHalfLifeMilliseconds = 80.0f;
 
     float weight_envelope_ = 0.f;
-    // Time Constant approx 22ms attack, 1700ms release
     static constexpr float kWeightAttackCoefficient = 0.40f;
-    static constexpr float kWeightReleaseCoefficient = 0.006f;
+    static constexpr float kWeightReleaseCoefficient = 0.03f;
 
     float previous_gyroscope_magnitude_ = 0.f;
     float suddenness_ = 0.f;

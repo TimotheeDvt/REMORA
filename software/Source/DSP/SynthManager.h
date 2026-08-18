@@ -74,6 +74,7 @@ private:
 
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> masterGain{0.f};
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> muteGain{1.f};
+  bool wasReceivingValidData = true;
 
   std::atomic<bool> soundEnabled{true};
 
