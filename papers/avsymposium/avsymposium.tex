@@ -1,6 +1,7 @@
 \UseRawInputEncoding
 \documentclass[a4paper,10pt,oneside]{article}
-\usepackage{avs,amsmath,epsfig,times,url,hyperref,balance,float,booktabs,placeins}
+\usepackage{avs,amsmath,epsfig,times,url,hyperref,balance,float,booktabs,placeins,tikz}
+\usetikzlibrary{positioning,arrows.meta}
 
 \newcommand{\preset}[1]{\textit{#1}}
 
@@ -35,7 +36,7 @@ from a larger, more repetitive set of fifteen.
 \end{abstract}
 
 \section{Introduction}
-\label{sec:motivation}
+\label{sec:intro}
 
 REMORA grew out of the first author's parallel practice in martial arts and music. The
 b\^o itself is a form largely absent from new interfaces for musical expression: a
@@ -56,25 +57,29 @@ this space: the T-Stick's touch-sensitive shaft~\cite{malloch2007tstick}, the Di
 Baton's conducting gesture~\cite{marrin1997digitalbaton}, and Nam's swung Musical
 Poi~\cite{nam2013mpoi} among them. What REMORA adds to that family is less a new sensor
 than a new relationship: a martial artist's years of staff-handling skill, carried
-straight onto a stage as a musical vocabulary.
+straight onto a stage as a musical vocabulary. The remainder of this paper describes how
+that relationship is built, from the sensor unit on the staff (\S\ref{sec:system})
+through the motion-to-sound mapping layer (\S\ref{sec:mapping}) to the resulting catalog
+of presets (\S\ref{sec:presets}).
+
+\section{System Design}
+\label{sec:system}
 
 \begin{figure}[H]
-\begin{minipage}[b]{0.3\linewidth}
+\centering
+\begin{minipage}[c]{0.4\linewidth}
   \centering
-  \includegraphics[height=2cm]{Assets/openscad_casing.png}
-  \centerline{(a) Parametric design}
+  \includegraphics[width=\linewidth]{Assets/openscad_casing.png}
+  \centerline{(a)}
 \end{minipage}
+\hspace{4mm}
 \hfill
-\begin{minipage}[b]{0.3\linewidth}
+\begin{minipage}[c]{0.4\linewidth}
   \centering
-  \includegraphics[height=3.2cm]{Assets/hardware_wiring.jpg}
-  \centerline{(c) Harware wiring}
-\end{minipage}
-\hfill
-\begin{minipage}[b]{0.3\linewidth}
-  \centering
-  \includegraphics[height=3.2cm]{Assets/casing.jpg}
-  \centerline{(b) Printed and mounted}
+  \includegraphics[width=\linewidth]{Assets/hardware_wiring_horizontal.jpg}
+  \centerline{(b)}\\[1mm]
+  \includegraphics[width=\linewidth]{Assets/casing_horizontal.jpg}
+  \centerline{(c)}
 \end{minipage}
 \caption{The staff-mounted sensor unit, held on with zip ties so it can be repositioned
 or removed without marking the staff: (a) the parametric OpenSCAD design; (b) the harware wiring; (c) the
@@ -82,8 +87,44 @@ printed enclosure zip-tied to the b\^o.}
 \label{fig:enclosure}
 \end{figure}
 
-\section{Building the Instrument}
-\label{sec:build}
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, align=center, text width=2.1cm, minimum height=0.55cm,
+    font=\small\bfseries, inner sep=2pt},
+  sub/.style={draw, align=center, text width=1.9cm, minimum height=0.45cm, font=\scriptsize,
+    inner sep=1.5pt},
+  arr/.style={-{Latex[length=1.5mm]}}
+]
+\node[box] (staff) {Firmware};
+\node[sub, below=0.6mm of staff] (collect) {IMU sampling};
+\node[sub, below=0.8mm of collect] (send) {OSC transmission};
+\draw[arr] (collect) -- (send);
+
+\node[box, right=26mm of staff] (host) {REMORA plugin};
+\draw[arr] (staff) -- (host)
+  node[midway, above, font=\scriptsize, align=center] {Wi-Fi / UDP / OSC};
+
+\node[sub, below=0.6mm of host, xshift=-1.03cm] (recv) {OSC reception};
+\node[sub, right=1.5mm of recv] (calib) {Calibration};
+\draw[arr] (recv) -- (calib);
+\node[sub, below=2mm of calib] (graph) {Graph evaluation};
+\node[sub, below=2mm of recv] (synth) {Synthesis};
+\draw[arr] (calib) -- (graph);
+\draw[arr] (graph) -- (synth);
+\end{tikzpicture}%
+}
+\caption{Signal path from staff motion to sound: the sensor unit streams orientation
+  and inertial data over Wi-Fi to the plugin, which calibrates, derives motion
+  qualities, and routes them through a performer-authored patch into one of three
+  synthesis engines.}
+\label{fig:architecture}
+\end{figure}
+\FloatBarrier
+
+\subsection{Hardware}
+\label{ssec:hardware}
 
 Inside the enclosure shown in Figure~\ref{fig:enclosure}, a SparkFun ESP32-S2 Thing Plus
 microcontroller reads a nine-degrees-of-freedom MPU-9250 inertial sensor over I2C and
@@ -94,6 +135,9 @@ pairing to a single step, at the cost of a Wi-Fi network name, password, and des
 address that are presently compiled into the firmware rather than set at runtime. Nothing
 tethers the performer to a fixed point on stage; a cable is needed only to charge the
 unit between sets.
+
+\subsection{Calibration}
+\label{ssec:calibration}
 
 Because the sensor can be glued to the staff at any angle (exact placement is never
 perfectly reproducible by hand, and often changes from one build of the enclosure to
@@ -107,6 +151,9 @@ instrument's own ideal frame. From then on, the same instrument logic runs corre
 matter where on the staff the sensor happens to sit, so a performer can move it without
 re-learning the instrument underneath.
 
+\subsection{Connection Robustness}
+\label{ssec:robustness}
+
 Two recent changes tightened the path from a sensor packet to audible sound. First, the
 plugin now treats the incoming stream as stale after 150~ms without a fresh packet,
 rather than the previous 500~ms, so a real Wi-Fi dropout is caught and muted noticeably
@@ -116,8 +163,11 @@ while recovering it fades back in over a much shorter 10~ms, so the instrument g
 quiet gracefully on dropout but comes back almost immediately once the connection
 returns.
 
-\section{How Motion Becomes Sound}
-\label{sec:sound}
+\section{Mapping Design}
+\label{sec:mapping}
+
+\subsection{Motion Qualities}
+\label{ssec:qualities}
 
 Every packet from the sensor is read against a moving reference: not just where the
 staff is, but how it got there. Four continuous qualities borrowed from Laban Movement
@@ -132,6 +182,9 @@ version of the same sound. Tilt and roll bend pitch and blend voices continuousl
 spin's lap count sweeps a filter cutoff along a slow curve; a stab or strike, a sharp
 reversal in the staff-tip's acceleration, triggers a transient, a chord change, or a
 percussive burst.
+
+\subsection{Visual Patching}
+\label{ssec:patching}
 
 None of the relationships described above is a single fixed algorithm baked into
 compiled code. Every one of them is authored as a small patch of connected building
@@ -184,27 +237,6 @@ re-rolls where the tone drifts to next - an instability the graph's existing mat
 are enough to build, with no bespoke code and no audio-thread cost beyond four extra
 smoothers.
 
-What a patch's output actually sounds like depends on which of three synthesis voices
-its sink nodes are wired into. A default additive engine sums four voices of six
-phase-locked harmonics each, vibrato- and chorus-detuned into a warm, faintly unstable
-choir that a mapping can drive into a rasping saturation or filter down to a single dark
-hum; a short comb resonator gives every voice a string-like colouration. That same engine
-also carries its own built-in noise generator and filter, and it is this path, not a
-separate voice, that \preset{Wind Noise} actually drives: the patch wires nothing at all
-into the engine's pitch inputs, only motion-energy-shaped noise and filter cutoff, for a
-windy, textural character with no fixed pitch centre at all. A second, granular engine
-sits alongside the additive one, synthesising its own two-second bed of shifting
-harmonics and filtered noise and scattering up to 64 overlapping grains across it
-(forward, backward, panned, re-pitched); it is fully implemented but not yet wired into
-any preset in the current catalog, so it stays silent until a future patch calls on it.
-A third engine ports Neil Thapen's \emph{Pink Trombone}~\cite{thapen2017pinktrombone}, a
-digital-waveguide vocal tract excited by a glottal-pulse model and breathed into with
-filtered noise, so the instrument can also simply speak, or half-speak, rather than only
-sing - the one engine with a preset built specifically around it, \preset{Vocal Tract}.
-An engine a patch never wires into is skipped entirely for that block, so presets built
-on one voice never pay for the other two. Figure~\ref{fig:preset} shows one such patch
-in full, exactly as it appears on the plugin's own canvas.
-
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{Assets/preset.png}
@@ -217,7 +249,31 @@ in full, exactly as it appears on the plugin's own canvas.
 \end{figure}
 \FloatBarrier
 
-\section{A Vocabulary of Presets}
+\subsection{Synthesis Engines}
+\label{ssec:engines}
+
+What a patch's output actually sounds like depends on which of three synthesis voices
+its sink nodes are wired into. A default additive engine sums four voices of six
+phase-locked harmonics each, vibrato- and chorus-detuned into a warm, faintly unstable
+choir that a mapping can drive into a rasping saturation or filter down to a single dark
+hum; a short comb resonator gives every voice a string-like colouration. That same engine
+also carries its own built-in noise generator and filter, and it is this path, not a
+separate voice, that \preset{Wind Noise} actually drives (Figure~\ref{fig:preset}): the
+patch wires nothing at all into the engine's pitch inputs, only motion-energy-shaped
+noise and filter cutoff, for a windy, textural character with no fixed pitch centre at
+all. A second, granular engine sits alongside the additive one, synthesising its own
+two-second bed of shifting harmonics and filtered noise and scattering up to 64
+overlapping grains across it (forward, backward, panned, re-pitched); it is fully
+implemented but not yet wired into any preset in the current catalog, so it stays silent
+until a future patch calls on it. A third engine ports Neil Thapen's \emph{Pink
+Trombone}~\cite{thapen2017pinktrombone}, a digital-waveguide vocal tract excited by a
+glottal-pulse model and breathed into with filtered noise, so the instrument can also
+simply speak, or half-speak, rather than only sing - the one engine with a preset built
+specifically around it, \preset{Vocal Tract}. An engine a patch never wires into is
+skipped entirely for that block, so presets built on one voice never pay for the other
+two.
+
+\section{Preset Vocabulary}
 \label{sec:presets}
 
 Nine named presets currently ship with the instrument (Table~\ref{tab:presets}), graded
@@ -229,23 +285,10 @@ direction and a spin quality straight from the calibrated motion stream, without
 touching a magnetometer (which a stage rig's own electronics would only confuse), so
 that where the staff points and how it turns becomes part of the music. \preset{Wind
 Noise} trades pitch for a breathy, filtered-noise texture sustained by nothing but
-motion; \preset{Vocal Tract} pushes the same sensor stream into something closer to a voice than
-a synthesiser. Each preset is less a separate program than a different character the
-same instrument can take on, chosen for a set the way a performer chooses which piece to
-play next, rather than a fixed, single-piece score.
-
-This catalog is smaller than it once was. Fifteen mappings were implemented over the
-course of development, but several turned out to be near-duplicates of one another once
-built - a plain spin-driven pentatonic melody and its Laban-shifted cousin, three
-separate Azimut variants that each added one extra timbral trick (a spin-count filter
-sweep, a speed-tracking filter, a motion-driven reverb) on top of an otherwise identical
-mapping. Rather than ship all fifteen, the list was pruned to nine: \preset{Azimut
-Kinetic} folds every one of those three Azimut timbral tricks into a single one-to-many
-mapping (\S\ref{sec:sound}) instead of shipping them as separate, thinner presets, and
-similar consolidations retired the redundant spin- and momentum-only mappings. The six
-retired mappings still exist as graphs in the source tree - useful engineering reference
-points and starting patches to fork from - but are no longer surfaced in the plugin's
-own preset selector.
+motion; \preset{Vocal Tract} pushes the same sensor stream into something closer to a
+voice than a synthesiser. Each preset is less a separate program than a different
+character the same instrument can take on, chosen for a set the way a performer chooses
+which piece to play next, rather than a fixed, single-piece score.
 
 \begin{table}[t]
 \centering
@@ -270,26 +313,37 @@ Preset & Character \\
 \end{table}
 \FloatBarrier
 
-\section{Where This Stands}
-\label{sec:status}
+This catalog is smaller than it once was. Fifteen mappings were implemented over the
+course of development, but several turned out to be near-duplicates of one another once
+built - a plain spin-driven pentatonic melody and its Laban-shifted cousin, three
+separate Azimut variants that each added one extra timbral trick (a spin-count filter
+sweep, a speed-tracking filter, a motion-driven reverb) on top of an otherwise identical
+mapping. Rather than ship all fifteen, the list was pruned to nine: \preset{Azimut
+Kinetic} folds every one of those three Azimut timbral tricks into a single one-to-many
+mapping (\S\ref{sec:mapping}) instead of shipping them as separate, thinner presets, and
+similar consolidations retired the redundant spin- and momentum-only mappings. The six
+retired mappings still exist as graphs in the source tree - useful engineering reference
+points and starting patches to fork from - but are no longer surfaced in the plugin's
+own preset selector.
 
-Everything above is grounded in the system as it runs today, exercised continuously
-through the first author's own development and rehearsal. What it is not yet grounded in
-is anyone else's experience of the instrument: no performer besides its designer has sat
-down with the staff, and the claims above should be read as implementation-level
-evidence, not validated usability. A semi-structured session with performers who have
-some staff, baton, or movement background (but no prior exposure to REMORA) is planned
-next: a calibration walkthrough; free play across a small span of presets chosen to
-range from \preset{Simple} to a fully Laban-driven one; a short guided task in the
-node-graph editor itself, retuning an exposed parameter and then rewiring which motion
-quality drives it, to test whether the patching layer is usable by someone other than
-its author; and a closing interview. That session is aimed squarely at the question this
-paper cannot yet answer: whether the instrument is playable, and its motion vocabulary
-and its patching surface both legible, to someone other than the person who built it.
+\section{Evaluation}
+\label{sec:evaluation}
+
+[TBD: evaluation]
+
+\section{Discussion}
+\label{sec:discussion}
+
+Everything described above is grounded in the system as it runs today, exercised
+continuously through the first author's own development and rehearsal; what it is not
+yet grounded in is anyone else's experience of the instrument, which is precisely the
+gap the evaluation in \S\ref{sec:evaluation} is intended to close. Until that session
+runs, the claims above should be read as implementation-level evidence, not validated
+usability.
 
 The instrument also carries limitations worth naming plainly: Wi-Fi pairing is still a
 manual, reflash-to-change affair rather than a runtime setting, even after the dropout
-handling itself was tightened (\S\ref{sec:build}); yaw drift is bounded to sessions of
+handling itself was tightened (\S\ref{sec:system}); yaw drift is bounded to sessions of
 tens of minutes by assumption rather than measurement; the single inertial sensor gives
 REMORA no sense of a second performer, so it remains a solo instrument for now; and the
 node-graph editor, while it is what makes the preset catalog reproducible and extensible
@@ -297,11 +351,27 @@ at all, exposes that same complexity to a performer who only wants to pick a pre
 play, with no simplified performance-only view that hides the graph until it is asked
 for.
 
-One extension is next on the list regardless of that session's outcome: replacing the
-compiled-in Wi-Fi hotspot join with an ESP-NOW peer-to-peer link between the staff's
-microcontroller and a second one tethered to the host, which would drop the SSID,
-password, and destination IP address currently baked into firmware in favour of pairing
-by MAC address, at the cost of one extra piece of hardware in the signal chain.
+One extension is next on the list regardless of the planned evaluation's outcome:
+replacing the compiled-in Wi-Fi hotspot join with an ESP-NOW peer-to-peer link between
+the staff's microcontroller and a second one tethered to the host, which would drop the
+SSID, password, and destination IP address currently baked into firmware in favour of
+pairing by MAC address, at the cost of one extra piece of hardware in the signal chain.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+REMORA reads a martial artist's own staff-handling vocabulary - spins, tilts, strikes -
+directly off a b\^o and turns it into sound, without baking any single gesture-to-sound
+behaviour into compiled code: every mapping is instead a small, rewireable patch built
+from the same handful of source, math, and sink nodes, stretching from the one-line
+\preset{Simple} mapping to the self-varying \preset{Azimut Kinetic} (\S\ref{sec:mapping}).
+Nine presets built from that vocabulary currently ship, pruned down from fifteen once
+overlapping mappings became apparent (\S\ref{sec:presets}). What this paper has
+established is that the instrument works end to end, from a self-calibrating sensor
+unit through to three distinct synthesis voices (\S\ref{sec:system}); what it has not
+yet established is how the instrument plays in hands other than its designer's, which is
+the question the evaluation in \S\ref{sec:evaluation} and the ESP-NOW rework in
+\S\ref{sec:discussion} are both aimed at moving closer to answering.
 
 \section{Acknowledgment}
 \label{sec:ack}
