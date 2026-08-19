@@ -2,16 +2,67 @@
 # REMORA Plugin
 ### Real-time Expressive Motion to Output Routing Audio
 
-A real-time, dynamic **JUCE-based audio plugin** (VST3 and Standalone) engineered to receive incoming multi-sensor IMU data via **Open Sound Control (OSC)**. The software serves as a modular audio mapping engine, converting spatial movements and hardware interactions into complex sound synthesis.
+A real-time, dynamic **JUCE-based audio application** engineered to receive incoming multi-sensor IMU data via **Open Sound Control (OSC)**. The software serves as a modular audio mapping engine, converting spatial movements and hardware interactions into complex sound synthesis.
 
 ## Core Features
 
-* **Multi-Format Support:** Compiles as both a VST3 plugin and a standalone desktop application.
+* **Standalone Application:** Ships today as a standalone desktop app; JUCE's plugin formats (VST3, AU, ...) are just a `FORMATS` entry away in `CMakeLists.txt` if a hosted-in-a-DAW build is ever needed.
 * **Visual Node Graph Editor:** Every mapping - built-in or your own - is a `NodeGraph`: a DAG of Source/Math/Sink nodes evaluated once per audio block. Open the DSP window's **Graph** tab to inspect, rewire, or build one from scratch on a live patching canvas, with instant audio feedback and no recompiling required.
 * **Preset Management:** Create, save, and load node graphs as presets from a preset folder you configure once (via the **Options** button) and that persists across sessions - your own patches live right alongside the built-in mappings.
 * **Integrated Synth Engine:** Features a built-in algorithmic synthesis framework (`BoStaffSynth`) designed specifically for performance interaction.
 * **Visual Diagnostic Windows:** Includes dedicated GUI interfaces for viewing live raw IMU data streams, debugging console logs, and visually monitoring spatial movements.
 * **Scalable Branding:** The editor header renders the REMORA logo from an embedded SVG (`Assets/logo.svg`), tinted to match the UI palette, so it stays crisp at any window size instead of scaling a bitmap.
+
+---
+
+## Building
+
+### Prerequisites
+
+- **CMake 3.22+**
+- **Ninja** build system
+- A C++17-capable compiler (MSVC 2022 on Windows, Clang/GCC on macOS/Linux)
+- JUCE cloned as a subdirectory at `JUCE/`
+
+  ```bash
+  cd software
+  git clone https://github.com/juce-framework/JUCE.git
+  ```
+
+### Steps
+
+Using the provided `Makefile`:
+
+```bash
+cd software
+make clean    # remove build directory
+make          # configure + build
+make build    # build only
+```
+
+Build artefacts are written to `build/REMORA_artefacts/Standalone/REMORA` - run directly, no DAW needed.
+
+Only the `Standalone` format is built right now (see `FORMATS` in `CMakeLists.txt`). Adding `VST3` (or another JUCE plugin format) to that list and rebuilding is enough to get a loadable plugin alongside it - no other code changes required.
+
+---
+
+## Running
+
+1. Ensure the ESP32 is streaming to your machine (or use `../tests/testOSCReceiver.py` to verify packets are arriving on port 8000). See [firmware/README.md](../firmware/README.md) for flashing the board.
+2. Launch the standalone app.
+3. Click **CONNECT** to start the OSC receiver on port 8000.
+4. Click **CALIBRATE** and follow the three-pose procedure below to align the sensor's local frame with musical space.
+5. Select a mapping from the dropdown and move the staff. Use **RAW DATA**, **DEBUG**, and **DSP** to open the diagnostic windows if needed.
+
+### Calibration
+
+The plugin uses a three-pose calibration to build a correction quaternion that maps the sensor's arbitrary mounting orientation to a consistent musical frame:
+
+1. **Pose A** - staff horizontal, pointing forward
+2. **Pose B** - staff vertical, pointing up
+3. **Pose C** - staff horizontal, pointing right
+
+After recording all three poses the plugin computes an orthonormal rotation matrix via polar decomposition and converts it to a quaternion applied to every subsequent reading. This means the instrument behaves identically regardless of how the sensor is physically oriented or mounted on the staff.
 
 ---
 
@@ -38,7 +89,21 @@ Because every mapping in this project - including all of the ones documented bel
 
 ## Performance Mapping Strategies
 
-This technical section details how physical movements stream through each mapping's node graph and directly manipulate the parameters of the synthesizer engine. Eleven presets ship built into `BoStaffSynth`, in the order below, from the simplest direct mappings up to the full Azimut engine and its variants - every one of them a `NodeGraph` you can open, study, and remix in the [Node Graph Editor](#node-graph-editor).
+This technical section details how physical movements stream through each mapping's node graph and directly manipulate the parameters of the synthesizer engine. Nine presets are currently registered in `SynthManager`, in the order below - every one of them a `NodeGraph` you can open, study, and remix in the [Node Graph Editor](#node-graph-editor).
+
+| Mapping | Core idea |
+|---|---|
+| **Simple (Pitch+Roll)** | Single sine wave. Pitch angle sets the root frequency, roll amount sets the volume - the most direct staff-to-pitch mapping. |
+| **Wind Noise** | No pitch, no chord - just filtered noise. Gyro+accel energy swells and dies down like gusts of wind, opening the noise filter and master lowpass brighter the faster you move. |
+| **Bowed Chord** | Pitch angle quantizes to a chromatic root; yaw and roll select the chord voicing. Gyro speed acts like bow pressure, driving volume/drive/brightness, and sharp jabs add a noise strike. |
+| **Lead + Drone** | Tilt drives a major-scale melody. A 4-voice drone chord stays harmonically locked below it; yaw crossfades two drone voices. |
+| **Martial Momentum** | Root note is one of four fixed pitches chosen by spin plane/direction, gliding at a rate set by spin momentum. Volume is gated by movement plus Laban "Weight" and thrust jabs. |
+| **Azimut Kinetic** | Root note from spin plane, direction, and facing (north/south). A single rotation-speed value fans out to filter cutoff, brightness, drive, noise, vibrato/tremolo and reverb all at once. |
+| **Speed Gate** | Speed-gated crossfade: a simple pentatonic melody below a speed threshold, the full Azimut Kinetic mapping above it, with no clicks at the transition. |
+| **Spin Voices (Scale)** | Roll angle selects which of 4 independent voices is "live"; its pitch snaps to the nearest note of a major scale and glides, while the other voices hold their last pitch/gain. |
+| **Vocal Tract** | A physically-modeled voice (glottal source + digital-waveguide vocal tract) instead of the additive engine. Pitch sets glottal pitch, roll/yaw shape the vowel, motion and Laban "Weight" drive volume/tenseness, thrust jabs pinch the tract for consonant-like bursts. |
+
+> Older presets (`Spin Filter`, `Martial Effort`, `Azimut`, `Azimut+`, `Azimut Reverb`, plain `Spin Voices`) still exist as `Graph::Presets::build*()` functions but are commented out of `SynthManager`'s registration list, superseded by the entries above - see [`Source/DSP/SynthManager.cpp`](Source/DSP/SynthManager.cpp).
 
 ---
 
