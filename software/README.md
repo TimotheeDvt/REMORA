@@ -44,6 +44,20 @@ Build artefacts are written to `build/REMORA_artefacts/Standalone/REMORA` - run 
 
 Only the `Standalone` format is built right now (see `FORMATS` in `CMakeLists.txt`). Adding `VST3` (or another JUCE plugin format) to that list and rebuilding is enough to get a loadable plugin alongside it - no other code changes required.
 
+### Runtime Dependencies
+
+The app is dynamically linked so you might need to install some system librairies:
+
+```bash
+# Debian/Ubuntu
+sudo apt install libfontconfig1 libfreetype6 libasound2
+
+# Arch
+sudo pacman -S fontconfig freetype2 alsa-lib
+```
+
+`fontconfig`, `freetype2`, and `alsa-lib` (ALSA) are the ones most likely to be missing on a minimal install; the rest (libstdc++, libpng, zlib, ...) ship on virtually every desktop system.
+
 ---
 
 ## Running
