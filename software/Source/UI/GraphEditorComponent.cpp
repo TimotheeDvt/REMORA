@@ -59,7 +59,12 @@ void GraphEditorComponent::onMappingChanged() {
     }
 
     if (currentGraph != nullptr && autoLaidOutGraphs.insert(currentGraph).second) {
-        autoLayout();
+        const auto& nodesToCheck = currentGraph->nodes();
+        const bool needsInitialLayout =
+            std::all_of(nodesToCheck.begin(), nodesToCheck.end(),
+                        [](const Graph::NodeInstance& n) { return n.x == 0.0f && n.y == 0.0f; });
+        if (needsInitialLayout)
+            autoLayout();
         originalSnapshots[currentGraph] = currentGraph->toXml()->toString();
     }
 

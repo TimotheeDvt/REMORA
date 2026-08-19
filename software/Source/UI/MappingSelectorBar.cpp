@@ -17,10 +17,6 @@ MappingSelectorBar::MappingSelectorBar(REMORAProcessor& p) : processor(p) {
 
     refreshMappingCombo(processor.getMappingStrategy());
 
-    for (int i = 0; i < processor.getSynth().getMappingCount(); ++i)
-        if (auto* graphMapping = dynamic_cast<Graph::GraphMappingStrategy*>(processor.getSynth().getMapping(i)))
-            presetFileByMappingIndex[i] = Graph::PresetManager::instance().factoryFilePathForName(graphMapping->getName());
-
     mappingCombo.onChange = [this] {
         const int newStrategyIndex = mappingCombo.getSelectedId() - 1;
         processor.setMappingStrategy(newStrategyIndex);
@@ -216,17 +212,28 @@ void MappingSelectorBar::createNewPreset() {
 
 void MappingSelectorBar::saveCurrentPreset() {
     const int index = processor.getMappingStrategy();
-    auto it = presetFileByMappingIndex.find(index);
-    if (it == presetFileByMappingIndex.end()) {
-        // Built-in preset, or a preset never persisted this session - nothing to overwrite yet.
-        saveCurrentPresetAs();
+    auto* graphMapping = dynamic_cast<Graph::GraphMappingStrategy*>(processor.getSynth().getMapping(index));
+    if (graphMapping == nullptr)
         return;
+
+    juce::File file;
+    if (index < processor.getSynth().getBuiltInMappingCount()) {
+        // A factory preset - always write back into FACTORY/, regardless of what was cached this session.
+        file = Graph::PresetManager::instance().factoryFilePathForName(graphMapping->getName());
+    } else {
+        auto it = presetFileByMappingIndex.find(index);
+        if (it == presetFileByMappingIndex.end()) {
+            // Never persisted this session - nothing to overwrite yet.
+            saveCurrentPresetAs();
+            return;
+        }
+        file = it->second;
     }
-    if (auto* graphMapping = dynamic_cast<Graph::GraphMappingStrategy*>(processor.getSynth().getMapping(index))) {
-        Graph::PresetManager::instance().savePreset(it->second, graphMapping->getGraph());
-        if (onPresetSaved)
-            onPresetSaved();
-    }
+
+    Graph::PresetManager::instance().savePreset(file, graphMapping->getGraph());
+    presetFileByMappingIndex[index] = file;
+    if (onPresetSaved)
+        onPresetSaved();
 }
 
 void MappingSelectorBar::saveCurrentPresetAs() {

@@ -93,6 +93,8 @@ SynthManager::SynthManager() {
         "additive engine. Pitch angle sets the glottal pitch; roll and yaw shape the vowel (tongue height "
         "and front-back position); motion energy and Laban 'Weight' drive volume and vocal tenseness; sharp "
         "thrust jabs pinch the tract near the lips for consonant-like bursts."));
+
+    builtInMappingCount = static_cast<int>(mappings.size());
 }
 
 SynthManager::~SynthManager() {}

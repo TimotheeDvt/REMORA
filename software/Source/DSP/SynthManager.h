@@ -53,10 +53,13 @@ public:
 
   int addGraphMapping(const juce::String& name, std::unique_ptr<Graph::NodeGraph> graph);
 
+  int getBuiltInMappingCount() const noexcept { return builtInMappingCount; }
+
 private:
   float currentSampleRate = 44100.f;
 
   std::vector<std::unique_ptr<IMappingStrategy>> mappings;
+  int builtInMappingCount = 0;
 
   mutable juce::CriticalSection mappingsLock;
 
