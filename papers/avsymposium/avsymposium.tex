@@ -329,17 +329,84 @@ own preset selector.
 \section{Evaluation}
 \label{sec:evaluation}
 
-[TBD: evaluation]
+Ten performers with no prior exposure to REMORA (N=10) tried the instrument in a short,
+informal pilot session: each was calibrated (\S\ref{ssec:calibration}), given a brief
+demonstration, then played freely across a subset of the nine presets before completing
+a short questionnaire. Their backgrounds were, by design, uneven: self-rated
+martial-arts or staff-handling experience skewed low (nine of ten at 1 or 2 out of 5),
+general music experience moderate, and prior experience with motion-controlled
+instruments mixed - a pool weighted toward newcomers to the staff form itself, the
+audience \preset{Simple} was designed to admit (\S\ref{sec:presets}).
+
+Six statements about the playing experience, each rated on a five-point scale, are
+summarised in Table~\ref{tab:eval}. Comfort scored highest and most consistently: the
+enclosure and staff form factor did not get in the way of play. Novelty and absorption in
+the music rather than the mechanics followed closely, suggesting the
+motion-to-sound vocabulary reads as expressive enough to disappear behind, even in a
+short first session. Predictability of the mapping and felt expressiveness scored lower
+and more variably, consistent with the free-text feedback below: several participants
+could point to specific gestures whose effect on the sound they could not reliably
+predict.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lc@{}}
+\toprule
+Statement & Mean (SD) \\
+\midrule
+Predictability & 3.4 (1.2) \\
+Comfort & 4.0 (1.0) \\
+Novelty & 3.9 (0.9) \\
+Expressiveness & 3.3 (1.2) \\
+Absorption & 3.9 (0.9) \\
+Musical satisfaction & 3.6 (1.3) \\
+\bottomrule
+\end{tabular}
+\caption{Mean (SD) agreement, 1--5 scale, N=10, on six playing-experience statements from
+the post-session questionnaire.}
+\label{tab:eval}
+\end{table}
+\FloatBarrier
+
+Preference across presets split unevenly rather than converging on one: \preset{Azimut
+Kinetic} was the most-picked (3/10), followed by \preset{Wind Noise} and \preset{Lead +
+Drone} (2/10 each), with \preset{Spin Voices} and \preset{Vocal Tract} picked once each and
+one participant declining to single one out (``all of them are great''). The reasons given
+tracked each preset's intended character: \preset{Azimut Kinetic} for matching lived
+martial-arts habit (``It matches best what I know from my martial art experience''),
+\preset{Wind Noise} for needing no music or martial background at all (``just pure
+instinct and simple movements''), \preset{Lead + Drone} for being the easiest to steer a
+melody with while still sounding grounded.
+
+The clearest actionable finding was not something we asked about directly. Three of ten
+participants raised the same limitation unprompted, in three different free-text answers:
+a striking or thrusting motion that felt physically decisive registered no equivalent
+change in the sound (``Occasional frustration when a movement that felt impactful had no
+impact on the sound''; ``The thrust are not well detected''; ``Add \emph{thrust} detection
+support or fix the existing''). None of the nine shipping presets currently derives a
+dedicated signal from a stab or strike beyond the generic transient described in
+\S\ref{ssec:qualities}, so this is a concrete, convergent request for a motion quality the
+mapping vocabulary does not yet expose. A second, smaller cluster of feedback concerned the
+node-graph editor itself rather than any preset: one participant who otherwise rated the
+instrument highly asked for the wiring interface to be made easier, ``maybe some kind of
+tutorial'', echoing the same complexity the graph exposes to a performer who only wants to
+play, already named as a limitation in \S\ref{sec:discussion}. Reported frustration was
+otherwise mostly framed as ordinary friction rather than a reason to stop - ``no, really
+easy and when a bit hard it's just a learning experience!'', ``did not make me want to stop
+but had to adjust'' - with one exception noting the instrument felt enjoyable to play but
+did not, on its own, motivate further practice.
 
 \section{Discussion}
 \label{sec:discussion}
 
 Everything described above is grounded in the system as it runs today, exercised
-continuously through the first author's own development and rehearsal; what it is not
-yet grounded in is anyone else's experience of the instrument, which is precisely the
-gap the evaluation in \S\ref{sec:evaluation} is intended to close. Until that session
-runs, the claims above should be read as implementation-level evidence, not validated
-usability.
+continuously through the first author's own development and rehearsal, and now also in
+the pilot session reported in \S\ref{sec:evaluation}: ten first-time players found the
+instrument comfortable and absorbing enough to lose themselves in, while converging
+independently on the same gap - thrust and strike detection - as the mapping
+vocabulary's clearest missing piece. Ten participants is a pilot, not a validated
+usability study, and the claims above should be read accordingly.
 
 The instrument also carries limitations worth naming plainly: Wi-Fi pairing is still a
 manual, reflash-to-change affair rather than a runtime setting, even after the dropout
@@ -351,7 +418,7 @@ at all, exposes that same complexity to a performer who only wants to pick a pre
 play, with no simplified performance-only view that hides the graph until it is asked
 for.
 
-One extension is next on the list regardless of the planned evaluation's outcome:
+One extension is next on the list regardless of the evaluation's findings above:
 replacing the compiled-in Wi-Fi hotspot join with an ESP-NOW peer-to-peer link between
 the staff's microcontroller and a second one tethered to the host, which would drop the
 SSID, password, and destination IP address currently baked into firmware in favour of
@@ -368,10 +435,12 @@ from the same handful of source, math, and sink nodes, stretching from the one-l
 Nine presets built from that vocabulary currently ship, pruned down from fifteen once
 overlapping mappings became apparent (\S\ref{sec:presets}). What this paper has
 established is that the instrument works end to end, from a self-calibrating sensor
-unit through to three distinct synthesis voices (\S\ref{sec:system}); what it has not
-yet established is how the instrument plays in hands other than its designer's, which is
-the question the evaluation in \S\ref{sec:evaluation} and the ESP-NOW rework in
-\S\ref{sec:discussion} are both aimed at moving closer to answering.
+unit through to three distinct synthesis voices (\S\ref{sec:system}), and that it does
+so in hands other than its designer's: a ten-participant pilot (\S\ref{sec:evaluation})
+found it comfortable and absorbing to play regardless of prior martial-arts or music
+background, while converging on strike detection as the first thing to fix. Confirming
+that finding at a larger scale, together with the ESP-NOW rework in
+\S\ref{sec:discussion}, is what's next.
 
 \section{Acknowledgment}
 \label{sec:ack}
