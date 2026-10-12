@@ -54,3 +54,26 @@ target_link_libraries(REMORA
     PRIVATE REMORAData juce::juce_audio_utils juce::juce_osc juce::juce_dsp
     PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags
 )
+# Console tool that builds every preset and prints its node composition (make preset-stats).
+# Excluded from the default build so `make build` only compiles the plugin.
+juce_add_console_app(REMORAPresetStats PRODUCT_NAME "REMORAPresetStats")
+set_target_properties(REMORAPresetStats PROPERTIES EXCLUDE_FROM_ALL TRUE)
+juce_generate_juce_header(REMORAPresetStats)
+file(GLOB_RECURSE PRESET_STATS_DSP_FILES "Source/DSP/*.cpp" "Source/DSP/*.h")
+target_sources(REMORAPresetStats PRIVATE
+    Tools/PresetStats.cpp
+    ${PRESET_STATS_DSP_FILES}
+    Source/UI/DebugLog.cpp
+    Source/UI/DebugConsole.cpp)
+target_include_directories(REMORAPresetStats PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_compile_definitions(REMORAPresetStats PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+)
+target_link_options(REMORAPresetStats PRIVATE -fuse-ld=mold)
+target_link_libraries(REMORAPresetStats
+    PRIVATE juce::juce_audio_utils juce::juce_dsp
+    PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags
+)
