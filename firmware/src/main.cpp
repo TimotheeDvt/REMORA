@@ -90,7 +90,7 @@ void setup() {
   msg.send(Udp);
   Udp.endPacket();
 
-  Serial.println("\nSetup complete - streaming at 50 Hz");
+  Serial.println("\nSetup complete - streaming at up to 100 Hz");
 }
 
 void loop() {
