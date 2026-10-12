@@ -24,15 +24,20 @@ PlatformIO project for the staff-mounted microcontroller. It reads the IMU over 
 
 ## Configuration
 
-Before flashing, edit the network settings at the top of `src/main.cpp`:
+Before flashing, copy `include/secrets.example.h` to `include/secrets.h` and fill in your network:
 
 ```cpp
-const char *WIFI_SSID     = "YOUR_SSID";
-const char *WIFI_PASSWORD = "YOUR_PASSWORD";
-const IPAddress outIp(192, 168, 12, 1); // host machine running the REMORA plugin
+#define WIFI_SSID_VALUE     "YOUR_SSID"
+#define WIFI_PASSWORD_VALUE "YOUR_PASSWORD"
 ```
 
-These are compiled into the firmware (there's no runtime config), so a new venue or a new host IP means editing this file and reflashing. `src/main.cpp` currently has real credentials checked into the repo history - swap them for your own network before flashing, and avoid committing real credentials again since this repo is public.
+`include/secrets.h` is git-ignored, so credentials stay out of the repository. The destination IP (the host machine running the REMORA plugin) is still set at the top of `src/main.cpp`:
+
+```cpp
+const IPAddress outIp(192, 168, 12, 1);
+```
+
+These are compiled into the firmware (there's no runtime config), so a new venue or a new host IP means editing these files and reflashing.
 
 ## Build / Flash / Monitor
 

@@ -4,10 +4,11 @@
 #include <Wire.h>
 #include <OSCMessage.h>
 #include "MPU9250.h"
+#include "secrets.h" // git-ignored; copy include/secrets.example.h to create it
 
 // Network Configuration
-const char *WIFI_SSID = "MUSIC-TIM";
-const char *WIFI_PASSWORD = "***REMOVED***";
+const char *WIFI_SSID = WIFI_SSID_VALUE;
+const char *WIFI_PASSWORD = WIFI_PASSWORD_VALUE;
 
 WiFiUDP Udp;
 const IPAddress outIp(192, 168, 12, 1);
