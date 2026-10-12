@@ -73,6 +73,10 @@ void setup() {
 
   Serial.print("Initializing MPU-9250... ");
   mpu.setup(0x68);
+  // 6-axis fusion (accel + gyro only): the library's Mahony filter ignores the magnetometer, so
+  // orientation is not pulled around by the staff's own electronics or stage magnetic interference.
+  // The default Madgwick filter would fuse the (uncalibrated) magnetometer into yaw.
+  mpu.selectFilter(QuatFilterSel::MAHONY);
   Serial.println("OK");
 
   connectWiFi();
