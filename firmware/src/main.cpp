@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <OSCMessage.h>
 #include "MPU9250.h"
+#include "GatedMahony.h"
 #include "secrets.h" // git-ignored; copy include/secrets.example.h to create it
 
 // Network Configuration
@@ -16,6 +17,7 @@ const uint16_t outPort = 8000;
 const uint16_t localPort = 8888;
 
 MPU9250 mpu;
+GatedMahony orientation;
 
 #define SEND_INTERVAL_MS 10 // 100 Hz transmission rate
 #define LED_PIN 13          // Blue STAT LED
@@ -54,6 +56,34 @@ void connectWiFi() {
   Serial.println("=========================================\n");
 }
 
+// Averages the gyro over ~1 s at boot. The staff must lie still; if it moves, the bias is left at
+// zero and GatedMahony's still-period tracking takes over once the staff is put down.
+void calibrateGyroBias() {
+  constexpr int kSamples = 200;
+  constexpr float kMaxSpreadDegPerSec = 5.0f;
+  float sum[3] = {0, 0, 0}, lo[3] = {1e9f, 1e9f, 1e9f}, hi[3] = {-1e9f, -1e9f, -1e9f};
+  int n = 0;
+  const uint32_t tStart = millis();
+  while (n < kSamples && millis() - tStart < 3000) {
+    if (!mpu.update()) continue;
+    const float g[3] = {mpu.getGyroX(), mpu.getGyroY(), mpu.getGyroZ()};
+    for (int i = 0; i < 3; ++i) {
+      sum[i] += g[i];
+      lo[i] = min(lo[i], g[i]);
+      hi[i] = max(hi[i], g[i]);
+    }
+    ++n;
+  }
+  if (n == 0) return;
+  for (int i = 0; i < 3; ++i)
+    if (hi[i] - lo[i] > kMaxSpreadDegPerSec) {
+      Serial.println("Gyro bias: staff moved during boot, using still-period tracking only");
+      return;
+    }
+  orientation.setGyroBias(sum[0] / n, sum[1] / n, sum[2] / n);
+  Serial.printf("Gyro bias (deg/s): %.2f %.2f %.2f\n", sum[0] / n, sum[1] / n, sum[2] / n);
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -73,11 +103,13 @@ void setup() {
 
   Serial.print("Initializing MPU-9250... ");
   mpu.setup(0x68);
-  // 6-axis fusion (accel + gyro only): the library's Mahony filter ignores the magnetometer, so
-  // orientation is not pulled around by the staff's own electronics or stage magnetic interference.
-  // The default Madgwick filter would fuse the (uncalibrated) magnetometer into yaw.
-  mpu.selectFilter(QuatFilterSel::MAHONY);
+  // Orientation comes from GatedMahony (6-axis: accel + gyro, magnetometer ignored, so it is not
+  // pulled around by the staff's electronics or stage magnetic interference). The library's own
+  // filter is switched off; it is only used to read the sensor.
+  mpu.selectFilter(QuatFilterSel::NONE);
   Serial.println("OK");
+
+  calibrateGyroBias();
 
   connectWiFi();
 
@@ -101,12 +133,9 @@ void loop() {
   }
 
   if (mpu.update()) {
-    static uint32_t lastUpdate = 0;
-    const uint32_t now = millis();
-
-    // Only transmit at the desired interval (100 Hz)
-    if (now - lastUpdate >= SEND_INTERVAL_MS) {
-      lastUpdate = now;
+    static uint32_t lastSampleMicros = micros();
+    static uint32_t lastSend = 0;
+    const uint32_t nowMicros = micros();
 
     // Get Accel/Gyro/Mag values (floats)
     float ax = mpu.getAccX();
@@ -117,22 +146,25 @@ void loop() {
     float gy = mpu.getGyroY();
     float gz = mpu.getGyroZ();
 
+    // Fuse every sample, not only the ones we send.
+    orientation.update(ax, ay, az, gx, gy, gz, (nowMicros - lastSampleMicros) * 1e-6f);
+    lastSampleMicros = nowMicros;
+
+    const uint32_t now = millis();
+    // Only transmit at the desired interval (100 Hz)
+    if (now - lastSend >= SEND_INTERVAL_MS) {
+      lastSend = now;
+
     float mx = mpu.getMagX();
     float my = mpu.getMagY();
     float mz = mpu.getMagZ();
 
-    // Get Quaternion (calculated internally by the library)
-    float qw = mpu.getQuaternionW();
-    float qx = mpu.getQuaternionX();
-    float qy = mpu.getQuaternionY();
-    float qz = mpu.getQuaternionZ();
-
-    // Build & Send OSC
+    // Build & Send OSC. Gyro is sent with the tracked bias removed.
     OSCMessage msg("/esp32/imu");
     msg.add(ax).add(ay).add(az);
-    msg.add(gx).add(gy).add(gz);
+    msg.add(gx - orientation.biasX()).add(gy - orientation.biasY()).add(gz - orientation.biasZ());
     msg.add(mx).add(my).add(mz);
-    msg.add(qw).add(qx).add(qy).add(qz);
+    msg.add(orientation.w()).add(orientation.x()).add(orientation.y()).add(orientation.z());
     msg.add(WiFi.localIP().toString().c_str());
 
     Udp.beginPacket(outIp, outPort);
