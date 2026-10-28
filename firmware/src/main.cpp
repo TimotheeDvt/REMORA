@@ -12,7 +12,9 @@ const char *WIFI_SSID = WIFI_SSID_VALUE;
 const char *WIFI_PASSWORD = WIFI_PASSWORD_VALUE;
 
 WiFiUDP Udp;
-const IPAddress outIp(192, 168, 12, 1);
+// The host runs the hotspot, so by default packets go to the network's gateway. Define
+// OSC_HOST_IP_VALUE in secrets.h (e.g. "192.168.1.20") to send to a different machine.
+IPAddress outIp;
 const uint16_t outPort = 8000;
 const uint16_t localPort = 8888;
 
@@ -55,6 +57,15 @@ void connectWiFi() {
   Serial.print("IP   : ");
   Serial.println(WiFi.localIP());
   Serial.println("=========================================\n");
+
+#ifdef OSC_HOST_IP_VALUE
+  outIp.fromString(OSC_HOST_IP_VALUE);
+#else
+  outIp = WiFi.gatewayIP();
+#endif
+  Serial.print("Sending OSC to ");
+  Serial.print(outIp);
+  Serial.printf(":%u\n", outPort);
 }
 
 // Averages the gyro over ~1 s at boot. The staff must lie still; if it moves, the bias is left at
