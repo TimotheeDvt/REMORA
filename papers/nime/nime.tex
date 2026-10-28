@@ -33,18 +33,19 @@
 \begin{document}
 
 \begin{abstract}
-REMORA turns a martial-arts staff (b\^o) into a musical instrument. A wireless inertial sensor on
-the staff streams its orientation and motion to an audio plugin, where spins, changes of facing,
-and thrusts become sound in real time. The b\^o is a full-length, two-handed, swung object with its
-own rotational inertia and an established movement vocabulary, and we derive features specific to
-it: the plane and direction of a spin, a coarse facing that needs no magnetometer, a lap counter,
-and an axial thrust detector. The gesture-to-sound mapping is a small dataflow patch that the
-performer can see and rewire on a canvas inside the plugin while it plays. We describe the
-hardware, a user-guided calibration that makes the instrument independent of how the sensor is
-rotated on the staff, the motion features, and the mapping layer, and we discuss how common b\^o
-techniques relate to the presets. A pilot session with ten first-time players found the instrument
-comfortable and engaging, and identified thrust detection as its main defect, for which we give a
-probable cause.
+REMORA is a martial-arts staff (b\^o) played as a musical instrument. An inertial sensor strapped
+near one end streams over Wi-Fi to an audio plugin, which turns spins, turns of the body, and
+thrusts into sound. We wanted features that belong to the staff rather than to IMUs in general, so
+the plugin tracks the plane and direction of a spin, which of two floor lines the staff is working
+along, how many laps a spin has lasted, and, experimentally, thrusts along the staff. A three-pose
+calibration makes all of this independent of how the enclosure is rotated on the staff. The mapping
+from features to sound is a small dataflow patch that can be edited inside the plugin while audio
+runs. We use it as an authoring tool in rehearsal, not as something the performer rewires mid-form.
+We also report what went wrong. A pilot with ten mostly novice players liked the instrument but
+found thrusts poorly detected. Tracing that led us to three defects: the analyzer ran per audio
+block, gravity was subtracted in the wrong frame, and the orientation filter lost tilt during fast
+spins. We describe the fixes and check them in simulation. Measurements on the real staff and
+sessions with trained players are still to come.
 \end{abstract}
 
 \begin{CCSXML}
@@ -87,42 +88,44 @@ visual patching, OSC}
 \section{Introduction}
 
 \subsection{Motivation}
-REMORA comes from the first author's practice in both martial arts and music. The b\^o is a staff of
-about 1.5\,m, held in two hands and swung, spun, and thrust through a body of techniques that are
-taught as forms (\emph{kata}). Inertial-sensor Digital Musical Instruments (DMIs) presented at New
-Interfaces for Musical Expression (NIME) are mostly small handheld or body-worn objects. A b\^o
-instead brings a full-body object, rotational inertia, reach, and an existing gesture vocabulary
-that a trained performer already controls precisely.
+The first author trains with the b\^o and also makes music, and REMORA started as an attempt to
+make one practice audible through the other. The b\^o is a staff of about 1.5\,m. It is held in two
+hands and swung, spun, and thrust through techniques that are taught as forms (\emph{kata}). Most
+inertial-sensor Digital Musical Instruments (DMIs) shown at New Interfaces for Musical Expression
+(NIME) are small: something held in one hand or worn on the body. A staff is different. It is long,
+it has real rotational inertia, it reaches far from the body, and a trained player already controls
+a large, codified set of movements with it.
 
-Finding a gesture vocabulary for such an object took many attempts. At first each gesture-to-sound
-mapping was its own code module, and every change meant a rebuild. After eleven of them, we moved
-the mapping into a small dataflow patch that is edited live inside the audio plugin that makes the
-sound. Visual patching is well established (\S\ref{sec:related}); in REMORA it is the tool for
-writing and revising the staff's vocabulary.
+We did not know at the start which of those movements should make which sounds, and we still do
+not fully know. Our first answer was to write each gesture-to-sound mapping as its own C++ class.
+That made every experiment a rebuild. After eleven classes we noticed that they kept reusing the
+same arithmetic, the same smoothing, and the same few stateful tricks, so we moved the mapping into
+a dataflow patch that is edited inside the audio plugin itself. Visual patching is not new
+(\S\ref{sec:related}). For us it is the tool we use to try out and revise the staff's vocabulary.
 
 \subsection{Contributions}
-This paper describes a working instrument and a first pilot study. Its contributions are:
 \begin{enumerate}
-\item \label{claim:features} A b\^o-staff instrument whose motion features are specific to a long
-swung object: spin plane and direction, a coarse facing derived without a magnetometer, a
-continuous lap count, and an axial thrust detector (\S\ref{sec:features}).
-\item \label{claim:calibration} A two-stage, user-guided calibration that removes the effect of how
-the sensor is rotated on the staff (\S\ref{sec:calibration}).
+\item \label{claim:features} Motion features designed for a long, swung object: spin plane and
+direction, a two-state facing that needs no magnetometer, and a continuous lap count, all computed
+once per sensor packet from the gyroscope in a calibrated world frame (\S\ref{sec:features}). An
+axial thrust detector is included but has not yet been validated on the real staff.
+\item \label{claim:calibration} A three-pose calibration that removes the effect of how the
+enclosure is rotated on the staff, including the zero of roll (\S\ref{sec:calibration}).
 \item \label{claim:dag} A mapping layer inside the plugin, built as a typed directed acyclic graph
-(DAG) that the performer can rewire while audio runs (\S\ref{sec:mapping-arch}).
-\item \label{claim:presets} Fifteen presets built from one catalog of 69 node types, from a
-two-control starter mapping to spin- and facing-driven mappings for trained players
-(\S\ref{sec:named-mappings}).
+(DAG) over a catalog of 69 node types, in which all eleven earlier hand-coded mappings and four new
+ones are expressed as presets (\S\ref{sec:mapping-arch}, \S\ref{sec:named-mappings}).
 \end{enumerate}
-Table~\ref{tab:claims-evidence} sets out the evidence for each contribution and what remains
-untested.
+We also describe three defects that the pilot study exposed and how we fixed them
+(\S\ref{sec:fixes}), because two of them would affect any staff- or club-like instrument that
+reuses a stock orientation filter. Table~\ref{tab:claims-evidence} lists the evidence for each
+contribution and what is still untested.
 
 \subsection{Scope}
-The intended performer is a soloist with some staff or martial-arts background, playing a set built
-from presets. The catalog is graded: \preset{Simple} needs only tilt and roll, while the facing- and
-spin-driven \preset{Martial Momentum} and \preset{Azimut Kinetic} reward b\^o technique. Because
-the mapping is a patch, REMORA may also interest patch-based electronic musicians looking for a
-full-body controller. Ensemble use is out of scope.
+We designed REMORA for a soloist with some staff or martial-arts background who plays a set built
+from presets. The presets are graded. \preset{Simple} needs only tilt and roll. The facing- and
+spin-driven \preset{Martial Momentum} and \preset{Azimut Kinetic} only make sense if the player can
+already spin and turn with a staff. The patch editor is for whoever prepares the set: the performer
+in rehearsal, or a second person at the computer during a performance. Ensemble use is out of scope.
 
 \section{Related Work}
 \label{sec:related}
@@ -132,9 +135,19 @@ The \textit{T-Stick}~\cite{malloch2007tstick} senses touch and pressure along it
 with accelerometer-derived shake and tap gestures. Conducting interfaces include Mathews'
 \textit{Radio Baton}~\cite{mathews1991radiobaton}, Marrin and Paradiso's \textit{Digital
 Baton}~\cite{marrin1997digitalbaton}, and the \textit{Conductor's
-Jacket}~\cite{marrin1998conductorsjacket}. Nam's \textit{mPoi}~\cite{nam2013mpoi} established swung
-objects as a DMI form, and \textit{x-OSC}~\cite{madgwick2013xosc} popularised the Wi-Fi/OSC inertial
-streaming pattern that REMORA's sensor unit follows.
+Jacket}~\cite{marrin1998conductorsjacket}. Nam's \textit{mPoi}~\cite{nam2013mpoi} made a swung
+object into a DMI and builds its sound from the path and momentum of the swing. \textit{x-OSC}~\cite{madgwick2013xosc}
+popularised the Wi-Fi/OSC inertial streaming pattern that REMORA's sensor unit follows.
+
+\subsection{Martial Arts and Object Manipulation}
+Takahata et al.~\cite{takahata2004karate} gave karate beginners wearable sound feedback while they
+practised the basic punch, \emph{tsuki}, which is the same gesture our thrust detector targets. Their
+goal was training rather than performance, and they found that the sound made practice more
+enjoyable. Juggling is a closer cousin of staff work in one respect: it is a skilled object
+practice with its own failure modes. \"Ozcan and \c{C}amc{\i}~\cite{ozcan2024juggling} use it to
+make failure itself musical material. In our search of the NIME proceedings we did not find a
+performance instrument built on a martial-arts weapon such as a staff, sword, or nunchaku. That
+search was not exhaustive, and we would welcome pointers.
 
 \subsection{Mapping Tools and Visual Patching}
 Visual dataflow patching descends from Puckette's Patcher, now
@@ -145,23 +158,22 @@ Webmapper~\cite{wang2019webmapper} connect controller signals to synthesis param
 network, and \textit{ossia score}~\cite{celerier2015ossia} combines such mappings with a timeline.
 Any of these could host REMORA's mappings. We put the graph inside the plugin for practical
 reasons: mapping and synthesis share one process and one preset file, and the patch shows each
-signal's live value next to the synth it drives (\S\ref{sec:live-patching}). The closest prior
-system is the T-Stick with libmapper. REMORA differs in its controller and features: a full-length
-swung b\^o has a spin plane, a spin direction, and a facing, for which a handheld rod's touch and
-shake gestures have no counterpart.
+signal's live value next to the synthesiser input it drives (\S\ref{sec:live-patching}). The T-Stick
+with libmapper is the closest prior system. Where REMORA differs is the object. A full-length swung
+staff has a spin plane, a spin direction, and a line it works along, and a handheld rod's touch and
+shake gestures have nothing that corresponds to them.
 
 \subsection{Mapping Strategies}
 Hunt and Wanderley~\cite{hunt2002mapping} classify mappings as one-to-one, one-to-many, or
-many-to-one, and argue that richer mappings make an interface feel like an instrument. Van Nort et
-al.~\cite{vannort2014mapping} extend mapping to continuous navigation between parameter spaces;
-REMORA's graph stays with explicit parameter-level functions. \textit{Wekinator}~\cite{fiebrink2010wekinator}
-and Fran\c{c}oise et al.~\cite{francoise2014probabilistic} learn mappings from example gestures
-instead of having the performer wire them.
-
-Expressive-movement systems often describe motion with Laban's Effort
+many-to-one, and argue that richer mappings make an interface feel more like an instrument. Van Nort
+et al.~\cite{vannort2014mapping} extend mapping to continuous navigation between parameter spaces,
+whereas REMORA's graph stays with explicit parameter-level functions.
+\textit{Wekinator}~\cite{fiebrink2010wekinator} and Fran\c{c}oise et
+al.~\cite{francoise2014probabilistic} learn mappings from example gestures, so the performer does
+not have to wire them. Expressive-movement systems often describe motion with Laban's Effort
 factors~\cite{camurri2000eyesweb,schacher2010motiontogesture}, and Fdili Alaoui et
-al.~\cite{fdilialaoui2017laban} show that capturing them well takes expert annotation and
-multimodal data. REMORA uses simpler kinematic signals tied to the staff (\S\ref{sec:features}).
+al.~\cite{fdilialaoui2017laban} show that capturing those well takes expert annotation and
+multimodal data. We deliberately stay with plain kinematic signals tied to the staff.
 
 \section{Design}
 Five requirements shaped the design:
@@ -170,34 +182,47 @@ Five requirements shaped the design:
 full-length staff.
 \item \textbf{Wireless during performance.} A cable is acceptable only for charging.
 \item \textbf{Live-editable mapping.} Loading or rewiring a mapping must not interrupt audio.
-\item \textbf{Mount-agnostic calibration.} Behaviour should not depend on exactly how the sensor is
-strapped to the staff.
+\item \textbf{Mount-independent calibration.} The sound should not depend on how the enclosure is
+rotated around the staff.
 \item \textbf{Low latency.} The sound should follow the motion closely enough to feel driven by it
 (\S\ref{sec:latency}).
 \end{itemize}
-The firmware samples the Inertial Measurement Unit (IMU) and sends Open Sound Control (OSC) packets
-over Wi-Fi. The plugin does everything downstream: OSC reception, calibration, motion analysis,
-graph evaluation, and synthesis.
+The firmware estimates orientation and sends Open Sound Control (OSC) packets over Wi-Fi. The plugin
+does everything after that: reception, calibration, motion analysis, graph evaluation, and
+synthesis.
 
 \section{Implementation}
 
-\subsection{Hardware}
+\subsection{Hardware and Firmware}
 \label{sec:build}
-The sensor unit is a SparkFun ESP32-S2 Thing Plus reading an MPU-9250 IMU over I2C at 400\,kHz,
-powered by a 2000\,mAh LiPo battery (Figure~\ref{fig:hardware}). It sits in a parametric OpenSCAD
-enclosure sized to the staff diameter (Figure~\ref{fig:enclosure}) and is attached near one end, out
-of the performer's grip, with zip ties, so it can be moved or removed without damaging the staff.
-Because calibration absorbs the sensor's rotation, the enclosure can be strapped on at any angle.
-Its position along the staff does matter (\S\ref{sec:features}) and should be kept constant between
-sessions.
+The sensor unit is a SparkFun ESP32-S2 Thing Plus reading an MPU-9250 inertial measurement unit
+(IMU) over I2C at 400\,kHz, powered by a 2000\,mAh LiPo battery (Figure~\ref{fig:hardware}). It sits
+in a parametric OpenSCAD enclosure sized to the staff (Figure~\ref{fig:enclosure}) and is zip-tied
+near one end, outside the grip, so it can be moved or removed without damaging the staff. The
+enclosure holds the board flat against the staff, so one board axis always runs along it. Which
+axis that is, and how the board is rolled around the staff, is left to calibration. The position
+along the staff does matter (\S\ref{sec:features}) and should stay the same between sessions.
 
-Orientation is estimated on the microcontroller by the \texttt{hideakitai/MPU9250} library (v0.4.8)
-with its Mahony filter, which fuses accelerometer and gyroscope only; the magnetometer is not used
-(\S\ref{sec:limitations}). The library's default ranges ($\pm16$\,g, $\pm2000^\circ$/s) are kept;
-fast spins approach the gyroscope limit. Each OSC packet carries the quaternion, raw acceleration,
-angular rate, and magnetic field, and is sent over UDP at most once every 10\,ms (nominally
-100\,Hz). The host computer runs a Wi-Fi hotspot and the staff joins it directly, so no separate
-access point is needed.
+The IMU is read at 200\,Hz with ranges of $\pm16$\,g and $\pm2000^\circ$/s; fast spins come close to
+the gyroscope limit. Orientation is estimated on the microcontroller by a 6-axis Mahony
+filter~\cite{mahony2008complementary}. The magnetometer is not fused, because next to the staff's
+own electronics and stage equipment it is unreliable. Our first version used the fixed-gain filter
+of the \texttt{hideakitai/MPU9250} library ($K_p = 30$), which trusts the accelerometer as a gravity
+reference at all times. On a staff that is a poor assumption. With the unit about $r = 0.7$\,m from
+the hands, a 2\,rev/s spin adds a centripetal acceleration of $\omega^2 r \approx 11$\,g. The
+current filter scales $K_p$ by two weights: one that falls from 1 to 0 as $\bigl|\,|a| - 1\,\mathrm{g}\bigr|$
+grows from 0.1 to 0.3\,g, and one that falls from 1 to 0 as the rotation rate grows from 90 to
+180$^\circ$/s. During fast motion the filter therefore integrates the gyroscope alone and corrects
+tilt once the staff slows down. The gyroscope bias is averaged at boot and then tracked whenever the
+staff has been still for half a second. Heading has no absolute reference, so this tracking is the
+only defence against yaw drift.
+
+Each packet carries the quaternion, the raw acceleration, angular rate, and magnetic field, a
+sequence number, and the sensor's clock in microseconds, and is sent over UDP every 10\,ms. The
+host computer runs a Wi-Fi hotspot, the staff joins it, and packets go to the network's gateway,
+which is the host. The plugin checks every argument's type, drops duplicate or out-of-order packets,
+and counts lost ones from the sequence number. It shows inter-arrival time and network jitter (the
+spread of arrival time minus sensor time) live, and it can log every packet to a file.
 
 \begin{figure}[htbp]
   \centering
@@ -208,41 +233,59 @@ access point is needed.
 
 \subsection{Calibration}
 \label{sec:calibration}
-Orientation is tracked as a unit quaternion; rotating $v$ by $q$ gives $v' = q\,v\,q^{-1}$. The
-performer is prompted through three poses, in order: $A$, staff horizontal pointing forward; $B$,
-staff vertical pointing up; $C$, staff horizontal pointing right (quaternions $q_A,q_B,q_C$).
+Orientation is a unit quaternion, and rotating $v$ by $q$ gives $v' = q\,v\,q^{-1}$. The performer
+is prompted through three poses: $A$, staff horizontal pointing forward; $B$, staff vertical
+pointing up; and $C$, staff horizontal pointing right. These give quaternions $q_A,q_B,q_C$.
 
-\textbf{Stage 1: which sensor axis runs along the staff.} Each candidate axis
+\textbf{Stage 1: which board axis runs along the staff.} Each candidate
 $L \in \{\pm X, \pm Y, \pm Z\}$ is scored by
 \[
 v_P = \widehat{\mathrm{rotate}(L, q_P)}\,,\qquad e(L) = |v_A{\cdot}v_B| + |v_B{\cdot}v_C| +
 |v_C{\cdot}v_A|\,.
 \]
 Only the staff axis is carried through three mutually orthogonal directions by the three poses, so
-it has the lowest $e(L)$. $L$ and $-L$ score the same but give opposite signs of the triple product
-$(v_A \times v_B)\cdot v_C$. Which sign marks the tip depends on the IMU library's frame
-convention; with the library we use, it is the negative one:
+it scores lowest. Because the search covers only the six board axes, it relies on the enclosure
+holding one of them along the staff. $L$ and $-L$ score the same. The tip is the one that points
+forward, up, and right in $A$, $B$, $C$, and physically forward $\times$ up $=$ right, so the tip's
+triple product $(v_A \times v_B)\cdot v_C$ should be $+1$. In our frames it is $-1$, and the reason
+is a convention we inherited. The library feeds its filter $(-a_x, a_y, a_z)$ and $(g_x, -g_y,
+-g_z)$, which mirrors the chip's $x$ axis. The quaternion is therefore a proper rotation between two
+mirror images of physical space. Every vector the plugin uses lives in that mirrored frame, so
+everything stays consistent with everything else, but cross products change sign. Our filter keeps
+the same input convention so that existing calibrations and presets stay valid. Hence
 \[
-L^\ast = \operatorname*{arg\,min}_{L\,:\,(v_A \times v_B)\cdot v_C < 0} e(L)\,,
+L^\ast = \operatorname*{arg\,min}_{L\,:\,(v_A \times v_B)\cdot v_C < -0.5} e(L)\,,
 \]
-which gives the alignment quaternion $q_{\text{align}}$. If the poses are too close together or
-nearly coplanar, calibration is rejected and the performer is asked to retry.
+which gives the alignment quaternion $q_{\text{align}}$. If no axis qualifies, or if
+$e(L^\ast) > 1.5$ (roughly, some pair of poses more than $30^\circ$ from a right angle), calibration
+is rejected and the performer is asked to try again.
 
-\textbf{Stage 2: heading and twist.} From the measured staff axis in poses $A$ and $B$ ($b_0$,
-$b_1$), an orthonormal triad $U = [\,b_0,\ \widehat{b_0\times b_1},\
-b_0\times\widehat{b_0\times b_1}\,]$ is built, and likewise $W$ from the instrument-frame forward
-$(1,0,0)$ and up $(0,0,1)$. The aligning rotation is the orthogonal-Procrustes solution
-$R = W U^{\top}$, converted to a quaternion $q_{\text{corr}}$. Every reading is then mapped to
-instrument space by $q' = q_{\text{corr}}\,(q_{\text{raw}}\,q_{\text{align}})$, whatever the
-sensor's rotation on the staff. Its position along the staff is not corrected
-(\S\ref{sec:limitations}).
+\textbf{Stage 2: heading and tilt.} Let $b_0$ and $b_1$ be the measured staff direction in poses $A$
+and $B$, and $n = \widehat{b_0 \times b_1}$. The triad $U = [\,b_0,\ n,\ (b_0 \times n)\,]$ is built
+from them, and $W$ likewise from the instrument-frame forward $(1,0,0)$ and up $(0,0,1)$. The
+rotation $R = W U^{\top}$ takes the measured directions onto the instrument's, and it is converted to
+a quaternion $q_{\text{corr}}$.
+
+\textbf{Stage 3: zero of roll.} Stages 1 and 2 fix where the staff points but leave its roll at
+whatever angle the enclosure happens to sit around the staff. That matters for presets driven by
+roll (\preset{Simple}, \preset{Spin Voices}). A last rotation $q_{\text{roll}}$ about the staff axis
+makes pose $A$ read as zero roll. Every reading is then mapped to instrument space by
+\[
+q' = q_{\text{corr}}\; q_{\text{raw}}\; q_{\text{align}}\; q_{\text{roll}}\,,
+\]
+so roll is measured from how the performer held the staff in pose $A$, not from how the box was
+strapped on. The angular rate and acceleration are rotated into the same frame. A ``re-zero
+heading'' button reuses $q_{\text{corr}}$ to make the staff's current direction the new forward
+without repeating the poses. The position of the unit along the staff is not corrected.
 
 \subsection{Motion Features}
 \label{sec:features}
-A single motion analyzer computes the features in Table~\ref{tab:motion-features}, and every
-mapping graph reads from it. It currently runs once per audio block on the latest sensor packet,
-with $\Delta t$ from the host clock (\S\ref{sec:limitations}). All smoothing rates and thresholds
-below were tuned by ear on the instrument, at one host buffer size.
+One analyzer computes the features in Table~\ref{tab:motion-features}, and every mapping graph reads
+from it. It runs once per packet, in order, with $\Delta t$ taken from the sensor's clock
+(\S\ref{sec:fixes}). Smoothing rates and decays were tuned by ear with one update per 256-sample
+block at 48\,kHz. They are now written per \emph{reference tick} of $T = 5.33$\,ms and converted to
+the actual step, so that $\alpha' = 1-(1-\alpha)^{\Delta t/T}$ for a one-pole coefficient and
+$d' = d^{\,\Delta t/T}$ for a decay.
 
 \begin{table}[htbp]
 \centering
@@ -253,66 +296,67 @@ below were tuned by ear on the instrument, at one host buffer size.
 \toprule
 Feature & Purpose \\
 \midrule
-Tip vector, rotation axis & tip velocity and spin axis \\
+Tip vector, rotation axis & where the staff points; what it spins about \\
 Dynamic acceleration & motion with gravity removed \\
 Energy, onset, axis stability, jerk & how hard and how steadily the staff moves \\
 Spin plane and direction & vertical/horizontal spin, CW/CCW \\
-Facing & which horizontal axis the staff aligns with \\
+Facing & along or across the forward line \\
 Continuous spin count & full turns in the current spin \\
-Axial thrust & stab or strike along the staff \\
+Axial thrust (experimental) & stab or strike along the staff \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Tip, axis, and gravity.} The tip direction $p_n = \mathrm{rotate}((1,0,0), q_n)$ is kept
-over three samples to estimate tip velocity and the current rotation axis. Gravity is estimated by
-smoothing the inverse-rotated world $+Z$ axis with a one-pole filter ($\alpha{=}0.10$), and
-subtracted from the raw reading to give the dynamic acceleration $a_{\text{dyn}}$.
+\textbf{Tip, axis, and gravity.} The tip direction is $p = \mathrm{rotate}((1,0,0), q')$. The
+rotation axis comes straight from the gyroscope, rotated into the world frame as $\omega$, with the
+roll about the staff removed: $\omega_\perp = \omega - p\,(p\cdot\omega)$. Rolling the staff in the
+hands is not a spin, and the lap count accumulates $\lVert\omega_\perp\rVert\,\Delta t$, not
+$\lVert\omega\rVert\,\Delta t$. Because the specific force is also in the world frame, the dynamic
+acceleration is simply $a_{\text{dyn}} = a_{\text{world}} - (0,0,1)$\,g.
 
-\textbf{Energy features.} Four smoothed signals describe how hard the staff is moving. Each applies
-the one-pole smoother $y_n = y_{n-1} + \alpha\,(x_n - y_{n-1})$ to a derivative of
-$a_{\text{dyn}}$ or of gyroscope magnitude. \emph{Energy} is the enveloped magnitude of a leaky
-integral of $a_{\text{dyn}}$. \emph{Onset} is the positive rate of change of gyroscope magnitude.
-\emph{Axis stability} is the smoothed absolute dot product between consecutive rotation axes, high
-when the staff keeps spinning around the same axis. \emph{Jerk} is the smoothed jerk of
-$|a_{\text{dyn}}|$, split into smooth and abrupt parts. (In the source code these four are named
-after Laban's Effort factors: Weight, Time, Space, and Flow.) With the unit near the tip, the
-sensor sits about $r \approx 0.7$\,m from the centre of rotation, and a 2\,rev/s spin produces a
-centripetal acceleration $\omega^2 r \approx 11$\,g. This term dominates $a_{\text{dyn}}$, so
-Energy and Jerk mainly follow spin speed, which is how the presets use them, and their scale
-changes if the unit is moved along the staff.
+\textbf{Energy features.} Four smoothed signals describe how hard the staff is moving.
+\emph{Energy} is the enveloped magnitude of a leaky integral of $a_{\text{dyn}}$. \emph{Onset} is the
+positive rate of change of rotation speed. \emph{Axis stability} is the smoothed absolute dot product
+between consecutive rotation axes; it is high while the staff keeps turning about the same axis.
+\emph{Jerk} is the smoothed jerk of $|a_{\text{dyn}}|$, given both as an ``abrupt'' value and as its
+complement. During spins, centripetal acceleration dominates $a_{\text{dyn}}$, so Energy and Jerk
+mostly follow spin speed. That is how the presets use them, and it is also why their scale changes
+if the unit is moved along the staff.
 
-\textbf{Spin plane and direction.} Let $(a_x,a_y,a_z)$ be the rotation axis, smoothed with
-$\alpha{=}0.35$. The spin is classified as \emph{vertical} (the staff turns in a vertical plane,
-like a baton twirled beside the body) when
+\textbf{Spin plane and direction.} Let $(a_x,a_y,a_z)$ be $\omega_\perp$ after one-pole smoothing.
+The spin is \emph{vertical} (the staff turns in a vertical plane, like a baton twirled beside the
+body) when
 \[
 \sqrt{a_x^2 + a_y^2} > |a_z|\,,
 \]
-and as \emph{horizontal} (like a propeller overhead) otherwise. For a horizontal spin, the direction
-is the sign of $a_z$. For a vertical spin, it is the sign of the larger of $a_x, a_y$, or, in the
-\preset{Martial} presets, the sign of the axis' dot product with a reference axis latched at the
-first vertical spin after the preset loads.
+and \emph{horizontal} (like a propeller overhead) otherwise. For a horizontal spin, the direction is
+the sign of $a_z$. For a vertical spin it is the sign of the larger of $a_x, a_y$. In the
+\preset{Martial} presets it is instead the sign of the axis' dot product with a reference axis
+latched at the first vertical spin after the preset loads.
 
-\textbf{Facing.} A compass heading would need the magnetometer, which is unreliable next to the
-staff's electronics and stage equipment. REMORA instead asks which horizontal axis of the calibrated
-frame the staff is closer to: $x$ (the calibration ``forward'', labelled \emph{north}) or $y$
-(\emph{east}). Let $(d_x,d_y)$ be the horizontal components of the rotation axis during vertical
-spins, or of the tip direction otherwise. With hysteresis factor $k = 1.15$, the state switches
+\textbf{Facing.} A compass heading would need the magnetometer. Facing is instead a two-state
+feature: is the staff working \emph{along} the calibration's forward line or \emph{across} it? It
+does not tell front from back or left from right, and we no longer call the states ``north'' and
+``east''. During a vertical spin, the spin plane decides. When the staff is not turning about the
+vertical (rotation about $z$ below $60^\circ$/s) and is within $60^\circ$ of horizontal, the
+direction it points decides. In every other case the state is held. That last rule is important. In
+our first version, an overhead spin fell back on the tip direction, which sweeps through every
+heading, so facing toggled every quarter turn. Let $(d_x,d_y)$ be the horizontal normal of the line
+the staff works along: the smoothed rotation axis in a vertical spin, or the tip direction turned by
+$90^\circ$ otherwise. With hysteresis factor $k = 1.15$, the state switches
 \[
-\text{north}\rightarrow\text{east if } |d_y| > k\,|d_x|\,,\qquad
-\text{east}\rightarrow\text{north if } |d_x| > k\,|d_y|\,.
+\text{across}\rightarrow\text{along if } |d_y| > k\,|d_x|\,,\qquad
+\text{along}\rightarrow\text{across if } |d_x| > k\,|d_y|\,,
 \]
-Measured from the $x$ axis, the switch points are therefore $\arctan(1.15) \approx 49^\circ$ and
-$\arctan(1/1.15) \approx 41^\circ$, which prevents flicker at the boundary. Because orientation is
-6-axis, heading is relative to the calibration pose and drifts with gyroscope yaw
-(\S\ref{sec:limitations}).
+that is, at $\arctan(1.15) \approx 49^\circ$ and $\arctan(1/1.15) \approx 41^\circ$. Facing is only as
+good as the heading. Gyroscope bias is tracked (\S\ref{sec:build}) and heading can be re-zeroed, but
+we have not yet measured how far it drifts over a set.
 
-\textbf{Continuous spin count.} $\lVert\omega\rVert\,\Delta t$ is accumulated, and a lap is counted
-every $360^\circ$; the count resets when the spin plane or direction changes.
-
-\textbf{Axial thrust.} A thrust is flagged when the jerk of the dynamic acceleration projected on
-the staff axis crosses zero while its magnitude exceeds $1.5$\,g, gated to slow rotation
-($\lVert\omega\rVert < 90^\circ$/s) and followed by a cooldown.
+\textbf{Axial thrust (experimental).} A thrust is flagged when the jerk of $a_{\text{dyn}}\cdot p$
+crosses zero while $|a_{\text{dyn}}\cdot p|$ exceeds $1.5$\,g and the staff is turning slower than
+$90^\circ$/s, followed by a 0.2\,s cooldown. It failed in the pilot. The causes we found and fixed
+are in \S\ref{sec:fixes}. It passes our simulated tests (\S\ref{sec:sim}), but we will not count it as
+a contribution until it has been tested on labelled thrusts with the real staff.
 
 \subsection{Mapping Architecture}
 \label{sec:mapping-arch}
@@ -322,26 +366,26 @@ Display (live monitors). A graph is a set of nodes plus typed wires, saved as an
 graph is the only path from sensor to synthesiser.
 
 When a wire is added, the graph recomputes a topological order with Kahn's algorithm and refuses
-the wire if it would close a cycle. Each audio block, evaluation walks the cached order once and
-every node computes
-$y_i = f_{\text{type}(n_i)}(x_{i,1},\dots,x_{i,m};\theta_i)$ from its inputs $x$ and parameters
-$\theta$. The patch is thus one composed function of the sensor frame, with no sorting on the audio
-thread. If the user interface is editing the graph when a block arrives, evaluation does not wait;
-it reuses the previous block's output.
+the wire if it would close a cycle. For every packet, evaluation walks the cached order once, and
+each node computes $y_i = f_{\text{type}(n_i)}(x_{i,1},\dots,x_{i,m};\theta_i)$ from its inputs $x$
+and parameters $\theta$. The patch is thus one composed function of the sensor stream, with no
+sorting on the audio thread. If the editor holds the graph when a packet arrives, evaluation does not
+wait; the synthesiser keeps the previous values.
 
 Math nodes cover arithmetic, shaping (linear and logarithmic range mapping, clamp, threshold,
 crossfade, quantise, sine, atan2, semitones to Hz), lookup tables (1-D, and an 8-entry table indexed
 by three booleans), and stateful dynamics (one-pole smoother, leaky integrator, retrigger envelope,
-hysteresis, derivative, latch, random sample-and-hold).
+hysteresis, derivative, latch, random sample-and-hold). The stateful nodes use the same reference
+tick as the analyzer, so a patch behaves the same at any buffer size.
 
 \subsection{Presets}
 \label{sec:named-mappings}
 The eleven C++ mappings from development were rebuilt as graph presets: \preset{Simple},
 \preset{Lead+Drone}, \preset{Spin Filter}, \preset{Bowed Chord}, four \preset{Azimut} variants,
 \preset{Martial Effort}, \preset{Martial Momentum}, \preset{Spin Voices}, and \preset{Speed Gate}.
-Four more (\preset{Wind Noise}, \preset{Azimut Kinetic}, \preset{Spin Voices (Scale)},
-\preset{Vocal Tract}) were made directly as graphs. Nine presets are offered in the plugin's
-selector (Table~\ref{tab:presets}); the others are close variants kept as reference patches.
+Four more were made directly as graphs: \preset{Wind Noise}, \preset{Azimut Kinetic}, \preset{Spin
+Voices (Scale)}, and \preset{Vocal Tract}. Nine are offered in the plugin's selector
+(Table~\ref{tab:presets}); the others are close variants kept as reference patches.
 
 \begin{table}[htbp]
 \centering
@@ -366,25 +410,29 @@ Preset & Character \\
 \end{table}
 
 The catalog has 69 node types (33 source, 29 math, 4 sink, 3 display). Presets range from 7 nodes
-(\preset{Simple}) to 178 (\preset{Martial Effort}), with a median of 86. Together they use 50 of
-the 69 types; most unused types are raw per-axis sensor values. No preset needed a node type of its
-own. Since the catalog grew alongside the hand-coded mappings, this shows that it can express them;
-mappings designed by someone who did not build the catalog are still to be tried. Per-preset counts
-are generated from the code by a tool in the repository.
+(\preset{Simple}) to 178 (\preset{Martial Effort}), with a median of 86. Together they use 50 of the
+69 types, and most of the unused ones are raw per-axis sensor values. No preset needed a node type
+of its own. That shows the catalog is enough for these mappings, but the catalog and the mappings
+grew together, so it does not show that someone else's mappings would fit. Per-preset counts are
+generated from the code by a tool in the repository. We checked the rebuilt presets against the
+original classes by ear only. The fixes in \S\ref{sec:fixes} have since changed the features
+underneath both, so an exact comparison with the old classes is no longer meaningful. Instead, any
+two versions can now be compared by replaying the same packet log through them.
 
-\begin{figure}[htbp]
+\begin{figure*}[tbp]
   \centering
-  \includegraphics[width=\linewidth]{Assets/wind-noise-preset.png}
-  \caption{The complete \preset{Wind Noise} preset in the plugin: gyroscope and acceleration
+  \includegraphics[width=0.66\textwidth]{Assets/wind-noise-preset-cropped.png}
+  \caption{The complete \preset{Wind Noise} preset in the plugin. Gyroscope and acceleration
   magnitudes are scaled, summed, clamped, and smoothed into one motion-energy signal that drives
-  the noise level, noise filter, and lowpass cutoff of the additive engine (right).}
+  the noise level, noise filter, and lowpass cutoff of the additive engine (right; its unused
+  inputs are cropped).}
   \label{fig:wind-noise}
-\end{figure}
+\end{figure*}
 
 \textbf{Azimut root table.} The Azimut presets and the fast branch of \preset{Speed Gate} choose the
-root note from three booleans (vertical spin, counter-clockwise, facing east) through the 8-entry
-lookup node. The target pitch is reached by a one-pole glide whose rate grows with rotation speed
-and jumps at motion onset, so faster motion moves to the new root more quickly
+root note from three booleans (vertical spin, counter-clockwise, working along the forward line)
+through the 8-entry lookup node. The target pitch is reached by a one-pole glide whose rate grows
+with rotation speed and jumps at motion onset, so faster motion moves to the new root more quickly
 (Figure~\ref{fig:editor}).
 
 \textbf{Kinetic timbre.} \preset{Azimut Kinetic} keeps the Azimut root and maps one smoothed
@@ -399,41 +447,50 @@ The whole preset is built from existing math nodes.
 \label{sec:live-patching}
 The node-graph editor (Figure~\ref{fig:editor}) is a pannable, zoomable canvas. Nodes are coloured
 by category, wires are drawn by dragging between typed pins, and new nodes come from a searchable,
-categorised picker. Hovering any pin shows its current value, and Display nodes (number, meter,
+categorised picker. Hovering over any pin shows its current value, and Display nodes (number, meter,
 scope) can be placed on a wire to monitor it. A changed patch can be kept or reverted to its saved
-preset in one click, so a mapping can be tried during rehearsal and then kept or dropped.
+preset in one click.
 
-\begin{figure}[htbp]
+Who patches, and when? A performer holding a 1.5\,m staff in both hands cannot rewire anything in
+the middle of a kata, and a 100-node preset is not something to read at a glance. In practice the
+editor is an authoring tool. Between takes in rehearsal, the player puts the staff down, changes a
+range or swaps which feature drives a parameter, picks the staff up, and tries again, with audio
+running the whole time. In performance the player switches between prepared presets. A second
+person at the computer could edit while the player plays, but we have not tried that on stage.
+
+\begin{figure*}[tbp]
   \centering
-  \includegraphics[width=\linewidth]{Assets/node-graph-editor.png}
+  \includegraphics[width=0.72\textwidth]{Assets/node-graph-editor.png}
   \caption{The node-graph editor showing the Azimut root-note chain: spin plane, direction, and
   facing select an entry of the 3-selector lookup table, which is smoothed and converted to the
   root frequency (green Source, blue Math, amber Sink).}
   \label{fig:editor}
-\end{figure}
+\end{figure*}
 
 \subsection{Synthesis}
 \label{sec:synthesis}
-Synthesis engines share one interface and are skipped entirely when the
-active preset does not wire them. Every preset except \preset{Vocal Tract} drives the additive
-engine: four voices of six harmonic partials, with soft-clip waveshaping, vibrato, tremolo, chorus,
-filtered noise, a state-variable lowpass, and reverb. \preset{Vocal Tract} drives a C++ port (via
+Synthesis engines share one interface and are skipped entirely when the active preset does not wire
+them. Every preset except \preset{Vocal Tract} drives the additive engine: four voices of six
+harmonic partials, with soft-clip waveshaping, vibrato, tremolo, chorus, filtered noise, a
+state-variable lowpass, and reverb. \preset{Vocal Tract} drives a C++ port (via
 \texttt{cutelabnyc/pink-trombone-cpp}, MIT-licensed) of Neil Thapen's \textit{Pink
-Trombone}~\cite{thapen2017pinktrombone}; only the control layer around it is ours. If no packet
-arrives for 150\,ms, the master gain fades out over 120\,ms, and fades back in over 10\,ms when
+Trombone}~\cite{thapen2017pinktrombone}; only the control layer around it is ours. Engine parameters
+are smoothed per sample, so values that change once per packet do not cause zipper noise. If no
+packet arrives for 150\,ms, the master gain fades out over 120\,ms, and fades back in over 10\,ms when
 packets return.
 
-\subsection{Development Iterations}
-The graph came last. The first iteration streamed OSC to a minimal receiver with one hard-coded
-tilt-to-pitch mapping. The second wrote the mappings as separate C++ classes on top of the shared
-analyzer, each adding vocabulary (chords, energy features, facing, thrust). Read side by side, they
-were the same arithmetic, shaping, and stateful primitives wired in different patterns, so the third
-iteration replaced the classes with the graph engine. Since then, a second synthesis engine
-(\S\ref{sec:synthesis}) and four new presets have been added without changes to the engine.
+\subsection{How the Software Got Here}
+We built the software in three steps. The first was a minimal OSC receiver with one hard-coded
+tilt-to-pitch mapping. The second added mappings as separate C++ classes on top of a shared
+analyzer, each one bringing new vocabulary (chords, energy features, facing, thrust). By the time
+there were eleven of them, it was clear that they differed only in how they wired together the same
+arithmetic, shaping, and stateful pieces. So the third step replaced the classes with the graph
+engine. Since then a second synthesis engine (\S\ref{sec:synthesis}) and four new presets have been
+added without touching the engine.
 
 \section{Playing the B\^o: From Technique to Sound}
 \label{sec:technique}
-The staff-specific features were designed around families of b\^o technique, and this is where the
+We designed the staff-specific features around families of b\^o technique, and this is where the
 presets differ most from a generic motion controller.
 % TODO (authors): ground this section in your own practice: name the style and the kata or
 % drills you use, describe a short performance or étude, and say what playing a familiar form
@@ -441,28 +498,32 @@ presets differ most from a generic motion controller.
 
 \textbf{Spins.} Two-handed spins beside the body and overhead spins are the staff's most
 characteristic motions. Spin plane and direction select among four roots in
-\preset{Martial Momentum}, so switching from a vertical clockwise spin to a horizontal one is
-heard as a change of harmony, and the length of a spin, through the lap count, as a slow timbral
-sweep in the Azimut presets.
+\preset{Martial Momentum}, so switching from a vertical clockwise spin to a horizontal one is heard
+as a change of harmony. In the Azimut presets, the length of a spin, through the lap count, is
+heard as a slow timbral sweep.
 
 \textbf{Changes of direction.} A kata follows a floor pattern (\emph{embusen}) with turns between
-facings. Facing adds a third boolean to the Azimut root table, so the same spin played after a
+facings. Facing is the third boolean of the Azimut root table, so the same spin played after a
 quarter turn lands on a different root, and a form traced across the floor becomes a sequence of
-harmonic regions.
+harmonic regions. A half turn does not change the root, because facing only knows the line, not the
+side. Whether that is a limitation or a feature depends on the form, and we have not settled it.
 
-\textbf{Stances and transitions.} Held guard positions (\emph{kamae}) are near-static and read as
-tilt and roll. In \preset{Simple} and \preset{Bowed Chord}, stance chooses pitch or chord; in
-\preset{Azimut Kinetic}, stillness gives a near-pure tone and energy brightens it, so the contrast
-between a held stance and the motion out of it shapes the timbre directly.
+\textbf{Stances and transitions.} Held guard positions (\emph{kamae}) are almost static, so they
+show up as tilt and roll. In \preset{Simple} and \preset{Bowed Chord}, the stance chooses the pitch
+or chord. In \preset{Azimut Kinetic}, stillness gives a near-pure tone and energy brightens it, so
+the contrast between a held stance and the move out of it shapes the timbre directly.
 
-\textbf{Thrusts and strikes.} Thrusts (\emph{tsuki}) and strikes are short, decisive, and mostly
-along the staff axis. They are what the axial detector targets, and what pilot participants noticed
-was missing in the sound (\S\ref{sec:pilot}).
+\textbf{Thrusts and strikes.} Thrusts (\emph{tsuki}) and strikes are short and decisive and mostly
+run along the staff. They are what the axial detector targets, and they are what pilot participants
+missed in the sound (\S\ref{sec:pilot}).
 
 \section{Evaluation}
 \label{sec:evaluation}
-The evidence consists of properties of the implemented system and an exploratory pilot.
-Table~\ref{tab:claims-evidence} summarises it per contribution.
+The evidence so far comes from three sources: properties of the implemented system, simulation
+checks of the calibration, filter, and analyzer, and an exploratory pilot that was run before the
+fixes. Table~\ref{tab:claims-evidence} summarises it for each contribution.
+% TODO (authors): link a demo video (anonymised for review) showing spins, a facing change, and
+% thrusts through one or two presets.
 
 \begin{table*}[tbp]
 \centering
@@ -473,55 +534,36 @@ Table~\ref{tab:claims-evidence} summarises it per contribution.
 \toprule
 Contribution & Current evidence & Untested \\
 \midrule
-(\ref{claim:features}) b\^o features & implemented; spin- and facing-driven \preset{Azimut Kinetic}
-was the preset most often preferred in the pilot; thrust detection failed in the pilot & facing
-accuracy and yaw drift against ground truth; thrust after the analyzer fix \\
-(\ref{claim:calibration}) calibration & rotation independence follows from the derivation
-(\S\ref{sec:calibration}) & remounting at several angles on hardware \\
-(\ref{claim:dag}) live graph & implemented and used throughout development; one pilot participant
-singled out live patching & whether other performers can rewire it unaided \\
-(\ref{claim:presets}) presets & all eleven hand-coded mappings rebuilt from one catalog
-(\S\ref{sec:named-mappings}) & output equivalence with the former classes; mappings designed
-independently of the catalog \\
+(\ref{claim:features}) b\^o features & spin- and facing-driven \preset{Azimut Kinetic} was the preset most
+often preferred in the pilot; in simulation, facing holds through overhead spins and changes once per
+quarter turn, and features no longer depend on buffer size (\S\ref{sec:sim}) & accuracy on the real
+staff; yaw drift over a set; thrust detection on labelled real thrusts \\
+(\ref{claim:calibration}) calibration & in simulation, tip error $<0.03^\circ$ and identical roll over
+192 mounts (\S\ref{sec:sim}) & remounting at several angles on hardware \\
+(\ref{claim:dag}) mapping graph & used throughout development; all eleven hand-coded mappings and
+four new ones built from one catalog (\S\ref{sec:named-mappings}); one pilot participant singled out
+live patching & whether other people can author with it unaided; mappings designed independently of
+the catalog \\
 \bottomrule
 \end{tabular}
 \end{table*}
 
-\subsection{Evidence from the Implemented System}
-Rewiring is exercised every time a preset loads or a wire changes. The rebuilt presets were
-compared with the original classes by ear; replaying one recorded IMU log through both is still to
-be done. Rotation independence of the calibration follows from its derivation, and a remount test
-at several angles on hardware is planned.
-
-\subsection{Latency}
-\label{sec:latency}
-We estimate the end-to-end latency, from a movement of the staff to the corresponding sound, at
-around 50\,ms. The chain is: IMU read and orientation update on the microcontroller, a send
-interval of up to 10\,ms, Wi-Fi delivery to the host's hotspot, analysis and graph evaluation at
-the next audio block, and the host's output buffer. The figure has yet to be confirmed by
-measurement (\S\ref{sec:not-measured}). It is well above the 10\,ms often cited for intimate
-control~\cite{wessel2002intimate}. Most presets map continuous motion (spins, sweeps, the move out
-of a stance) to slowly gliding parameters, which tolerate such a delay better than percussive
-events do. Thrusts and strikes are the exception: their sound should land with the impact, so
-reducing latency, for instance with a shorter send interval or a dedicated radio link
-(\S\ref{sec:future}), belongs with the thrust work in \S\ref{sec:limitations}.
-
 \subsection{Pilot Session}
 \label{sec:pilot}
-Ten adults with no prior exposure to REMORA took part in a short, informal pilot in August 2026,
-using the current firmware (see Ethical Statement). Each was calibrated, given a brief
-demonstration, and then played freely across a subset of the nine selector presets before
-completing an anonymous questionnaire. Nine of ten rated their martial-arts or staff experience 1 or
-2 out of 5; general musical experience averaged 3.4/5, and prior experience with gestural
-instruments 2.6/5. Most participants were thus new to the staff, while the spin- and facing-driven
-presets are designed for trained performers.
+Ten adults with no prior exposure to REMORA took part in a short, informal pilot in August 2026 (see
+Ethical Statement). It used the earlier firmware and analyzer, before the changes in
+\S\ref{sec:fixes}. Each participant was calibrated, given a brief demonstration, and then played
+freely across a subset of the nine selector presets before filling in an anonymous questionnaire.
+The group does not match the intended performer. Nine of the ten rated their martial-arts or staff
+experience 1 or 2 out of 5. General musical experience averaged 3.4/5, and prior experience with
+gestural instruments 2.6/5. The results therefore say something about how newcomers meet the
+instrument and little about how a trained staff player would use it.
 
-The questionnaire was written for this pilot. It asked for agreement with six statements about the
+We wrote the questionnaire for this pilot. It asked for agreement with six statements about the
 playing experience on a five-point scale (Table~\ref{tab:pilot}), followed by preset preference and
-free text. We did not use a standard DMI evaluation
-instrument~\cite{wanderley2002evaluation,omodhrain2011framework}, and with N=10 the ratings are
-descriptive. Comfort scored highest, followed by novelty and absorption; predictability and
-expressiveness scored lower and varied more.
+free text. It is not a standard DMI evaluation instrument~\cite{wanderley2002evaluation,omodhrain2011framework},
+and with N=10 the ratings are only descriptive. Comfort scored highest, followed by novelty and
+absorption; predictability and expressiveness scored lower and varied more.
 
 \begin{table}[htbp]
 \centering
@@ -542,89 +584,149 @@ Musical satisfaction & 3.6 (1.3) & 4 & 1--5 \\
 \end{tabular}
 \end{table}
 
-Preferences were spread out: \preset{Azimut Kinetic} was chosen most often (3/10), then
+Preferences were spread out. \preset{Azimut Kinetic} was chosen most often (3/10), then
 \preset{Wind Noise} and \preset{Lead+Drone} (2/10 each), and \preset{Spin Voices (Scale)} and
-\preset{Vocal Tract} once each. Reasons followed each preset's character: \preset{Azimut Kinetic}
-``matches best what I know from my martial art experience'', \preset{Wind Noise} needs ``no
-knowledge [...] in martial art or music'', and \preset{Lead+Drone} made melody easiest to steer.
-The tenth participant named no single preset (``All of them are great'') and pointed to live
-patching instead (``the ability to customize live and create new patches directly inside with the
-node things is great''). Another asked for the wiring interface to be easier, ``maybe some kind of
-tutorial''.
+\preset{Vocal Tract} once each. The reasons given followed each preset's character:
+\preset{Azimut Kinetic} ``matches best what I know from my martial art experience'', \preset{Wind
+Noise} needs ``no knowledge [...] in martial art or music'', and \preset{Lead+Drone} made melody the
+easiest to steer. The tenth participant named no single preset (``All of them are great'') and
+pointed to live patching instead (``the ability to customize live and create new patches directly
+inside with the node things is great''). Another asked for the wiring interface to be easier,
+``maybe some kind of tutorial''.
 
-The clearest finding came unprompted. Three of ten participants reported that thrusts which felt
-physically decisive had no matching effect on the sound (``The thrust are not well detected'';
-``Add `thrust' detection support or fix the existing''). Section~\ref{sec:limitations} gives a
-probable cause. Other frustration was described as learning (``when a bit hard it's just a learning
-experience''), and one participant found the instrument fun but not, on its own, motivating to
-practise.
+Thrusts were the one complaint we had not anticipated. Three of ten participants said that thrusts
+which felt physically decisive did nothing to the sound (``The thrust are not well detected'';
+``Add `thrust' detection support or fix the existing''). Other frustrations were described as
+learning (``when a bit hard it's just a learning experience''), and one participant found the
+instrument fun but not, on its own, motivating to practise.
+
+\subsection{What the Thrust Complaint Uncovered}
+\label{sec:fixes}
+Looking for the cause of the thrust problem, we found three defects. Each one affected more than
+thrusts.
+
+\textbf{Per-block analysis.} The analyzer ran once per audio block on whichever packet was newest,
+with $\Delta t$ from the host clock. At 48\,kHz with 256-sample buffers, each 10\,ms packet was
+analysed about twice. Every derivative-based feature saw one large step followed by a zero, its
+size depended on the buffer size, and the thrust detector could see a false zero-crossing of jerk.
+Packets are now queued from the network thread to the audio thread, and each one is analysed exactly
+once, with $\Delta t$ from the sensor's clock. The mapping graph is evaluated once per packet too.
+
+\textbf{Gravity in the wrong frame.} Dynamic acceleration was computed as the raw acceleration, in
+the chip's frame, minus gravity rotated into the calibrated staff frame. Those two frames differ by
+the board's alignment and by the mirrored axis described in \S\ref{sec:calibration}. A still,
+tilted staff therefore showed up to 2\,g of ``motion'' (\S\ref{sec:sim}). The threshold for a thrust
+is 1.5\,g, so the detector's input was largely a tilt signal. We now think this, more than
+scheduling, is why thrusts went unheard. It also fed into Energy and Jerk. Both vectors are now
+rotated into the world frame before they are subtracted.
+
+\textbf{Tilt lost during spins.} With the library's fixed-gain filter, centripetal acceleration
+pulled the estimated vertical towards the staff during fast spins, and spin plane, facing, and the
+tip vector all inherit that error. The gated filter (\S\ref{sec:build}) and the gyroscope-based
+rotation axis (\S\ref{sec:features}) address it.
+
+The facing fix (\S\ref{sec:features}) belongs with these too. Energy and Jerk now have a different
+scale at rest, so the presets that use them will need to be checked again by ear on the staff.
+
+\subsection{Checks in Simulation}
+\label{sec:sim}
+Each of the fixes above can be checked without the staff. A tool in the repository runs the
+plugin's own calibration and analyzer code, and the firmware's filter, on simulated motion: ideal
+kinematics plus sensor noise (0.01\,g and $0.3^\circ$/s standard deviation), with the sensor 0.7\,m
+from the hands. These checks show that the code does what we intended. They do not show that it
+works on a real staff, where hands, staff flex, and sensor errors are messier. The main results:
+
+\begin{itemize}
+\item \textbf{Calibration.} We tested all 24 axis-aligned board orientations, at 8 roll angles each
+(192 mounts), with a random filter heading and 50 random staff orientations per mount. The worst tip
+error was $0.03^\circ$. The same staff orientation read the same roll on every mount. With every pose
+up to $10^\circ$ off, no calibration was rejected, but the tip error grew to $18^\circ$, so careful
+poses matter.
+\item \textbf{Filter during spins.} The worst tilt error during a 4\,s spin was as follows. For a
+vertical-plane spin at 1\,rev/s: $179^\circ$ with fixed gain, $1.8^\circ$ gated. At 2\,rev/s:
+$179^\circ$ against $3.6^\circ$. For an overhead spin at 2\,rev/s: $81^\circ$ against $0.0^\circ$.
+With fixed gain the vertical is simply lost. Both filters recover once the staff is still.
+\item \textbf{Gravity removal.} On a still staff, over 24 mounts and 20 orientations each, the
+previous formula left a residual of 1.29\,g on average and 2.00\,g at worst. The current one leaves
+none.
+\item \textbf{Scheduling.} We simulated twenty thrusts of 2--4\,g at random headings and tilts, then
+20\,s of spins and swings as negatives. Per-packet analysis found 20/20 thrusts with no false
+detections, with identical output at buffer sizes of 64 to 1024 samples. Scheduled per block, with
+the gravity fix already in place, the same analyzer also found all 20. Its onset peak, however,
+varied from 0.27 to 0.55 with buffer size, against a constant 0.26 per packet.
+\item \textbf{Facing.} Over a 5\,s overhead spin at 2\,rev/s, facing changed 0 times; the previous
+rule changed it 40 times. A quarter turn of the body changed it exactly once, both when the staff
+was held still and when it went from a side spin to a spin in the other plane.
+\end{itemize}
+
+\subsection{Latency}
+\label{sec:latency}
+We have not measured end-to-end latency. It can be broken down into parts, two of which are
+unknown. The sample can be up to 5\,ms old (200\,Hz IMU), and it may wait up to 10\,ms for the next
+send. Wi-Fi delivery comes next, and it is not yet measured. Once a packet arrives, it waits up to one
+block (5.3\,ms at 256 samples and 48\,kHz) to be analysed, and the result then goes through the
+host's output buffer, another 5.3\,ms plus whatever the audio device adds. Without the network and
+the device, that is 5--26\,ms. The figure of about 50\,ms in an earlier draft was a guess, and we
+withdraw it. Most presets map continuous motion to gliding parameters, which tolerate delay better
+than percussive events do. Thrusts are the exception, because their sound should land with the
+impact, and even the known part of the budget can exceed the 10\,ms often cited for intimate
+control~\cite{wessel2002intimate}. The plugin's packet log and live jitter display make the network
+part easy to measure, and a contact microphone on the staff recorded alongside the plugin's output
+will give the total.
+% TODO (authors): replace the budget with measured values: contact mic + plugin output on two
+% channels of one interface; packet log for interval, jitter, and loss.
 
 \subsection{Not Yet Measured}
 \label{sec:not-measured}
-(i) \emph{End-to-end latency}, to replace the estimate above: a contact microphone on the staff
-and the plugin output, recorded on two channels of one interface. (ii) \emph{Packet rate, jitter,
-and loss}: logging inter-arrival times in the plugin. (iii) A timed, unassisted \emph{rewiring task}
-(retune a parameter, then change which feature drives a sink). (iv) A replay test for the presets
-and a remount test for the calibration. (v) Sessions with participants trained in b\^o or another
-martial art.
-% TODO (authors): link a demo video (anonymised for review) showing spins, a facing change, and
-% thrusts through one or two presets.
+These items are planned and need the real staff or other people. They are not part of the evidence
+above.
+(i) End-to-end latency and network jitter and loss, measured as described above. (ii) A labelled
+thrust test on the real staff: N thrusts and N non-thrust strikes, counted as detected or missed
+from a packet log replayed through the tool. (iii) Yaw drift over a 20--30 minute set, and the tilt
+error during spins against an optical reference. (iv) A remount test of the calibration on
+hardware. (v) A timed, unassisted rewiring task. (vi) Sessions with participants trained in b\^o or
+another martial art. (vii) Battery runtime.
 
 \section{Discussion}
 
 \subsection{Limitations}
 \label{sec:limitations}
-\textbf{Per-block analysis.} The analyzer runs once per audio block on the latest packet. At
-48\,kHz with 128-sample buffers, a block arrives every $\approx\!2.7$\,ms and a packet every
-10\,ms, so each packet is analysed about four times, and $\Delta t$ comes from the host clock
-rather than the sensor. Every derivative-based feature (onset, jerk, tip velocity, thrust jerk) then
-sees one large step followed by zeros, and its magnitude depends on the buffer size. For the thrust
-detector, the zero steps can create a false zero-crossing on a thrust's rising edge, and its peak
-envelope decay ($0.94$, meant per packet) is applied per block. We think this explains the pilot's
-thrust finding. The fix is to analyse only when the packet sequence counter advances and to send
-the sensor's timestamp in each packet. The tuned constants and the thrust detector will then need
-re-tuning.
+\textbf{Evidence.} Every fix in \S\ref{sec:fixes} has so far been checked only in simulation, and the
+only user data predates the fixes and comes mostly from novices.
 
-\textbf{Heading.} The 6-axis Mahony filter keeps facing free of magnetic interference, but gives it
-no absolute reference, so yaw drift since calibration is uncorrected. We expect it to stay small
-over a set of a few tens of minutes but have not measured it, and there is no gesture yet to re-zero
-heading during a performance. The Mahony filter's fixed gain ($K_p = 30$) also treats the accelerometer as a
-gravity reference, which centripetal acceleration violates during fast spins; the resulting tilt
-error has not been measured.
+\textbf{Heading.} Facing depends on a heading with no absolute reference. Bias tracking slows drift
+and the re-zero button resets it, but the button needs a hand free, and we have no gesture for it
+yet.
 
 \textbf{Sensor position.} Calibration corrects rotation but not position along the staff, so the
-acceleration-based features depend on where the unit is mounted (\S\ref{sec:features}).
+acceleration-based features depend on where the unit is mounted.
 
-\textbf{Network.} The hotspot name, password, and destination IP are compiled into the firmware.
-Pairing with a different host computer, or a host whose hotspot uses a different IP, requires
-reflashing over USB. A laptop hotspot also limits range and is sensitive to interference. There is no
-discovery of the host and no feedback when joining fails.
+\textbf{Network.} The hotspot name and password are compiled into the firmware, so pairing with a
+different host means reflashing over USB. A laptop hotspot limits range and is sensitive to
+interference. There is no host discovery beyond sending to the gateway, and the only feedback when
+joining fails is a blinking LED.
 
 \textbf{Interface.} The graph editor serves patch authors better than performers who only want to
-choose a preset; there is no simplified performance view.
-
-\textbf{Robustness.} Incoming OSC argument types are not checked, lost or reordered packets are not
-detected, and the hand-off of a sensor snapshot from the network thread to the audio thread retries
-in a spin loop rather than reusing the last value.
-
-\textbf{Battery.} Runtime on the 2000\,mAh battery has not been measured.
+choose a preset. There is no simplified performance view.
 
 \subsection{Future Work}
 \label{sec:future}
-The immediate steps are the per-packet analyzer and the measurements listed in
-\S\ref{sec:evaluation}. Replacing the hotspot with ESP-NOW, sending to a second ESP32 on the host's
-USB port, would remove network credentials from the firmware. Longer term, we plan a dual-IMU
-configuration (one per end of the staff, which would also let centripetal acceleration be separated
-from linear motion), gesture-triggered preset switching, and a shareable patch format.
+The immediate work is the measurement list in \S\ref{sec:not-measured}, together with re-tuning the
+presets by ear on the corrected features. Replacing the hotspot with ESP-NOW, sending to a second
+ESP32 on the host's USB port, would take network credentials out of the firmware. Longer term, we
+plan a dual-IMU configuration, one sensor at each end of the staff, which would also let centripetal
+acceleration be separated from linear motion. We also plan gesture-triggered preset switching and a
+heading re-zero gesture, and a shareable patch format.
 
 \section{Conclusions}
-REMORA makes a b\^o staff into a musical instrument whose features (spin plane, spin direction,
-facing, lap count, thrust) come from the way a staff is handled. Its mapping is a patch that can be
-rewired while it plays, and the project's hand-coded mappings now live as presets of one node
-catalog. In a ten-person pilot, first-time players rated it comfortable and engaging and most often
-preferred a spin- and facing-driven preset. They also found that thrusts were poorly detected; we
-identify a probable cause and a fix. Next come that fix, measured latency and packet rate, a
-rewiring task, and sessions with trained martial artists.
+REMORA makes a b\^o into a musical instrument whose features (spin plane, spin direction, the line
+the staff works along, lap count) come from the way a staff is handled. Its mapping is a patch that
+can be edited while audio runs, and all of the project's hand-coded mappings now live as presets of
+one node catalog. First-time players in a ten-person pilot found it comfortable and engaging and
+most often preferred a spin- and facing-driven preset. Their one clear complaint, that thrusts were
+not heard, led us to three defects that a stock orientation filter and a per-block analyzer
+introduce on a long spinning object. We fixed them and checked the fixes in simulation. What remains
+is to show the same on the real staff, with trained players.
 
 \begin{acks}
 This work was carried out during the first author's internship at CREATE, Aalborg University,
@@ -636,7 +738,8 @@ Denmark.
 % the GitHub URL, the Acknowledgments, and first-author references in the text.
 \begin{itemize}
   \item \textbf{Source and design files:} firmware, plugin source, OpenSCAD enclosure, all fifteen
-  preset graphs, and the tool that counts each preset's nodes:
+  preset graphs, the tool that counts each preset's nodes, and the simulation check and log-replay
+  tool used in \S\ref{sec:sim}:
   \url{https://github.com/TimotheeDvt/REMORA}
 \end{itemize}
 
