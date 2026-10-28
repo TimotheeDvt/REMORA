@@ -38,6 +38,8 @@ cd software
 make clean    # remove build directory
 make          # configure + build
 make build    # build only
+make analyzer-check                 # simulation checks: calibration, orientation filter, thrust, facing
+make analyzer-check REPLAY=log.csv  # replay a packet log recorded from the Raw Data window
 ```
 
 Build artefacts are written to `build/REMORA_artefacts/Standalone/REMORA` - run directly, no DAW needed.

@@ -77,3 +77,20 @@ target_link_libraries(REMORAPresetStats
     PRIVATE juce::juce_audio_utils juce::juce_dsp
     PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags
 )
+
+# Simulation checks for calibration, orientation filter, and motion analyzer (make analyzer-check).
+juce_add_console_app(REMORAAnalyzerCheck PRODUCT_NAME "REMORAAnalyzerCheck")
+set_target_properties(REMORAAnalyzerCheck PROPERTIES EXCLUDE_FROM_ALL TRUE)
+juce_generate_juce_header(REMORAAnalyzerCheck)
+target_sources(REMORAAnalyzerCheck PRIVATE
+    Tools/AnalyzerCheck.cpp
+    Source/DSP/StaffMotionAnalyzer.cpp
+    Source/UI/DebugLog.cpp
+    Source/UI/DebugConsole.cpp)
+target_include_directories(REMORAAnalyzerCheck PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
+target_compile_definitions(REMORAAnalyzerCheck PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_options(REMORAAnalyzerCheck PRIVATE -fuse-ld=mold)
+target_link_libraries(REMORAAnalyzerCheck
+    PRIVATE juce::juce_audio_utils
+    PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags
+)

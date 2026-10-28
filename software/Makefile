@@ -1,4 +1,4 @@
-.PHONY: all configure build clean preset-stats c b ccb
+.PHONY: all configure build clean preset-stats analyzer-check c b ccb
 
 all: configure build
 
@@ -15,6 +15,11 @@ preset-stats: configure
 	cmake --build build --config Release --target REMORAPresetStats -j4
 	./build/REMORAPresetStats_artefacts/Release/REMORAPresetStats ../papers/nime/preset-table.tex
 
+# Runs the simulation checks (calibration, orientation filter, thrust, facing); pass REPLAY=log.csv to replay a packet log instead
+analyzer-check: configure
+	cmake --build build --config Release --target REMORAAnalyzerCheck -j4
+	./build/REMORAAnalyzerCheck_artefacts/Release/REMORAAnalyzerCheck $(if $(REPLAY),--replay $(REPLAY))
+
 # Cleans the build directory
 clean:
 	rm -rf build
@@ -22,4 +27,4 @@ clean:
 # Shorthand aliases
 c: configure
 b: build
-ccb: clean configure build
+ccb: clean configure build
