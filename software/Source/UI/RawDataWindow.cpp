@@ -4,7 +4,7 @@
 #include "../DSP/MathHelpers.h"
 
 RawDataComponent::RawDataComponent(REMORAProcessor &p) : processor(p) {
-  setSize(500, 350);
+  setSize(500, 390);
 
   styleLabel(rateValueLabel, "0", 52.f, Palette::textHi,
              juce::Justification::centredRight);
@@ -21,6 +21,25 @@ RawDataComponent::RawDataComponent(REMORAProcessor &p) : processor(p) {
   addAndMakeVisible(totalValueLabel);
   addAndMakeVisible(ipLabel);
   addAndMakeVisible(ipValueLabel);
+
+  styleLabel(linkStatsLabel, "-", 10.f, Palette::textMid);
+  addAndMakeVisible(linkStatsLabel);
+
+  // Records every packet to a CSV in the user's documents, for timing measurements and offline
+  // replay with REMORAAnalyzerCheck.
+  logButton.setButtonText("RECORD PACKET LOG");
+  logButton.onClick = [this] {
+    if (processor.isLoggingPackets()) {
+      processor.stopPacketLog();
+      logButton.setButtonText("RECORD PACKET LOG");
+      return;
+    }
+    const auto file = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+        .getChildFile("REMORA-packets-" + juce::Time::getCurrentTime().formatted("%Y%m%d-%H%M%S") + ".csv");
+    if (processor.startPacketLog(file))
+      logButton.setButtonText("STOP LOG (" + file.getFileName() + ")");
+  };
+  addAndMakeVisible(logButton);
 
   auto addIMURow = [&](juce::Label &header, const juce::String &title,
                        juce::Label &xLbl, juce::Label &yLbl, juce::Label &zLbl,
@@ -102,7 +121,7 @@ void RawDataComponent::paint(juce::Graphics &g) {
   g.drawRoundedRectangle(ratePanel, 6.f, 1.f);
 
   juce::Rectangle<float> imuPanel(12.f, 94.f, static_cast<float>(w - 24),
-                                  static_cast<float>(h - 106));
+                                  static_cast<float>(h - 150));
   g.setColour(Palette::panel);
   g.fillRoundedRectangle(imuPanel, 6.f);
   g.setColour(Palette::border);
@@ -158,6 +177,9 @@ void RawDataComponent::resized() {
 
   yawLabel.setBounds(imuX, eulerY + 70, 40, 12);
   yawSlider.setBounds(imuX + 40, eulerY + 66, w - 80, 20);
+
+  linkStatsLabel.setBounds(20, getHeight() - 36, w - 220, 24);
+  logButton.setBounds(w - 196, getHeight() - 38, 176, 26);
 }
 
 void RawDataComponent::timerCallback() {
@@ -171,6 +193,19 @@ void RawDataComponent::timerCallback() {
 
   totalValueLabel.setText(juce::String(processor.getTotalMessageCount()),
                           juce::dontSendNotification);
+
+  const auto &link = processor.getOscStats();
+  juce::String stats;
+  stats << "interval " << juce::String(link.getMeanIntervalMs(), 1) << " ms (max "
+        << juce::String(link.getMaxIntervalMs(), 1) << ")  ";
+  if (link.hasSensorClock())
+    stats << "jitter " << juce::String(link.getTransitJitterMs(), 1) << " ms  lost "
+          << link.getLostPacketCount() << "  reordered " << link.getReorderedPacketCount();
+  else
+    stats << "no sensor clock (old firmware)";
+  if (link.getMalformedPacketCount() > 0)
+    stats << "  malformed " << link.getMalformedPacketCount();
+  linkStatsLabel.setText(stats, juce::dontSendNotification);
 
   static int lastIpVersion = -1;
   if (processor.getIPVersion() != lastIpVersion) {
@@ -233,4 +268,4 @@ RawDataWindow::RawDataWindow(REMORAProcessor &p)
   setResizable(false, false);
 }
 
-void RawDataWindow::closeButtonPressed() { setVisible(false); }
+void RawDataWindow::closeButtonPressed() { setVisible(false); }

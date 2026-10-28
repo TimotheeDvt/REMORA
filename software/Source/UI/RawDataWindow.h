@@ -21,6 +21,8 @@ private:
   juce::Label totalValueLabel;
   juce::Label ipLabel;
   juce::Label ipValueLabel;
+  juce::Label linkStatsLabel;
+  juce::TextButton logButton;
 
   juce::Label accelHeaderLabel;
   juce::Label axLabel, ayLabel, azLabel;
@@ -52,4 +54,4 @@ public:
 private:
   RawDataComponent content;
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RawDataWindow)
-};
+};
