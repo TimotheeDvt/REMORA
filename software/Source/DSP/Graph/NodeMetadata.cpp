@@ -211,32 +211,32 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         "Smoothed gyroscope magnitude (deg/s); feeds the isMoving gate (30 deg/s threshold).\n"
         "Range: [0 ; unbounded), typically 0-750+",
         REMORA_RAW_EVAL(sf.derived.smoothedGyroscopeMagnitude)));
-    nodes.push_back(source("source.labanWeight", "Laban Weight", "Derived Motion",
-        "Laban 'Weight' effort: how forceful the motion is.\nRange: [0 ; 1]",
+    nodes.push_back(source("source.labanWeight", "Energy", "Derived Motion",
+        "Energy: enveloped speed of the staff (leaky integral of dynamic acceleration); how hard it moves.\nRange: [0 ; 1]",
         REMORA_RAW_EVAL(sf.derived.labanWeight)));
-    nodes.push_back(source("source.labanTimeSuddenness", "Laban Time (Suddenness)", "Derived Motion",
-        "Laban 'Time' effort: sustained (0) vs sudden (1).\nRange: [0 ; 1]",
+    nodes.push_back(source("source.labanTimeSuddenness", "Onset", "Derived Motion",
+        "Onset: positive rate of change of rotation speed; sustained (0) vs sudden (1).\nRange: [0 ; 1]",
         REMORA_RAW_EVAL(sf.derived.labanTimeSuddenness)));
-    nodes.push_back(source("source.labanSpaceFocus", "Laban Space Focus", "Derived Motion",
-        "Laban 'Space' effort: flexible/indirect (0) vs direct/focused (1) pathing.\nRange: [0 ; 1]",
+    nodes.push_back(source("source.labanSpaceFocus", "Axis Stability", "Derived Motion",
+        "Axis stability: high while the staff keeps turning about the same axis.\nRange: [0 ; 1]",
         REMORA_RAW_EVAL(sf.derived.labanSpaceFocus)));
-    nodes.push_back(source("source.labanFlowBound", "Laban Flow Bound", "Derived Motion",
-        "Laban 'Flow' effort, bound side: free (0) to fully bound/controlled (1).\nRange: [0 ; 1]",
+    nodes.push_back(source("source.labanFlowBound", "Jerk (Abrupt)", "Derived Motion",
+        "Smoothed jerk of the dynamic acceleration: smooth (0) to abrupt (1).\nRange: [0 ; 1]",
         REMORA_RAW_EVAL(sf.derived.labanFlowBound)));
-    nodes.push_back(source("source.labanFlowFree", "Laban Flow Free", "Derived Motion",
-        "Laban 'Flow' effort, free side: bound (0) to fully free/fluid (1).\nRange: [0 ; 1]",
+    nodes.push_back(source("source.labanFlowFree", "Jerk (Smooth)", "Derived Motion",
+        "1 - Jerk (Abrupt): abrupt (0) to smooth (1).\nRange: [0 ; 1]",
         REMORA_RAW_EVAL(sf.derived.labanFlowFree)));
     nodes.push_back(source("source.thrustPeakEnvelope", "Thrust Peak Envelope", "Derived Motion",
         "Spikes toward 1 on a sharp axial thrust/jab, decays back to 0 after.\nRange: [0 ; 1]",
         REMORA_RAW_EVAL(sf.derived.axialThrustPeakEnvelope)));
     nodes.push_back(source("source.rotationAxisX", "Rotation Axis X", "Derived Motion",
-        "Smoothed world-frame rotation axis, X component.\nRange: [-1 ; 1]",
+        "World-frame rotation axis from the gyroscope, without roll about the staff, X component (deg/s / 750).\nRange: typically [-1 ; 1]",
         REMORA_RAW_EVAL(sf.derived.rotationAxisX)));
     nodes.push_back(source("source.rotationAxisY", "Rotation Axis Y", "Derived Motion",
-        "Smoothed world-frame rotation axis, Y component.\nRange: [-1 ; 1]",
+        "World-frame rotation axis from the gyroscope, without roll about the staff, Y component (deg/s / 750).\nRange: typically [-1 ; 1]",
         REMORA_RAW_EVAL(sf.derived.rotationAxisY)));
     nodes.push_back(source("source.deltaTime", "Delta Time (s)", "Derived Motion",
-        "Time elapsed since the previous audio block.\nRange: (0 ; unbounded), typically well under 0.1",
+        "Time since the previous sensor packet, from the sensor clock.\nRange: (0 ; 0.1], typically 0.01",
         REMORA_RAW_EVAL(sf.derived.deltaTimeSeconds)));
     nodes.push_back(source("source.isMoving", "Is Moving", "Derived Motion",
         "1 if smoothed gyro magnitude is above the moving threshold (30 deg/s).\nRange: 0 or 1",
@@ -248,7 +248,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         "vertical: 0 (horizontal) or 1 (vertical)\n"
         "spin: -1 or 1, direction; 'convention' param selects the sign rule (0=absolute axis, 1=reference azimuth)\n"
         "count: full rotations completed in the current spin, resets on classification change\n"
-        "facing: 0 or 1, 1 if the staff tip faces the calibrated 'north'",
+        "facing: 0 or 1; 0 while the staff works along the calibration's forward line, 1 across it (no front/back)",
         [](const SourceFrame& sf, const std::vector<float>& params, NodeState*, float* out) {
             const auto& d = sf.derived;
             bool spinChanged = false;
@@ -258,9 +258,10 @@ std::vector<NodeTypeInfo> buildAllNodes() {
                 spinChanged = useReferenceAzimuth
                     ? sf.analyzer.updateSpinClassificationByReferenceAzimuth(d.rotationAxisX, d.rotationAxisY, d.rotationAxisZ)
                     : sf.analyzer.updateSpinClassificationByAbsoluteComponent(d.rotationAxisX, d.rotationAxisY, d.rotationAxisZ);
-                sf.analyzer.updateFacingClassification(d.tipX, d.tipY);
-                sf.analyzer.accumulateContinuousSpins(spinChanged, d.gyroscopeMagnitude);
+                sf.analyzer.accumulateContinuousSpins(spinChanged, d.spinRateDegPerSec);
             }
+            // Facing also follows where a still staff points, so it updates every packet.
+            sf.analyzer.updateFacingClassification(d.isMoving);
 
             out[0] = sf.analyzer.isRotationAxisVertical() ? 1.0f : 0.0f;
             out[1] = sf.analyzer.rotationSpinDirection();
@@ -405,41 +406,41 @@ std::vector<NodeTypeInfo> buildAllNodes() {
     // Input 1 (rate) is optional - unconnected, it falls back to the rate param instead of a fixed value.
     nodes.push_back(math("math.onePoleSmoother", "One-Pole Smoother", "Dynamics",
         "Input range: any ('rate' input overrides the rate param when connected)\nOutput range: tracks target\n"
-        "Formula: f(target, rate) = lerp(prev, target, rate)",
+        "Formula: f(target, rate) = lerp(prev, target, rate), rate per 5.33 ms tick",
         { "target", "rate" }, { 0.1f }, { "rate" },
         [](const float* in, int, const std::vector<float>&, NodeState* state, float* out) {
             auto* s = static_cast<MathNodeState*>(state);
-            s->a = MathHelpers::applyOnePoleFilter(s->a, in[0], in[1]);
+            s->a = MathHelpers::applyOnePoleFilter(s->a, in[0], StaffMotionAnalyzer::coefficientFor(in[1], s->tickScale));
             out[0] = s->a;
         }, true));
     // Also a generator (no graph input) - lives with math.constant under the Source category.
     nodes.push_back(source("math.lfoSine", "LFO (Sine)", "Generator",
         "Free-running sine oscillator at 'rateHz' Hz.\nRange: [-1 ; 1]",
-        [](const SourceFrame&, const std::vector<float>& p, NodeState* state, float* out) {
+        [](const SourceFrame& sf, const std::vector<float>& p, NodeState* state, float* out) {
             auto* s = static_cast<MathNodeState*>(state);
             constexpr float kTwoPi = 6.28318530717958f;
-            s->a += p[0] * kTwoPi / static_cast<float>(s->sampleRate > 0.0 ? s->sampleRate : 44100.0);
+            s->a += p[0] * kTwoPi * sf.derived.deltaTimeSeconds;
             if (s->a >= kTwoPi) s->a -= kTwoPi;
             out[0] = std::sin(s->a);
         },
         { 5.0f }, { "rateHz" }, {}, true));
     nodes.push_back(math("math.leakyIntegrator", "Leaky Integrator", "Dynamics",
-        "Input range: any\nOutput range: [0 ; 1]\nFormula: f(add) = clamp(prev * decay + add, 0, 1)",
+        "Input range: any\nOutput range: [0 ; 1]\nFormula: f(add) = clamp(prev * decay + add, 0, 1), decay and add per 5.33 ms tick",
         { "add" }, { 0.99f }, { "decay" },
         [](const float* in, int, const std::vector<float>& p, NodeState* state, float* out) {
             auto* s = static_cast<MathNodeState*>(state);
-            s->a = juce::jlimit(0.0f, 1.0f, s->a * p[0] + in[0]);
+            s->a = juce::jlimit(0.0f, 1.0f, s->a * StaffMotionAnalyzer::decayFor(p[0], s->tickScale) + in[0] * s->tickScale);
             out[0] = s->a;
         }, true));
     nodes.push_back(math("math.retriggerEnvelope", "Retrigger Envelope", "Dynamics",
         "Input range: any\nOutput range: [0 ; 1]\n"
-        "Formula: gate crosses above 0.5 -> jump to 1; else out *= decay each block",
+        "Formula: gate crosses above 0.5 -> jump to 1; else out *= decay per 5.33 ms tick",
         { "gate" }, { 0.9f }, { "decay" },
         [](const float* in, int, const std::vector<float>& p, NodeState* state, float* out) {
             auto* s = static_cast<MathNodeState*>(state);
             const bool above = in[0] > 0.5f;
             if (above && !s->flag) s->a = 1.0f;
-            else s->a *= p[0];
+            else s->a *= StaffMotionAnalyzer::decayFor(p[0], s->tickScale);
             s->flag = above;
             out[0] = s->a;
         }, true));
@@ -456,7 +457,7 @@ std::vector<NodeTypeInfo> buildAllNodes() {
             out[0] = s->a;
         }, true));
     nodes.push_back(math("math.derivative", "Derivative", "Dynamics",
-        "Input range: any\nOutput range: any (0 on first block)\nFormula: f(value) = value[n] - value[n-1]",
+        "Input range: any\nOutput range: any (0 on first packet)\nFormula: f(value) = value[n] - value[n-1], n = sensor packet",
         { "value" }, {}, {},
         [](const float* in, int, const std::vector<float>&, NodeState* state, float* out) {
             auto* s = static_cast<MathNodeState*>(state);
@@ -466,11 +467,11 @@ std::vector<NodeTypeInfo> buildAllNodes() {
         }, true));
     nodes.push_back(math("math.latchedSmoother", "Latched Smoother", "Dynamics",
         "Input range: any\nOutput range: tracks target\n"
-        "Formula: while gate > 0.5, lerp(prev, target, rate); else hold last output",
+        "Formula: while gate > 0.5, lerp(prev, target, rate), rate per 5.33 ms tick; else hold last output",
         { "target", "gate" }, { 0.1f }, { "rate" },
         [](const float* in, int, const std::vector<float>& p, NodeState* state, float* out) {
             auto* s = static_cast<MathNodeState*>(state);
-            if (in[1] > 0.5f) s->a = MathHelpers::applyOnePoleFilter(s->a, in[0], p[0]);
+            if (in[1] > 0.5f) s->a = MathHelpers::applyOnePoleFilter(s->a, in[0], StaffMotionAnalyzer::coefficientFor(p[0], s->tickScale));
             out[0] = s->a;
         }, true));
 

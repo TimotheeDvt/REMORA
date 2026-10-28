@@ -29,6 +29,9 @@ struct InputSlot {
 // Stateless node types never allocate one.
 struct NodeState {
     virtual ~NodeState() = default;
+    // Reference ticks (StaffMotionAnalyzer::kReferenceTickSeconds) elapsed since the previous
+    // evaluation; set by NodeGraph::evaluate so per-tick params (rates, decays) become time-based.
+    float tickScale = 1.0f;
     virtual void prepare(double sampleRate) { juce::ignoreUnused(sampleRate); reset(); }
     virtual void reset() {}
 };

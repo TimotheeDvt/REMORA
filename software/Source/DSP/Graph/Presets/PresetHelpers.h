@@ -117,7 +117,7 @@ inline NodeId standardMasterGain(GraphBuilder& b, NodeId motionGate, NodeId laba
     return clampNode(b, addNodes(b, gated, scale(b, thrustPeak, 0.6f)), 0.0f, 1.0f);
 }
 
-// noiseEnvelope = leaky integrator charged by max(0, suddenness-0.3)*1.5 + thrustPeak*0.5, decaying at `decay`/block.
+// noiseEnvelope = leaky integrator charged by max(0, suddenness-0.3)*1.5 + thrustPeak*0.5, decaying at `decay` per 5.33 ms reference tick.
 inline NodeId standardNoiseEnvelope(GraphBuilder& b, NodeId suddenness, NodeId thrustPeak, float decay) {
     NodeId gate = threshold(b, suddenness, 0.3f);
     NodeId excess = subNodes(b, suddenness, constantNode(b, 0.3f));

@@ -115,7 +115,7 @@ std::unique_ptr<NodeGraph> buildAzimutKinetic() {
 
     NodeId spinCountDelta = b.add("math.derivative");
     b.wire(core.spinClassNode, 2, spinCountDelta, 0); // continuous spin count
-    NodeId rotationPulse = threshold(b, spinCountDelta, 0.5f); // 1 for the block a rotation completes on
+    NodeId rotationPulse = threshold(b, spinCountDelta, 0.5f); // 1 for the packet a rotation completes on
     NodeId randHold = b.add("math.sampleHoldRandom");
     b.wire(rotationPulse, randHold);
 

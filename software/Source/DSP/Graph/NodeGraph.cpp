@@ -209,6 +209,7 @@ bool NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
         return false;
 
     const NodeTypeRegistry& registry = NodeTypeRegistry::instance();
+    const float tickScale = StaffMotionAnalyzer::referenceTicks(sources.derived.deltaTimeSeconds);
 
     for (NodeId id : topoOrder_) {
         int idx = indexOf(id);
@@ -231,6 +232,9 @@ bool NodeGraph::evaluate(const SourceFrame& sources, MappingOutput& out) {
                 ? nodes_[static_cast<size_t>(si)].lastOutputs[static_cast<size_t>(slot.sourceOutputPort)]
                 : slot.defaultValue;
         }
+
+        if (n.state)
+            n.state->tickScale = tickScale;
 
         switch (info->category) {
             case NodeCategory::Source:
