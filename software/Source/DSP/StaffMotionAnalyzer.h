@@ -171,7 +171,7 @@ private:
     bool is_facing_north_ = true;
     bool previous_is_facing_north_ = true;
     static constexpr float kFacingHysteresisRatio =
-        1.15f; // ~48deg / ~42deg switch points
+        1.15f; // ~49deg / ~41deg switch points (atan(1.15), atan(1/1.15))
 
     float accumulated_spin_degrees_ = 0.f;
     int continuous_spin_count_ = 0;

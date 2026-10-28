@@ -1,10 +1,8 @@
 \documentclass[sigconf,nonacm]{acmart}
 
 \usepackage{booktabs}
-\usepackage{tikz}
-\usetikzlibrary{arrows.meta, positioning, fit, shadows, calc}
+\usepackage{array}
 
-\newcommand{\coderef}[1]{{\small [#1]}}
 \newcommand{\preset}[1]{\textit{#1}}
 
 \copyrightyear{2027}
@@ -13,7 +11,7 @@
 \setcctype{by}
 \acmConference[NIME '27]{International Conference on New Interfaces for Musical Expression}{2027}{}
 
-\title{\texorpdfstring{\vspace*{-50pt}\includegraphics[width=0.15\linewidth]{Assets/logo.pdf}\\[4pt]}{}REMORA: Real-time Expressive Motion to Output Routing Audio}
+\title{\texorpdfstring{\vspace*{-50pt}\includegraphics[width=0.15\linewidth]{Assets/logo.pdf}\\[4pt]}{}REMORA: Real-time Expressive Motion Routing for Audio}
 
 \author{Timothée Dravet}
 \affiliation{%
@@ -35,19 +33,18 @@
 \begin{document}
 
 \begin{abstract}
-REMORA turns a martial arts staff (b\^o) into a musical instrument: spins, tilts, and strikes become
-sound in real time. A wireless sensor unit on the staff tracks its motion and sends it to a
-companion audio plugin, which we built around a simple idea - instead of hard-wiring one fixed
-gesture-to-sound behaviour, the mapping itself is a small patch of connected building blocks that
-the performer can see and rewire live, on a visual canvas inside the plugin, much like a modular
-synthesiser. We show that this same small set of building blocks is enough to reproduce, as editable
-patches, everything from simple tilt-controlled pitch to compound movement-quality mappings inspired
-by Laban Movement Analysis. This paper describes the instrument's hardware, its self-calibration
-method, the mathematics behind turning raw orientation into musical control, and the live patching
-interface itself. We situate it against prior staff-shaped, baton, and visual-patching instruments.
-Grounded in implementation-level evidence, together with a protocol for the performer evaluation
-still to be run, we reflect on what it means to make an instrument's gestural vocabulary an
-explicit, editable part of the instrument.
+REMORA turns a martial-arts staff (b\^o) into a musical instrument. A wireless inertial sensor on
+the staff streams its orientation and motion to an audio plugin, where spins, changes of facing,
+and thrusts become sound in real time. The b\^o is a full-length, two-handed, swung object with its
+own rotational inertia and an established movement vocabulary, and we derive features specific to
+it: the plane and direction of a spin, a coarse facing that needs no magnetometer, a lap counter,
+and an axial thrust detector. The gesture-to-sound mapping is a small dataflow patch that the
+performer can see and rewire on a canvas inside the plugin while it plays. We describe the
+hardware, a user-guided calibration that makes the instrument independent of how the sensor is
+rotated on the staff, the motion features, and the mapping layer, and we discuss how common b\^o
+techniques relate to the presets. A pilot session with ten first-time players found the instrument
+comfortable and engaging, and identified thrust detection as its main defect, for which we give a
+probable cause.
 \end{abstract}
 
 \begin{CCSXML}
@@ -72,872 +69,562 @@ explicit, editable part of the instrument.
   \textbullet\ \textbf{Software and its engineering} \textrightarrow\ \textit{Visual languages}.}
 \makeatother
 
-\keywords{digital musical instrument, gestural control, inertial sensing, Laban Movement Analysis,
-OSC, staff instrument}
+\keywords{digital musical instrument, martial arts, b\^o staff, inertial sensing, gesture mapping,
+visual patching, OSC}
+
+\begin{teaserfigure}
+  \centering
+  \includegraphics[height=4.2cm]{Assets/openscad_casing.png}\hspace{1em}
+  \includegraphics[height=4.2cm]{Assets/casing_on_staff.jpg}
+  % TODO (authors): replace or complement with a photo of the staff being played.
+  \caption{The REMORA sensor unit: parametric OpenSCAD enclosure (left) and the printed enclosure
+  zip-tied near one end of the b\^o (right).}
+  \label{fig:enclosure}
+\end{teaserfigure}
 
 \maketitle
 
 \section{Introduction}
 
-\subsection{Motivation and Background}
-REMORA grew out of the first author's parallel practice in martial arts and music, and a frustration
-shared by many hand-built digital musical instruments: once a gesture vocabulary is designed and
-coded, changing it means rebuilding the instrument rather than performing with it. That friction is
-the paper's real starting point - not which single mapping best suits a staff, but whether a staff
-instrument's gestural vocabulary could instead be something the performer authors and revises live,
-the way a modular-synthesis patch is built and rebuilt on a rack.
+\subsection{Motivation}
+REMORA comes from the first author's practice in both martial arts and music. The b\^o is a staff of
+about 1.5\,m, held in two hands and swung, spun, and thrust through a body of techniques that are
+taught as forms (\emph{kata}). Inertial-sensor Digital Musical Instruments (DMIs) presented at New
+Interfaces for Musical Expression (NIME) are mostly small handheld or body-worn objects. A b\^o
+instead brings a full-body object, rotational inertia, reach, and an existing gesture vocabulary
+that a trained performer already controls precisely.
 
-The b\^o staff itself is a form factor that New Interfaces for Musical Expression (NIME) instruments
-have rarely explored: a full-body, swung, two-handed controller with its own rotational inertia
-and reach, distinct from the small handheld or body-mounted objects most inertial-sensor Digital
-Musical Instruments (DMIs) use. Pairing that distinctive controller form with a
-mapping layer that can be reshaped at performance time, rather than fixed at design time, is the
-combination this paper investigates.
+Finding a gesture vocabulary for such an object took many attempts. At first each gesture-to-sound
+mapping was its own code module, and every change meant a rebuild. After eleven of them, we moved
+the mapping into a small dataflow patch that is edited live inside the audio plugin that makes the
+sound. Visual patching is well established (\S\ref{sec:related}); in REMORA it is the tool for
+writing and revising the staff's vocabulary.
 
-\subsection{Objectives of the Study}
-This article supports four claims, each grounded in the system as it currently operates:
+\subsection{Contributions}
+This paper describes a working instrument and a first pilot study. Its contributions are:
 \begin{enumerate}
-\item \label{claim:dag} A small dataflow language - source, math, and sink node primitives - is embedded directly in
-the audio plugin and evaluated once per audio block as a directed acyclic graph (DAG); the performer
-rewires it live, without recompiling any code.
-\item \label{claim:presets} That same handful of primitives is expressive enough to reproduce eleven previously hand-coded
-mapping strategies as ordinary presets: the mapping design space explored by hand over the course of
-the project turns out to be spanned by a fairly compact algebra of building blocks.
-\item \label{claim:facing} A magnetometer-free, world-frame heading estimate (``facing'') is derived purely from the
-calibrated orientation stream, eluding the magnetic interference a stage rig would otherwise cause -
-a claim we bound to session lengths on the order of tens of minutes, since uncorrected gyroscopic
-yaw drift is expected to accumulate over longer, uninterrupted play (\S\ref{sec:limitations}).
-\item \label{claim:calibration} A mount-agnostic calibration transform lets the same instrument logic run correctly regardless
-of where the sensor is physically mounted on the staff.
+\item \label{claim:features} A b\^o-staff instrument whose motion features are specific to a long
+swung object: spin plane and direction, a coarse facing derived without a magnetometer, a
+continuous lap count, and an axial thrust detector (\S\ref{sec:features}).
+\item \label{claim:calibration} A two-stage, user-guided calibration that removes the effect of how
+the sensor is rotated on the staff (\S\ref{sec:calibration}).
+\item \label{claim:dag} A mapping layer inside the plugin, built as a typed directed acyclic graph
+(DAG) that the performer can rewire while audio runs (\S\ref{sec:mapping-arch}).
+\item \label{claim:presets} Fifteen presets built from one catalog of 69 node types, from a
+two-control starter mapping to spin- and facing-driven mappings for trained players
+(\S\ref{sec:named-mappings}).
 \end{enumerate}
+Table~\ref{tab:claims-evidence} sets out the evidence for each contribution and what remains
+untested.
 
-\subsection{Scope and Applications}
-The instrument's intended context follows directly from its origin: a solo performer with some
-staff or martial-arts background, playing a set built from one or more presets rather than a fixed,
-single-piece score. The preset catalog (Table~\ref{tab:preset-nodes}) is deliberately graded rather than uniform - \preset{Simple}
-asks only for basic tilt and roll, while the Laban-driven \preset{Martial} and \preset{Azimut} presets reward
-staff-handling vocabulary the performer already has from bo practice - so the same instrument can
-serve a newcomer exploring gesture-to-sound relationships and a martial artist bringing an existing
-physical vocabulary onto a stage. Because the mapping itself is authored in the same visual
-language a modular-synthesis performer would recognise, we also see REMORA as being of interest to
-patch-based electronic musicians looking for a full-body controller to wire into an existing
-practice, not only to staff practitioners looking for a way into live electronics. We do not,
-however, claim REMORA is suited to ensemble or accompanied performance in its current form: the
-single-IMU, single-staff design in \S\ref{sec:limitations} means the instrument has no notion of a
-second performer's motion, and no mapping in the current catalog was designed with an ensemble
-context in mind.
+\subsection{Scope}
+The intended performer is a soloist with some staff or martial-arts background, playing a set built
+from presets. The catalog is graded: \preset{Simple} needs only tilt and roll, while the facing- and
+spin-driven \preset{Martial Momentum} and \preset{Azimut Kinetic} reward b\^o technique. Because
+the mapping is a patch, REMORA may also interest patch-based electronic musicians looking for a
+full-body controller. Ensemble use is out of scope.
 
-\newpage
 \section{Related Work}
+\label{sec:related}
 
-\subsection{Staff, Rod, and Baton DMIs}
-Rod-, staff-, and baton-shaped controllers form a recurring family of DMIs, spanning handheld
-sensor-augmented rods, conducting tools, and swung objects.
+\subsection{Rod, Baton, and Swung Controllers}
+The \textit{T-Stick}~\cite{malloch2007tstick} senses touch and pressure along its shaft together
+with accelerometer-derived shake and tap gestures. Conducting interfaces include Mathews'
+\textit{Radio Baton}~\cite{mathews1991radiobaton}, Marrin and Paradiso's \textit{Digital
+Baton}~\cite{marrin1997digitalbaton}, and the \textit{Conductor's
+Jacket}~\cite{marrin1998conductorsjacket}. Nam's \textit{mPoi}~\cite{nam2013mpoi} established swung
+objects as a DMI form, and \textit{x-OSC}~\cite{madgwick2013xosc} popularised the Wi-Fi/OSC inertial
+streaming pattern that REMORA's sensor unit follows.
 
-\textit{T-Stick}~\cite{malloch2007tstick} - a family of rod-shaped controllers sensing finger
-position and pressure along the shaft via capacitive touch, together with accelerometer-derived
-shake and tap gestures. The sensing is paired with an external, reconfigurable mapping layer built
-around the digital-orchestra/libmapper tools, so the gesture vocabulary can be revised without
-changing the hardware.
-
-\textit{Digital Baton}~\cite{marrin1997digitalbaton} - Marrin and Paradiso's controller, combining
-accelerometers, infrared position tracking, and a pressure-sensitive tip to capture continuous
-conducting gesture rather than discrete note events.
-
-\textit{Conductor's Jacket}~\cite{marrin1998conductorsjacket} - a wearable, full-body
-electromyography (EMG) and motion rig extending the same conducting-gesture goal to the whole body,
-recording muscle tension and movement alongside the baton's hand-level detail.
-
-\textit{Musical Poi (mPoi)}~\cite{nam2013mpoi} - Nam's sensor-augmented poi, generating sound from
-swing motion; a compact, single-mapping instrument that established spun/swung objects as a
-recognised, if uncommon, DMI form.
-
-\subsection{Inertial Sensing and Visual Patching in NIME}
-Visual dataflow patching and Laban-derived movement analysis are two long-running, separate
-threads in NIME and related work: one concerned with how a mapping is authored and rewired, the
-other with what expressive qualities a mapping can draw on.
-
-\textit{Max}~\cite{puckette1988patcher} - originated as Puckette's Patcher and has been maintained
-and extended commercially for over three decades, a history Puckette himself traces in
-``Max at Seventeen''~\cite{puckette2002maxatseventeen}. It established the boxes-and-patch-cords
-model of unit generators wired together and rewired live that much of visual audio programming
-still follows.
-
-\textit{Pure Data}~\cite{puckette1996puredata} - Max's open-source sibling, built around the same
-patching model and widely used in NIME instrument-building for its extensibility and free
-licensing.
-
-\textit{VCV Rack}~\cite{belt2017vcvrack} - a community-maintained open-source descendant of the same
-patching idea applied to virtual modular synthesis, letting performers wire together emulated
-Eurorack-style modules on screen.
-
-\textit{EyesWeb}~\cite{camurri2000eyesweb} - Camurri et al.'s system for extracting expressive
-movement qualities from full-body motion in real time, grounded in Laban's Effort theory and built
-for interactive dance and music applications.
-
-\textit{DAMPER}~\cite{bennett2007damper} - Bennett et al.'s force-feedback interface platform, built
-on Laban's four Effort factors as the direct design basis for its haptic response.
-
-Ward et al.~\cite{ward2008thereminists} - use Laban Effort - Flow and the Recuperation phase of
-Effort phrasing in particular - as an analytic lens on theremin performers' movement, to inform how
-future instruments might be designed around it.
-
-Schacher~\cite{schacher2010motiontogesture} - argues for Laban-derived motion/effort elements as a
-systematic basis for gesture-to-sound mapping in interactive dance, rather than an ad hoc or
-purely descriptive analysis tool.
+\subsection{Mapping Tools and Visual Patching}
+Visual dataflow patching descends from Puckette's Patcher, now
+\textit{Max}~\cite{puckette1988patcher,puckette2002maxatseventeen}, and continues in \textit{Pure
+Data}~\cite{puckette1996puredata} and \textit{VCV Rack}~\cite{belt2017vcvrack}. For DMIs,
+libmapper~\cite{malloch2015libmapper} and its graphical front end
+Webmapper~\cite{wang2019webmapper} connect controller signals to synthesis parameters across a
+network, and \textit{ossia score}~\cite{celerier2015ossia} combines such mappings with a timeline.
+Any of these could host REMORA's mappings. We put the graph inside the plugin for practical
+reasons: mapping and synthesis share one process and one preset file, and the patch shows each
+signal's live value next to the synth it drives (\S\ref{sec:live-patching}). The closest prior
+system is the T-Stick with libmapper. REMORA differs in its controller and features: a full-length
+swung b\^o has a spin plane, a spin direction, and a facing, for which a handheld rod's touch and
+shake gestures have no counterpart.
 
 \subsection{Mapping Strategies}
-Beyond specific instruments, a body of work addresses gesture-to-sound mapping as a design problem
-in its own right, independent of any single controller's hardware.
+Hunt and Wanderley~\cite{hunt2002mapping} classify mappings as one-to-one, one-to-many, or
+many-to-one, and argue that richer mappings make an interface feel like an instrument. Van Nort et
+al.~\cite{vannort2014mapping} extend mapping to continuous navigation between parameter spaces;
+REMORA's graph stays with explicit parameter-level functions. \textit{Wekinator}~\cite{fiebrink2010wekinator}
+and Fran\c{c}oise et al.~\cite{francoise2014probabilistic} learn mappings from example gestures
+instead of having the performer wire them.
 
-Hunt and Wanderley~\cite{hunt2002mapping} - categorise gesture-to-synthesis mappings by complexity -
-one-to-one, one-to-many, many-to-one - and argue that richer, many-to-many mappings are what make an
-interface feel like an instrument rather than a remote control.
+Expressive-movement systems often describe motion with Laban's Effort
+factors~\cite{camurri2000eyesweb,schacher2010motiontogesture}, and Fdili Alaoui et
+al.~\cite{fdilialaoui2017laban} show that capturing them well takes expert annotation and
+multimodal data. REMORA uses simpler kinematic signals tied to the staff (\S\ref{sec:features}).
 
-\textit{Wekinator}~\cite{fiebrink2010wekinator} - Fiebrink and Cook's system for authoring a
-gesture-to-sound relationship via interactive machine learning: a performer or designer supplies
-example gestures and desired outputs, and regression learns the mapping, without either party
-writing or wiring an explicit mapping function.
-
-\section{Design and System Architecture}
-
-\subsection{Initial Design Requirements}
-Five requirements shaped the design from the outset, chosen to keep the instrument performable:
+\section{Design}
+Five requirements shaped the design:
 \begin{itemize}
-    \item \textbf{Full-body, swingable staff form factor.} Not a handheld controller: the instrument
-must support the reach, weight, and two-handed grip of an actual b\^o - roughly 1.5\,m long - not a
-miniaturised stand-in for one.
-    \item \textbf{Wireless sensing during performance.} A cable is acceptable only for charging
-between sets; nothing should tether the performer to a fixed point on stage.
-    \item \textbf{Live-editable mapping.} Switching or rewiring the mapping graph must not interrupt
-audio output, so a change can be made mid-rehearsal without stopping the sound.
-    \item \textbf{Mount-agnostic calibration.} Instrument behaviour must not depend on precisely
-where the sensor is glued to the staff, since exact placement varies from build to build and cannot
-be guaranteed reproducible by hand.
-    \item \textbf{Low end-to-end latency.} The staff has to feel driven by the performer's motion,
-not lagging behind it, which bounds how much time sensing, transport, and synthesis are together
-allowed to take.
+\item \textbf{A real b\^o.} The instrument keeps the reach, weight, and two-handed grip of a
+full-length staff.
+\item \textbf{Wireless during performance.} A cable is acceptable only for charging.
+\item \textbf{Live-editable mapping.} Loading or rewiring a mapping must not interrupt audio.
+\item \textbf{Mount-agnostic calibration.} Behaviour should not depend on exactly how the sensor is
+strapped to the staff.
+\item \textbf{Low latency.} The sound should follow the motion closely enough to feel driven by it
+(\S\ref{sec:latency}).
 \end{itemize}
+The firmware samples the Inertial Measurement Unit (IMU) and sends Open Sound Control (OSC) packets
+over Wi-Fi. The plugin does everything downstream: OSC reception, calibration, motion analysis,
+graph evaluation, and synthesis.
 
-\subsection{Architecture Overview}
-REMORA's architecture has two parts: firmware handles sensing and transport,
-and the plugin handles everything downstream of the incoming Open
-Sound Control (OSC) stream, from calibration through to the audio it produces.
-Figure~\ref{fig:architecture} lays out that split directly,
-left to right: IMU sampling and OSC transmission on the staff, feeding the plugin's own
-reception-to-synthesis pipeline on the host.
-
-\begin{center}
-\begin{tikzpicture}[
-  box/.style={draw, rounded corners, align=center, text width=2.1cm, minimum height=0.55cm,
-    font=\small\bfseries, inner sep=2pt},
-  sub/.style={draw, align=center, text width=1.9cm, minimum height=0.45cm, font=\scriptsize,
-    inner sep=1.5pt},
-  arr/.style={-{Latex[length=1.5mm]}}
-]
-\node[box] (staff) {Firmware};
-\node[sub, below=0.6mm of staff] (collect) {IMU sampling};
-\node[sub, below=0.8mm of collect] (send) {OSC transmission};
-\draw[arr] (collect) -- (send);
-
-\node[box, right=26mm of staff] (host) {REMORA plugin};
-\draw[arr] (staff) -- (host)
-  node[midway, above, font=\scriptsize, align=center] {Wi-Fi / UDP / OSC};
-
-\node[sub, below=0.6mm of host, xshift=-1.03cm] (recv) {OSC reception};
-\node[sub, right=1.5mm of recv] (calib) {Calibration};
-\draw[arr] (recv) -- (calib);
-\node[sub, below=0.8mm of calib] (graph) {Graph evaluation};
-\node[sub, below=0.8mm of recv] (synth) {Synthesis};
-\draw[arr] (calib) -- (graph);
-\draw[arr] (graph) -- (synth);
-\end{tikzpicture}
-
-\small
-\refstepcounter{figure}\label{fig:architecture}
-\textbf{Figure \thefigure: REMORA's signal flow}, from IMU sampling on the staff to synthesis on the host.
-\end{center}
-
-\newpage
 \section{Implementation}
 
-\subsection{The Build}
-The sensor unit sits in a small OpenSCAD-parametrised enclosure, sized to the b\^o's diameter.
-Because calibration is mount-agnostic, it can be placed anywhere along
-the staff - in practice usually near one extremity, out of the performer's grip - and is secured
-with zip ties rather than adhesive or drilling, so it can be repositioned or removed freely.
-\begin{center}
-  \includegraphics[width=0.6\linewidth]{Assets/openscad_casing.png}
-
-  \small
-  \refstepcounter{figure}\label{fig:enclosure}
-  \textbf{Figure \thefigure: The parametric OpenSCAD enclosure}, sized to the staff diameter and secured with
-  zip ties.
-\end{center}
-
 \subsection{Hardware}
-Inside the enclosure, a SparkFun ESP32-S2 Thing Plus reads a 9-degrees-of-freedom (9-DOF) MPU-9250
-IMU over the Inter-Integrated Circuit (I2C) bus at 100~Hz and packs orientation, acceleration, and
-gyroscope readings into an OSC packet sent over the UDP on port 8000. The
-firmware joins the host
-computer's own Wi-Fi hotspot directly rather than a dedicated access point, which keeps setup to a
-single pairing step at the cost of the range and interference sensitivity Discussion returns to
-(\S\ref{sec:limitations}).
-\begin{center}
-  \includegraphics[angle=270, width=0.6\linewidth]{Assets/hardware_wiring.jpg}
+\label{sec:build}
+The sensor unit is a SparkFun ESP32-S2 Thing Plus reading an MPU-9250 IMU over I2C at 400\,kHz,
+powered by a 2000\,mAh LiPo battery (Figure~\ref{fig:hardware}). It sits in a parametric OpenSCAD
+enclosure sized to the staff diameter (Figure~\ref{fig:enclosure}) and is attached near one end, out
+of the performer's grip, with zip ties, so it can be moved or removed without damaging the staff.
+Because calibration absorbs the sensor's rotation, the enclosure can be strapped on at any angle.
+Its position along the staff does matter (\S\ref{sec:features}) and should be kept constant between
+sessions.
 
-  \small
-  \refstepcounter{figure}\label{fig:hardware}
-  \textbf{Figure \thefigure: Component arrangement inside the enclosure} - ESP32-S2, MPU-9250 IMU, and LiPo
-  battery, wired as described in Hardware.
-\end{center}
+Orientation is estimated on the microcontroller by the \texttt{hideakitai/MPU9250} library (v0.4.8)
+with its Mahony filter, which fuses accelerometer and gyroscope only; the magnetometer is not used
+(\S\ref{sec:limitations}). The library's default ranges ($\pm16$\,g, $\pm2000^\circ$/s) are kept;
+fast spins approach the gyroscope limit. Each OSC packet carries the quaternion, raw acceleration,
+angular rate, and magnetic field, and is sent over UDP at most once every 10\,ms (nominally
+100\,Hz). The host computer runs a Wi-Fi hotspot and the staff joins it directly, so no separate
+access point is needed.
 
-\subsection{Software: Calibration and Motion Mathematics}
-\textit{Every equation below comes straight from the running code (optimized in the implementation),
-each tagged with the function it lives in.}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[angle=270, width=0.55\linewidth]{Assets/hardware_wiring.jpg}
+  \caption{Inside the enclosure: ESP32-S2, MPU-9250 IMU, and LiPo battery.}
+  \label{fig:hardware}
+\end{figure}
 
-\subsubsection*{Orientation and Calibration}
+\subsection{Calibration}
+\label{sec:calibration}
+Orientation is tracked as a unit quaternion; rotating $v$ by $q$ gives $v' = q\,v\,q^{-1}$. The
+performer is prompted through three poses, in order: $A$, staff horizontal pointing forward; $B$,
+staff vertical pointing up; $C$, staff horizontal pointing right (quaternions $q_A,q_B,q_C$).
 
-\textbf{Rotation.} Orientation is tracked as a unit quaternion (no gimbal lock); rotating $v$ by $q$
-gives $v' = q\,v\,q^{-1}$, with $q^{-1}$ the conjugate. Euler angles are derived only once, at the
-end, for the handful of mappings that still need them.
-\begin{flushright}
-\coderef{\texttt{MathHelpers::rotate}} \coderef{\texttt{conjugate}} \\
-\coderef{\texttt{rotateVectorByQuaternion}}
-\coderef{\texttt{toEuler}} \coderef{\texttt{multiply}}
-\end{flushright}
-
-\textbf{Calibration, stage 1 - which axis is ``forward''.} The sensor can be glued onto the staff at
-any orientation, so each candidate axis $L \in \{\pm X, \pm Y, \pm Z\}$ is scored against three
-reference poses $A,B,C$ (quaternions $q_A,q_B,q_C$, chosen so forward varies substantially between
-them while up/right do not):
+\textbf{Stage 1: which sensor axis runs along the staff.} Each candidate axis
+$L \in \{\pm X, \pm Y, \pm Z\}$ is scored by
 \[
 v_P = \widehat{\mathrm{rotate}(L, q_P)}\,,\qquad e(L) = |v_A{\cdot}v_B| + |v_B{\cdot}v_C| +
-|v_C{\cdot}v_A|
+|v_C{\cdot}v_A|\,.
 \]
-A low $e(L)$ (near-orthogonal $v_A,v_B,v_C$) marks the genuine forward axis; restricted to
-right-handed candidates,
+Only the staff axis is carried through three mutually orthogonal directions by the three poses, so
+it has the lowest $e(L)$. $L$ and $-L$ score the same but give opposite signs of the triple product
+$(v_A \times v_B)\cdot v_C$. Which sign marks the tip depends on the IMU library's frame
+convention; with the library we use, it is the negative one:
 \[
-L^\ast = \operatorname*{arg\,min}_{L\,:\,(v_A \times v_B)\cdot v_C < 0} e(L)
+L^\ast = \operatorname*{arg\,min}_{L\,:\,(v_A \times v_B)\cdot v_C < 0} e(L)\,,
 \]
-gives the alignment quaternion $q_{\text{align}}$.
-\begin{flushright}
-\coderef{\texttt{computeAlignQuat}}
-\end{flushright}
+which gives the alignment quaternion $q_{\text{align}}$. If the poses are too close together or
+nearly coplanar, calibration is rejected and the performer is asked to retry.
 
-\textbf{Stage 1 failure modes.} \texttt{computeAlignQuat} reports failure when the three poses are
-too close together or nearly coplanar to fix a physical axis with confidence, and the User Interface
-(UI) surfaces this
-as a "Calibration failed, try again" prompt.
+\textbf{Stage 2: heading and twist.} From the measured staff axis in poses $A$ and $B$ ($b_0$,
+$b_1$), an orthonormal triad $U = [\,b_0,\ \widehat{b_0\times b_1},\
+b_0\times\widehat{b_0\times b_1}\,]$ is built, and likewise $W$ from the instrument-frame forward
+$(1,0,0)$ and up $(0,0,1)$. The aligning rotation is the orthogonal-Procrustes solution
+$R = W U^{\top}$, converted to a quaternion $q_{\text{corr}}$. Every reading is then mapped to
+instrument space by $q' = q_{\text{corr}}\,(q_{\text{raw}}\,q_{\text{align}})$, whatever the
+sensor's rotation on the staff. Its position along the staff is not corrected
+(\S\ref{sec:limitations}).
 
-\textbf{Calibration, stage 2 - fixing the twist.} The sensor could still be rotated around
-$L^\ast$. The measured forward/up/right triad and the ideal instrument-frame triad are each
-orthonormalized via Gram-Schmidt into $U$ and $W$; the aligning rotation is the orthogonal-Procrustes
-closed form
-\[
-R = W U^{\top}\,,
-\]
-converted to a quaternion $q_{\text{corr}}$ via Shepperd's method.
-\begin{flushright}
-\coderef{\texttt{computeCorrection}}
-\coderef{\texttt{MathHelpers::fromMatrix}}
-\end{flushright}
-
-\textbf{Runtime.} Every live reading becomes instrument space via
-$q' = q_{\text{corr}}\,(q_{\text{raw}}\,q_{\text{align}})$ - independent of where the sensor sits on
-the staff.
-\begin{flushright}
-\coderef{\texttt{REMORAProcessor::getCalibratedQuat}}
-\end{flushright}
-
-\subsubsection*{Motion Feature Extraction}
-
-\textit{Everything below runs once per received packet, inside the shared analyzer that every
-mapping graph reads from - so no individual mapping repeats this work.} The smoothing rates,
-thresholds, and envelope times named throughout this subsection were tuned by ear against the
-physical instrument during iterative testing, not derived analytically or fit to recorded data; see
-Discussion for the resulting lack of a perceptual evaluation of these choices.
-\begin{flushright}
-\coderef{\texttt{StaffMotionAnalyzer::computeFrame}}
-\end{flushright}
+\subsection{Motion Features}
+\label{sec:features}
+A single motion analyzer computes the features in Table~\ref{tab:motion-features}, and every
+mapping graph reads from it. It currently runs once per audio block on the latest sensor packet,
+with $\Delta t$ from the host clock (\S\ref{sec:limitations}). All smoothing rates and thresholds
+below were tuned by ear on the instrument, at one host buffer size.
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Per-packet motion features.}
+\caption{Motion features computed by the analyzer.}
 \label{tab:motion-features}
-\begin{tabular}{@{}p{0.32\linewidth}p{0.58\linewidth}@{}}
+\begin{tabular}{@{}p{0.34\linewidth}p{0.58\linewidth}@{}}
 \toprule
 Feature & Purpose \\
 \midrule
-Timestep $\Delta t$ & reject implausible packet gaps \\
-Tip vector / rotation axis & derive tip velocity \& spin axis \\
-Gravity / dynamic accel. & separate gravity from motion \\
-Laban Weight & movement forcefulness \\
-Laban Time & suddenness of rotation-speed change \\
-Laban Space & spin-axis consistency (focus) \\
-Laban Flow & bound vs.\ free movement \\
-Spin classification & vertical/horizontal spin \& direction \\
-Facing & east-west vs.\ north-south heading \\
-Continuous spin count & count full turns per spin \\
-Axial thrust & detect stab/strike along staff axis \\
+Tip vector, rotation axis & tip velocity and spin axis \\
+Dynamic acceleration & motion with gravity removed \\
+Energy, onset, axis stability, jerk & how hard and how steadily the staff moves \\
+Spin plane and direction & vertical/horizontal spin, CW/CCW \\
+Facing & which horizontal axis the staff aligns with \\
+Continuous spin count & full turns in the current spin \\
+Axial thrust & stab or strike along the staff \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Timestep.} $\Delta t$ is the time between two packets, clamped to a $0.1$-$200\,\text{ms}$
-valid range so a dropped or duplicated packet can't send the integrators below flying.
-\begin{flushright}
-\coderef{\texttt{calculateDeltaTime}}
-\end{flushright}
+\textbf{Tip, axis, and gravity.} The tip direction $p_n = \mathrm{rotate}((1,0,0), q_n)$ is kept
+over three samples to estimate tip velocity and the current rotation axis. Gravity is estimated by
+smoothing the inverse-rotated world $+Z$ axis with a one-pole filter ($\alpha{=}0.10$), and
+subtracted from the raw reading to give the dynamic acceleration $a_{\text{dyn}}$.
 
-\textbf{Tip vector and rotation axis.} The tip direction\\ $p_n = \mathrm{rotate}((1,0,0), q_n)$ is
-buffered over the last three samples to derive tip velocity and, from that, the axis the staff is
-currently spinning around.
-\begin{flushright}
-\coderef{\texttt{updateTipPositionHistory}}
-\coderef{\texttt{calculateRotationAxisAtMidpoint}}
-\end{flushright}
+\textbf{Energy features.} Four smoothed signals describe how hard the staff is moving. Each applies
+the one-pole smoother $y_n = y_{n-1} + \alpha\,(x_n - y_{n-1})$ to a derivative of
+$a_{\text{dyn}}$ or of gyroscope magnitude. \emph{Energy} is the enveloped magnitude of a leaky
+integral of $a_{\text{dyn}}$. \emph{Onset} is the positive rate of change of gyroscope magnitude.
+\emph{Axis stability} is the smoothed absolute dot product between consecutive rotation axes, high
+when the staff keeps spinning around the same axis. \emph{Jerk} is the smoothed jerk of
+$|a_{\text{dyn}}|$, split into smooth and abrupt parts. (In the source code these four are named
+after Laban's Effort factors: Weight, Time, Space, and Flow.) With the unit near the tip, the
+sensor sits about $r \approx 0.7$\,m from the centre of rotation, and a 2\,rev/s spin produces a
+centripetal acceleration $\omega^2 r \approx 11$\,g. This term dominates $a_{\text{dyn}}$, so
+Energy and Jerk mainly follow spin speed, which is how the presets use them, and their scale
+changes if the unit is moved along the staff.
 
-\textbf{Gravity and dynamic acceleration.} The accelerometer always mixes gravity in with whatever
-motion the performer is making. To separate the two, REMORA keeps a running estimate of which way
-``down'' currently is, by smoothing the inverse-rotated world $+Z$ axis:
+\textbf{Spin plane and direction.} Let $(a_x,a_y,a_z)$ be the rotation axis, smoothed with
+$\alpha{=}0.35$. The spin is classified as \emph{vertical} (the staff turns in a vertical plane,
+like a baton twirled beside the body) when
 \[
-g_n = \mathrm{onePole}\big(g_{n-1},\ \mathrm{rotate}(+Z,\, q_n^{-1}),\ \alpha{=}0.10\big)
+\sqrt{a_x^2 + a_y^2} > |a_z|\,,
 \]
-Subtracting this gravity estimate from the raw reading leaves just the motion: $a_{\text{dyn}} =
-a_{\text{raw}} - g$.
-\begin{flushright}
-\coderef{\texttt{updateGravityVector}}
-\coderef{\texttt{calculateDynamicAcceleration}}
-\end{flushright}
+and as \emph{horizontal} (like a propeller overhead) otherwise. For a horizontal spin, the direction
+is the sign of $a_z$. For a vertical spin, it is the sign of the larger of $a_x, a_y$, or, in the
+\preset{Martial} presets, the sign of the axis' dot product with a reference axis latched at the
+first vertical spin after the preset loads.
 
-\textbf{Laban features.} All four Laban Effort qualities reduce to the same shared one-pole
-smoother,
+\textbf{Facing.} A compass heading would need the magnetometer, which is unreliable next to the
+staff's electronics and stage equipment. REMORA instead asks which horizontal axis of the calibrated
+frame the staff is closer to: $x$ (the calibration ``forward'', labelled \emph{north}) or $y$
+(\emph{east}). Let $(d_x,d_y)$ be the horizontal components of the rotation axis during vertical
+spins, or of the tip direction otherwise. With hysteresis factor $k = 1.15$, the state switches
 \[
-y_n = y_{n-1} + \alpha\,(x_n - y_{n-1})\,,\qquad \alpha \in (0,1]\,,
+\text{north}\rightarrow\text{east if } |d_y| > k\,|d_x|\,,\qquad
+\text{east}\rightarrow\text{north if } |d_x| > k\,|d_y|\,.
 \]
-applied to a derivative of either dynamic acceleration or gyroscope magnitude: Weight integrates
-dynamic acceleration into a leaky velocity estimate (its magnitude, fast-attack/slow-release
-enveloped) to capture forcefulness; Time is the clamped-positive rate of change of \emph{raw}
-gyroscope magnitude, capturing suddenness; Space is the smoothed absolute dot product between
-consecutive rotation-axis directions, capturing how consistently the staff spins around the same
-axis versus wandering; Flow is the smoothed, clamped jerk of dynamic-acceleration magnitude, split
-into \texttt{flow\_bound} (controlled) and $1-\texttt{flow\_bound}$ (free).
-\begin{flushright}
-\coderef{\texttt{MathHelpers::applyOnePoleFilter}}
-\coderef{\texttt{integrateVelocityForLabanWeight}}
-\coderef{\texttt{updateLabanWeight}}
-\coderef{\texttt{updateLabanTime}}
-\coderef{\texttt{updateLabanSpace}}
-\coderef{\texttt{updateLabanFlow}}
-\end{flushright}
+Measured from the $x$ axis, the switch points are therefore $\arctan(1.15) \approx 49^\circ$ and
+$\arctan(1/1.15) \approx 41^\circ$, which prevents flicker at the boundary. Because orientation is
+6-axis, heading is relative to the calibration pose and drifts with gyroscope yaw
+(\S\ref{sec:limitations}).
 
-\textbf{Spin classification.} Is the staff spinning like a baton (vertical) or more like a fan blade
-(horizontal)? Let $(\mathrm{axis}_x,\mathrm{axis}_y,\mathrm{axis}_z)$ be the $\alpha{=}0.35$
-one-pole-smoothed rotation axis from above. The spin is classified vertical when
-\[
-\sqrt{\mathrm{axis}_x^2 + \mathrm{axis}_y^2}\ \gtrless\ |\mathrm{axis}_z|\,,
-\]
-i.e.\ when the horizontal-plane component outweighs the $z$ component. Spin direction
-(clockwise/counter-clockwise, CW/CCW) then
-comes either from the sign of the dominant in-plane axis component, or - in the Martial mappings -
-from the sign of that axis's dot product against a reference heading latched once, the first time a
-qualifying vertical spin happens after the mapping loads.
-\begin{flushright}
-\coderef{\texttt{updateSpinClassificationByAbsoluteComponent}}
-\coderef{\texttt{updateSpinClassificationByReferenceAzimuth}}
-\end{flushright}
+\textbf{Continuous spin count.} $\lVert\omega\rVert\,\Delta t$ is accumulated, and a lap is counted
+every $360^\circ$; the count resets when the spin plane or direction changes.
 
-\textbf{Facing.} Rather than compute a compass heading - which would need a magnetometer, and stages
-are full of magnetic interference - REMORA asks a simpler question: is the staff pointing more
-east-west or more north-south? Let $(\mathrm{dir}_x,\mathrm{dir}_y)$ be the horizontal-plane
-components of whichever direction is currently relevant - the rotation axis during vertical spins,
-the tip direction during horizontal ones. Facing is then just a hysteresis comparison,
-\[
-|\mathrm{dir}_x| \ \gtrless\ 1.15\cdot|\mathrm{dir}_y|\,,
-\]
-where the $1.15$ factor gives asymmetric switch points ($\approx\!48^\circ/42^\circ$) so the
-classification doesn't flicker right at the boundary.
-\begin{flushright}
-\coderef{\texttt{updateFacingClassification}}
-\end{flushright}
+\textbf{Axial thrust.} A thrust is flagged when the jerk of the dynamic acceleration projected on
+the staff axis crosses zero while its magnitude exceeds $1.5$\,g, gated to slow rotation
+($\lVert\omega\rVert < 90^\circ$/s) and followed by a cooldown.
 
-\textbf{Continuous spin count.} Full turns in the current spin, from $\lVert\omega\rVert\cdot\Delta t$
-accumulated to $360^\circ$ per lap; resets whenever the spin classification changes.
-\begin{flushright}
-\coderef{\texttt{accumulateContinuousSpins}}
-\end{flushright}
+\subsection{Mapping Architecture}
+\label{sec:mapping-arch}
+The node catalog has four categories: Source (sensor values and the features above), Math, Sink
+(one node per synthesis engine exposing all its parameters as typed inputs, plus output gain), and
+Display (live monitors). A graph is a set of nodes plus typed wires, saved as an XML preset. The
+graph is the only path from sensor to synthesiser.
 
-\textbf{Axial thrust detection.} Flags a stab/strike when the jerk of the tip-projected dynamic
-acceleration crosses zero as its magnitude passes $1.5\text{g}$, gated against fast spins
-($\lVert\omega\rVert < 90^\circ/\text{s}$) and cooled down between hits.
-\begin{flushright}
-\coderef{\texttt{detectAxialThrustPeaks}}
-\end{flushright}
+When a wire is added, the graph recomputes a topological order with Kahn's algorithm and refuses
+the wire if it would close a cycle. Each audio block, evaluation walks the cached order once and
+every node computes
+$y_i = f_{\text{type}(n_i)}(x_{i,1},\dots,x_{i,m};\theta_i)$ from its inputs $x$ and parameters
+$\theta$. The patch is thus one composed function of the sensor frame, with no sorting on the audio
+thread. If the user interface is editing the graph when a block arrives, evaluation does not wait;
+it reuses the previous block's output.
 
-\textbf{Sensitivity of tuned constants.} Each constant above biases the instrument in a specific
-direction. The gravity smoother's $\alpha{=}0.10$ trades under-reporting fast
-motion (too high) against a lagging estimate that produces a spurious motion blip when the staff is
-set down (too low). The spin-axis smoother's $\alpha{=}0.35$ plays the same role for Laban Space:
-higher reads axis noise as ``inconsistent'' too readily, lower reads a genuinely wandering spin as
-falsely focused. The facing hysteresis factor ($1.15$) sets the $\approx\!48^\circ/42^\circ$
-dead-band; $1.0$ reintroduces boundary flicker, while a much larger factor makes facing changes
-sluggish to register. The thrust detector's $1.5\text{g}$ threshold and $90^\circ/\text{s}$ gate trade
-false triggers during forceful spins (too low) against missed soft stabs (too high).
+Math nodes cover arithmetic, shaping (linear and logarithmic range mapping, clamp, threshold,
+crossfade, quantise, sine, atan2, semitones to Hz), lookup tables (1-D, and an 8-entry table indexed
+by three booleans), and stateful dynamics (one-pole smoother, leaky integrator, retrigger envelope,
+hysteresis, derivative, latch, random sample-and-hold).
 
-\subsection{Software: Mapping Architecture}
-\textit{\texttt{NodeGraph}/\texttt{NodeTypeRegistry}: four node categories - Source (IMU,\\
-Laban features), Math (arithmetic, shaping, dynamics, lookup tables), Sink (synth-engine
-parameters, one resizable ``mega-node'' per engine exposing every one of that engine's parameters
-as its own typed input port, \S\ref{sec:synthesis}),
-and Display (resizable, performer-facing live monitors, \S\ref{sec:live-patching}) - each a
-small typed function registered once. A graph is nodes plus typed wiring, serialised to/from the
-Extensible Markup Language (XML) as
-a preset; \texttt{GraphMappingStrategy} makes the graph the only mapping path the synth talks to,
-with no separate hand-written path.}
-
-\subsubsection*{Graph Evaluation and Primitive Library}
-
-\textbf{DAG evaluation.} A patch is a directed graph of typed nodes; \texttt{NodeGraph::connect}
-provisionally adds an edge and recomputes a topological order with Kahn's algorithm via
-\texttt{NodeGraph::recomputeTopoOrder}, reverting the edge if the graph fails to fully drain (a
-closed cycle). Each audio block, \texttt{NodeGraph::evaluate} walks the cached order once, and every
-node computes
-\[
-y_i = f_{\text{type}(n_i)}\big(x_{i,1},\dots,x_{i,m}\,;\,\theta_i\big)
-\]
-where $n_i$ is the $i$-th node in topological order, $\text{type}(n_i)$ its registered node-type
-function, $x_{i,1},\dots,x_{i,m}$ its wired inputs, $\theta_i$ its parameters, and $y_i$ its output(s)
-- so the whole patch is one composed function of the sensor frame, evaluated once per block with no
-re-sorting on the audio thread.
-
-\textbf{Primitive vocabulary.} Every node type is one small pure function (or, for stateful ones, a
-function plus a scratch struct): arithmetic (add/subtract/multiply/divide/abs/max/min/equals),
-shaping (mapRange, clamp, threshold, crossfade, quantizeSteps, sine, atan2, semitonesToHz), lookup
-tables (a general 1-D table and the 3-boolean-selector table used by the \preset{Azimut} root table below),
-and stateful dynamics (one-pole smoother, leaky integrator, retrigger envelope, hysteresis step,
-derivative, latched smoother).
-\begin{flushright}
-\coderef{\texttt{Graph::buildAllNodes}}
-\end{flushright}
-
-\subsection{Software: Named Mappings as Graph Presets}
+\subsection{Presets}
 \label{sec:named-mappings}
-Table~\ref{tab:preset-nodes} shows the generalisation claim directly: each of the eleven mappings - \preset{Simple}, \preset{Lead+Drone},
-\preset{Spin Filter}, \preset{Bowed Chord}, the \preset{Azimut} family (facing-based root table, spin-count filter sweep, axial
-thrust transients), \preset{Martial Effort}/\preset{Martial Momentum}, \preset{Spin Voices}, and \preset{Speed Gate} - is built once via \texttt{GraphBuilder}
-and is structurally just a particular wiring of the same node catalog. Counts are read directly off
-the constructed graphs (\texttt{NodeGraph::nodes()}).
+The eleven C++ mappings from development were rebuilt as graph presets: \preset{Simple},
+\preset{Lead+Drone}, \preset{Spin Filter}, \preset{Bowed Chord}, four \preset{Azimut} variants,
+\preset{Martial Effort}, \preset{Martial Momentum}, \preset{Spin Voices}, and \preset{Speed Gate}.
+Four more (\preset{Wind Noise}, \preset{Azimut Kinetic}, \preset{Spin Voices (Scale)},
+\preset{Vocal Tract}) were made directly as graphs. Nine presets are offered in the plugin's
+selector (Table~\ref{tab:presets}); the others are close variants kept as reference patches.
 
-Four further presets - \preset{Wind Noise}, \preset{Azimut Kinetic}, \preset{Spin Voices (Scale)}, and
-\preset{Vocal Tract} - sit outside that generalisation claim: unlike the eleven above, none of them
-was ever a separate hand-coded C++ mapping class first: they were authored directly as graph
-patches, so they demonstrate the catalog's expressiveness going forward rather than its ability to
-reproduce a prior hand-built design. \preset{Vocal Tract} is also the one preset that drives the
-vocal-tract engine instead of the additive one (\S\ref{sec:synthesis}). Counting these, the catalog
-currently ships fifteen presets in total.
-% TODO before submission: regenerate Table~\ref{tab:preset-nodes} node counts from a live build -
-% the Sink column for every existing row is stale (per-parameter sink nodes were consolidated into
-% per-engine mega-nodes, changing the Sink/Nodes totals), and the four new rows below need real
-% counts in place of the "tbd" placeholders.
 \begin{table}[htbp]
 \centering
 \small
-\caption{Node composition of each named-mapping preset.}
-\label{tab:preset-nodes}
-\begin{tabular}{@{}lrrrr@{}}
+\caption{The nine presets in the plugin's selector.}
+\label{tab:presets}
+\begin{tabular}{@{}p{0.3\linewidth}p{0.62\linewidth}@{}}
 \toprule
-Preset & Nodes & Source & Math & Sink \\
+Preset & Character \\
 \midrule
-Simple         & 7  & 2 & 3   & 2 \\
-Wind Noise     & \textit{tbd} & \textit{tbd} & \textit{tbd} & \textit{tbd} \\
-Bowed Chord    & 110 & 25 & 54  & 31 \\
-Lead+Drone     & 96 & 23 & 45  & 28 \\
-Spin Filter    & 105 & 30 & 54  & 21 \\
-Martial Effort   & 207 & 46 & 130 & 31 \\
-Martial Momentum & 109 & 32 & 48  & 29 \\
-Azimut         & 113 & 32 & 52  & 29 \\
-Azimut+        & 113 & 32 & 52  & 29 \\
-Azimut Reverb  & 123 & 33 & 58  & 32 \\
-Azimut Kinetic & \textit{tbd} & \textit{tbd} & \textit{tbd} & \textit{tbd} \\
-Speed Gate       & 181 & 87 & 95 & 29 \\
-Spin Voices      & 99 & 34 & 36  & 29 \\
-Spin Voices (Scale) & \textit{tbd} & \textit{tbd} & \textit{tbd} & \textit{tbd} \\
-Vocal Tract    & \textit{tbd} & \textit{tbd} & \textit{tbd} & \textit{tbd} \\
+\preset{Simple} & Pitch from tilt, volume from roll; one sine voice. \\
+\preset{Wind Noise} & No pitch; motion energy swells filtered noise into gusts. \\
+\preset{Bowed Chord} & Root from tilt; yaw and roll pick the chord; spin speed acts like bow pressure. \\
+\preset{Lead+Drone} & Major-scale lead over a 4-voice drone. \\
+\preset{Martial Momentum} & Root from spin plane and direction; glide speed from spin momentum. \\
+\preset{Azimut Kinetic} & Root from spin and facing; rotation speed drives the whole timbre. \\
+\preset{Speed Gate} & Slow: pentatonic melody. Fast: crossfades to the Azimut mapping. \\
+\preset{Spin Voices (Scale)} & Roll selects 1 of 4 scale-quantised voices. \\
+\preset{Vocal Tract} & Physically modelled voice; jabs add consonant-like bursts. \\
 \bottomrule
 \end{tabular}
 \end{table}
-% TODO before submission: the "63 of 79" figures below are stale on both ends - the registered
-% node-type catalog is smaller now (mega-node sink consolidation removed ~17 per-parameter sink
-% types), and the "63 used" count needs recomputing against whatever the new total is. Recompute
-% both from a live build rather than editing these numbers by hand.
-Across all eleven presets, only 63 of the catalog's 79 registered node types are ever
-instantiated - 42 of those source/math primitives, the rest sink writers. A full development cycle
-of hand-built mapping design, spanning a solo tilt-controlled mapping through the fully Laban-driven
-\preset{Martial} and \preset{Speed Gate} patches, lands inside less than two-thirds of an already small catalog; no preset
-needed a node type invented specifically for it. That result should be read carefully, though: the
-catalog itself was not fixed in advance and then tested against eleven independent designs - it grew
-alongside the eleven mappings, several of which were the reason a given primitive was added in the
-first place. What Table~\ref{tab:preset-nodes} demonstrates is internal consistency (the resulting catalog is compact
-enough to re-express every mapping it was abstracted from as a preset, rather than needing a
-bespoke escape hatch per mapping), not that the catalog would prove sufficient for a gesture
-vocabulary designed independently of it. Whether a mapping designer outside this project can build
-a genuinely new movement-quality mapping from the existing 63 node types without hitting a missing
-primitive is an open question the current evidence does not settle.
-\begin{flushright}
-\coderef{\texttt{NodeGraph::nodes}} \coderef{\texttt{Graph::Presets::AllPresets}}
-\end{flushright}
 
-\subsubsection*{Azimut-Specific Transformations}
-\textit{Shared by every Azimut-family preset.}
+The catalog has 69 node types (33 source, 29 math, 4 sink, 3 display). Presets range from 7 nodes
+(\preset{Simple}) to 178 (\preset{Martial Effort}), with a median of 86. Together they use 50 of
+the 69 types; most unused types are raw per-axis sensor values. No preset needed a node type of its
+own. Since the catalog grew alongside the hand-coded mappings, this shows that it can express them;
+mappings designed by someone who did not build the catalog are still to be tried. Per-preset counts
+are generated from the code by a tool in the repository.
 
-\textbf{Root-note table.} The spin-plane/direction/facing root-note table above is not an if/else
-chain - it is literally an 8-entry lookup table (LUT) indexed by three booleans (\texttt{isVertical},
-\texttt{isCCW}, \texttt{isFacingEast}) through the graph's generic 3-selector LUT node.
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{Assets/wind-noise-preset.png}
+  \caption{The complete \preset{Wind Noise} preset in the plugin: gyroscope and acceleration
+  magnitudes are scaled, summed, clamped, and smoothed into one motion-energy signal that drives
+  the noise level, noise filter, and lowpass cutoff of the additive engine (right).}
+  \label{fig:wind-noise}
+\end{figure}
 
-\textbf{Root morph.} The target semitone value is chased by a variable-rate one-pole filter whose
-rate is
-\[
-\text{rate} = \max\Big(\mathrm{clamp}\big(\tfrac{\lVert\omega\rVert}{2000},\,0.005,\,0.2\big)\,,\ \
-0.5\cdot\text{onsetEnv}\Big)
-\]
-where \texttt{onsetEnv} is a retrigger envelope (decay $0.90$) that fires the instant the staff
-leaves rest - faster motion, or a fresh onset, morphs the root pitch in quicker.
+\textbf{Azimut root table.} The Azimut presets and the fast branch of \preset{Speed Gate} choose the
+root note from three booleans (vertical spin, counter-clockwise, facing east) through the 8-entry
+lookup node. The target pitch is reached by a one-pole glide whose rate grows with rotation speed
+and jumps at motion onset, so faster motion moves to the new root more quickly
+(Figure~\ref{fig:editor}).
 
-\textbf{Filter sweep.} The spin count drives a phase modulator whose sine output is remapped onto
-the filter's cutoff range and smoothed:
-\begin{align*}
-c_{\text{raw}} &=
-\mathrm{mapRange}\big(\sin(1.5\cdot\text{spinCount})\,,\,[-1,1]\,,\,[400,20000]\text{Hz}\big) \\
-\text{cutoff} &= \mathrm{onePole}\big(c_{\text{raw}}\,,\ \text{rate}{=}0.03\big)
-\end{align*}
-where $\text{spinCount}$ is the unsigned lap counter from Continuous Spin Count above,
-$\mathrm{mapRange}$ linearly rescales its argument from the first interval to the second,
-$c_{\text{raw}}$ the resulting unsmoothed cutoff target, and $\mathrm{onePole}$ the smoothing
-primitive defined earlier.
-\begin{flushright}
-\coderef{\texttt{Graph::Presets::buildAzimutCore}}
-\coderef{\texttt{buildSpinCountLpfHz}}
-\end{flushright}
+\textbf{Kinetic timbre.} \preset{Azimut Kinetic} keeps the Azimut root and maps one smoothed
+rotation-energy value $E \in [0,1]$ (gyroscope magnitude normalised over 30--750$^\circ$/s) to many
+timbre parameters at once~\cite{hunt2002mapping}: lowpass cutoff, partial amplitudes, drive, noise,
+vibrato, tremolo, and reverb. A still staff sounds close to a pure sine; fast spins sound buzzy,
+noisy, and reverberant. Each completed lap also triggers a random sample-and-hold, whose values
+drift slowly into the same parameters, so two similar spins give two nearby but different timbres.
+The whole preset is built from existing math nodes.
 
-\subsection{Graphical Interface: Live Patching as Performance Practice}
+\subsection{Live Patching}
 \label{sec:live-patching}
-The node-graph editor is the instrument's primary authoring surface, not a debug tool: a pannable,
-zoomable canvas on which each node renders as a coloured card - green for Source,
-yellow for Sink, purple for Display, neutral for Math - labelled with its category and inline,
-live-editable parameter fields; typed input/output pins along each card's edges accept
-click-and-drag connections rendered as cubic-B\'ezier wires, colour-highlighted while dragging and
-hit-testable afterward for rewiring or deletion via context menu, which for an existing wire also
-offers jumping the view straight to its source or destination node, briefly highlighted on arrival
-so the jump is easy to follow in a large patch. New nodes are added from a categorised picker at any
-canvas position, each entry annotated with a short description of its behaviour; a search bar
-over the same picker jumps directly to a node type by name. An auto-layout pass ranks every node by
-longest path from a source, pulls sink-only nodes as late as their wiring allows, threads
-dummy nodes through any connection that spans more than one rank so a long wire does not cut across
-intervening columns, and orders nodes within each resulting layer to reduce crossings - a layered
-graph-drawing pass rather than a fixed column assignment, so a freshly loaded preset still untangles
-left-to-right from source to sink but copes with the deeper, more irregular graphs later presets
-produce. Hovering any node or pin surfaces its
-current, live-updating value as a tooltip, and three dedicated Display node types - a numeric
-readout, a level meter, and a scrolling scope - can be dropped inline on any wire and freely
-resized, giving the performer a live, in-patch view of a signal without altering it (all three are
-pure passthrough: the graph carries exactly the same value with or without one attached). Sink
-mega-nodes (\S\ref{sec:synthesis}) are themselves width-resizable and label each port with its valid
-range (e.g.\ \texttt{[20, 20000] LPF Cutoff}), so a wide parameter surface stays legible without a
-separate details panel; at the opposite end of the size scale, constant-value nodes render as a
-compact numeric box with no slider, so the canvas is not dominated by its simplest node type. A
-dirty-state indicator tracks whether the active patch has diverged from its saved preset, with
-one-click revert - so a performer can improvise a mapping change mid-rehearsal and either keep or
-discard it, treating the mapping itself as something authored and iterated on at the same level as
-the sound it produces. Each preset in the catalog also carries a short description,
-surfaced in the preset selector, so a performer choosing between mappings mid-rehearsal is not
-reading bare names.
+The node-graph editor (Figure~\ref{fig:editor}) is a pannable, zoomable canvas. Nodes are coloured
+by category, wires are drawn by dragging between typed pins, and new nodes come from a searchable,
+categorised picker. Hovering any pin shows its current value, and Display nodes (number, meter,
+scope) can be placed on a wire to monitor it. A changed patch can be kept or reverted to its saved
+preset in one click, so a mapping can be tried during rehearsal and then kept or dropped.
 
-\begin{center}
-  \includegraphics[width=1\linewidth]{Assets/node-graph-editor.png}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{Assets/node-graph-editor.png}
+  \caption{The node-graph editor showing the Azimut root-note chain: spin plane, direction, and
+  facing select an entry of the 3-selector lookup table, which is smoothed and converted to the
+  root frequency (green Source, blue Math, amber Sink).}
+  \label{fig:editor}
+\end{figure}
 
-  \small
-  \refstepcounter{figure}\label{fig:editor}
-  \textbf{Figure \thefigure: Schematic of the node-graph editor canvas} -
-  coloured node cards (green Source, yellow Sink, purple Display, neutral Math) with typed pins,
-  connected by Bézier-rendered wires.
-\end{center}
-
-\subsection{Software: Synthesis Engine}
+\subsection{Synthesis}
 \label{sec:synthesis}
-Every mapping graph writes into a shared \texttt{SynthManager}, which owns a small, pluggable set
-of synthesis engines behind one \texttt{ISynthEngine} interface (\texttt{prepare}/\texttt{render})
-rather than a single hard-coded voice: an additive engine, a granular engine, and a physically
-modelled vocal-tract engine. Each engine reads its own parameter struct - one field of the shared
-\texttt{MappingOutput} the active graph writes every block, addressed through that engine's sink
-mega-node (\S\ref{sec:named-mappings}) - and renders it into its own scratch buffer;
-\texttt{SynthManager::processBlock} sums whichever engines the active preset actually wires in and
-applies one shared master-gain/mute stage on top, keeping the engines themselves ignorant of which
-preset or graph is driving them - which is what lets a graph be swapped or rewired live without
-reinitialising audio. An engine a preset's graph leaves unwired is skipped entirely that block - no
-parameter update, no render call - rather than rendered silently and discarded, so the additive-only
-presets that make up most of the catalog never pay the granular or vocal-tract engines' cost.
-\begin{flushright}
-\coderef{\texttt{ISynthEngine}} \coderef{\texttt{SynthManager::processBlock}}
-\end{flushright}
-
-\subsubsection*{Additive Engine}
-The original, still default, engine; every preset in Table~\ref{tab:preset-nodes} except
-\preset{Vocal Tract} drives it.
-\begin{flushright}
-\coderef{\texttt{AdditiveSynthEngine::render}}
-\coderef{\texttt{SynthVoice::tick}}
-\end{flushright}
-
-\textbf{Harmonic bank.} Each of the 4 voices sums 6 phase-accumulated sine partials at integer
-multiples of a (vibrato- and chorus-modulated) fundamental, each with its own independently smoothed
-target amplitude.
-
-\textbf{Waveshaping.} A rational soft-clip saturator, applied per-voice when \texttt{driveAmt} $>0$:
-\[
-y = \frac{x\,(1+\text{driveAmt})}{1+\big|x\,(1+\text{driveAmt})\big|}
-\]
-where $x$ is the voice's summed harmonic-bank sample before shaping and \texttt{driveAmt} the
-mapping-supplied drive amount.
-
-\textbf{Resonator.} A short feedback comb (1800-sample delay, $0.35$ feedback, mixed $0.7$ dry /
-$0.3$ wet) is layered onto every voice for a string-like coloration.
-
-\textbf{Modulation.} Vibrato and tremolo are sinusoidal multipliers on pitch and gain respectively:
-\[
-f' = f\,\big(1+\text{depth}\cdot\sin\phi_v\big)
-\qquad\qquad
-g' = g\,\big(1-\text{depth}\cdot(0.5+0.5\sin\phi_t)\big)
-\]
-where $f, g$ are the fundamental frequency and master gain before modulation, $f', g'$ the modulated
-values actually used, and $\phi_v, \phi_t$ the vibrato and tremolo Low-Frequency Oscillator (LFO)
-phase accumulators (radians),
-each advancing by its own rate every sample. A per-voice phase-offset sine (depth $0.003$, rate
-$0.3$\,Hz) adds chorus detuning; chord changes cross-fade linearly between old and new semitone
-offsets over $200$\,ms rather than jumping.
-
-\textbf{Noise and filtering.} An xorshift32 pseudo-random number generator (PRNG) feeds a one-pole
-lowpass (coefficient \texttt{noiseLpCoef}) before being mixed in at \texttt{noiseAmount}; the summed
-stereo output passes through a JUCE state-variable Topology-Preserving Transform (TPT) lowpass, its
-cutoff set directly each block from the \texttt{sink.additiveSynth} mega-node's \textit{LPF Cutoff}
-port (only range-clamped, not ramped), and an optional Schroeder-style
-\texttt{juce::dsp::Reverb} send whose wet level \emph{is} ramped through a per-sample
-\texttt{SmoothedValue} to avoid zippering when the active mapping changes.
-
-\textbf{Pitch/frequency conversion.}
-\[
-f = f_{\text{root}} \cdot 2^{\,\text{semitones}/12}
-\]
-where $f_{\text{root}}$ is the mapping's current root frequency in Hz and $\text{semitones}$ the
-signed offset applied to it, giving the equal-tempered result $f$.
-\begin{flushright}
-\coderef{\texttt{MathHelpers::semitoneRatio}}
-\coderef{\texttt{convertSemitonesToHertz}}
-\end{flushright}
-
-\subsubsection*{Granular Engine}
-Has no audio input and bundles no sample assets: on \texttt{prepare} it synthesises its own
-roughly 2-second internal source buffer (a slowly evolving harmonic bed layered with lightly
-filtered noise), then continuously spawns and scans up to 64 overlapping grains across that buffer,
-each with its own position, playback rate (a negative rate plays a grain backward), pan, and
-amplitude envelope, driven every block by the mapping's granular parameter struct. Silent by
-default, so a preset that never wires \texttt{sink.granularSynth} costs nothing beyond the skipped
-check above. Currently used by \preset{Wind Noise}.
-\begin{flushright}
-\coderef{\texttt{GranularSynthEngine::buildSourceBuffer}}
-\coderef{\texttt{GranularSynthEngine::spawnGrain}}
-\end{flushright}
-
-\subsubsection*{Vocal-Tract Engine}
-The one engine not built for this project: an LF-model glottal source excites a digital-waveguide
-vocal tract with oral and nasal branches, run at 2$\times$ oversampling, with two RBJ-cookbook
-bandpass filters colouring raw white noise into breath and frication noise before it reaches the
-model. The model itself is a C++ port (via \texttt{cutelabnyc/pink-trombone-cpp}, MIT-licensed) of
-Neil Thapen's \textit{Pink Trombone}; REMORA's contribution at this layer is the driver around it -
-control-rate parameter updates from the graph's \texttt{sink.pinkTromboneSynth} mega-node each
-block - not the vocal-tract model itself. It is the one engine so far with a dedicated preset,
-\preset{Vocal Tract} (\S\ref{sec:named-mappings}), rather than being an option within an
-otherwise-additive mapping.
-\begin{flushright}
-\coderef{\texttt{PinkTromboneEngine::render}}
-\end{flushright}
+Synthesis engines share one interface and are skipped entirely when the
+active preset does not wire them. Every preset except \preset{Vocal Tract} drives the additive
+engine: four voices of six harmonic partials, with soft-clip waveshaping, vibrato, tremolo, chorus,
+filtered noise, a state-variable lowpass, and reverb. \preset{Vocal Tract} drives a C++ port (via
+\texttt{cutelabnyc/pink-trombone-cpp}, MIT-licensed) of Neil Thapen's \textit{Pink
+Trombone}~\cite{thapen2017pinktrombone}; only the control layer around it is ours. If no packet
+arrives for 150\,ms, the master gain fades out over 120\,ms, and fades back in over 10\,ms when
+packets return.
 
 \subsection{Development Iterations}
-The node-graph engine above did not arrive fully formed; it is the result of three iterations in
-which generalisation followed rather than preceded hand-built mapping design. The first was
-firmware reading the IMU and streaming OSC into a minimal receiver, driving a single hardcoded
-tilt-to-pitch mapping, purely to prove the sensor-to-sound pipeline end to end. The second built
-the eleven named mappings one at a time as their own C++ classes, each adding a new gesture
-vocabulary (chords, Laban Effort, world-frame facing, transient detection) on top of the shared
-\texttt{StaffMotionAnalyzer} - at which point a pattern became visible: every one of them was
-really just arithmetic, shaping, and a handful of stateful primitives wired together in a fixed
-pattern. The third iteration rebuilt the mapping layer as the small generic graph engine described
-above, porting all eleven prior mappings over as presets rather than deleting them.
+The graph came last. The first iteration streamed OSC to a minimal receiver with one hard-coded
+tilt-to-pitch mapping. The second wrote the mappings as separate C++ classes on top of the shared
+analyzer, each adding vocabulary (chords, energy features, facing, thrust). Read side by side, they
+were the same arithmetic, shaping, and stateful primitives wired in different patterns, so the third
+iteration replaced the classes with the graph engine. Since then, a second synthesis engine
+(\S\ref{sec:synthesis}) and four new presets have been added without changes to the engine.
 
-Since that third iteration, the same graph engine has absorbed two further kinds of growth without a
-fourth architectural rewrite: a pluggable synthesis layer behind the sink nodes
-(\S\ref{sec:synthesis}), adding granular and vocal-tract engines alongside the original additive
-one, and four more presets - \preset{Wind Noise}, \preset{Azimut Kinetic}, \preset{Spin Voices
-(Scale)}, \preset{Vocal Tract} - authored directly as graph patches with no hand-coded precursor to
-port (\S\ref{sec:named-mappings}).
+\section{Playing the B\^o: From Technique to Sound}
+\label{sec:technique}
+The staff-specific features were designed around families of b\^o technique, and this is where the
+presets differ most from a generic motion controller.
+% TODO (authors): ground this section in your own practice: name the style and the kata or
+% drills you use, describe a short performance or étude, and say what playing a familiar form
+% through REMORA felt like.
+
+\textbf{Spins.} Two-handed spins beside the body and overhead spins are the staff's most
+characteristic motions. Spin plane and direction select among four roots in
+\preset{Martial Momentum}, so switching from a vertical clockwise spin to a horizontal one is
+heard as a change of harmony, and the length of a spin, through the lap count, as a slow timbral
+sweep in the Azimut presets.
+
+\textbf{Changes of direction.} A kata follows a floor pattern (\emph{embusen}) with turns between
+facings. Facing adds a third boolean to the Azimut root table, so the same spin played after a
+quarter turn lands on a different root, and a form traced across the floor becomes a sequence of
+harmonic regions.
+
+\textbf{Stances and transitions.} Held guard positions (\emph{kamae}) are near-static and read as
+tilt and roll. In \preset{Simple} and \preset{Bowed Chord}, stance chooses pitch or chord; in
+\preset{Azimut Kinetic}, stillness gives a near-pure tone and energy brightens it, so the contrast
+between a held stance and the motion out of it shapes the timbre directly.
+
+\textbf{Thrusts and strikes.} Thrusts (\emph{tsuki}) and strikes are short, decisive, and mostly
+along the staff axis. They are what the axial detector targets, and what pilot participants noticed
+was missing in the sound (\S\ref{sec:pilot}).
 
 \section{Evaluation}
 \label{sec:evaluation}
-No performer evaluation has been run yet. This section separates what the current claims actually
-rest on - implementation-level evidence internal to the system itself - from a protocol for the
-performer session that would be needed to test the remaining, human-facing parts of those claims.
-Table~\ref{tab:claims-evidence} summarises this split per claim; the subsections below explain each row.
+The evidence consists of properties of the implemented system and an exploratory pilot.
+Table~\ref{tab:claims-evidence} summarises it per contribution.
+
+\begin{table*}[tbp]
+\centering
+\small
+\caption{Contributions, current evidence, and open questions.}
+\label{tab:claims-evidence}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}@{}}
+\toprule
+Contribution & Current evidence & Untested \\
+\midrule
+(\ref{claim:features}) b\^o features & implemented; spin- and facing-driven \preset{Azimut Kinetic}
+was the preset most often preferred in the pilot; thrust detection failed in the pilot & facing
+accuracy and yaw drift against ground truth; thrust after the analyzer fix \\
+(\ref{claim:calibration}) calibration & rotation independence follows from the derivation
+(\S\ref{sec:calibration}) & remounting at several angles on hardware \\
+(\ref{claim:dag}) live graph & implemented and used throughout development; one pilot participant
+singled out live patching & whether other performers can rewire it unaided \\
+(\ref{claim:presets}) presets & all eleven hand-coded mappings rebuilt from one catalog
+(\S\ref{sec:named-mappings}) & output equivalence with the former classes; mappings designed
+independently of the catalog \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Evidence from the Implemented System}
+Rewiring is exercised every time a preset loads or a wire changes. The rebuilt presets were
+compared with the original classes by ear; replaying one recorded IMU log through both is still to
+be done. Rotation independence of the calibration follows from its derivation, and a remount test
+at several angles on hardware is planned.
+
+\subsection{Latency}
+\label{sec:latency}
+We estimate the end-to-end latency, from a movement of the staff to the corresponding sound, at
+around 50\,ms. The chain is: IMU read and orientation update on the microcontroller, a send
+interval of up to 10\,ms, Wi-Fi delivery to the host's hotspot, analysis and graph evaluation at
+the next audio block, and the host's output buffer. The figure has yet to be confirmed by
+measurement (\S\ref{sec:not-measured}). It is well above the 10\,ms often cited for intimate
+control~\cite{wessel2002intimate}. Most presets map continuous motion (spins, sweeps, the move out
+of a stance) to slowly gliding parameters, which tolerate such a delay better than percussive
+events do. Thrusts and strikes are the exception: their sound should land with the impact, so
+reducing latency, for instance with a shorter send interval or a dedicated radio link
+(\S\ref{sec:future}), belongs with the thrust work in \S\ref{sec:limitations}.
+
+\subsection{Pilot Session}
+\label{sec:pilot}
+Ten adults with no prior exposure to REMORA took part in a short, informal pilot in August 2026,
+using the current firmware (see Ethical Statement). Each was calibrated, given a brief
+demonstration, and then played freely across a subset of the nine selector presets before
+completing an anonymous questionnaire. Nine of ten rated their martial-arts or staff experience 1 or
+2 out of 5; general musical experience averaged 3.4/5, and prior experience with gestural
+instruments 2.6/5. Most participants were thus new to the staff, while the spin- and facing-driven
+presets are designed for trained performers.
+
+The questionnaire was written for this pilot. It asked for agreement with six statements about the
+playing experience on a five-point scale (Table~\ref{tab:pilot}), followed by preset preference and
+free text. We did not use a standard DMI evaluation
+instrument~\cite{wanderley2002evaluation,omodhrain2011framework}, and with N=10 the ratings are
+descriptive. Comfort scored highest, followed by novelty and absorption; predictability and
+expressiveness scored lower and varied more.
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Claims, current evidence, and open questions.}
-\label{tab:claims-evidence}
-\begin{tabular}{@{}p{0.09\linewidth}p{0.44\linewidth}p{0.4\linewidth}@{}}
+\caption{Agreement on a 1--5 scale, N=10: mean (sample SD), median, and range.}
+\label{tab:pilot}
+\begin{tabular}{@{}lccc@{}}
 \toprule
-Claim & Current evidence & What is still untested \\
+Statement & Mean (SD) & Mdn & Range \\
 \midrule
-(\ref{claim:dag}) live graph, no recompile & DAG evaluation/rewiring is implemented and exercised continuously
-during development (\S\ref{sec:named-mappings}) & whether a performer other than the author can
-rewire it unaided \\
-(\ref{claim:presets}) 11 mappings as presets & Table~\ref{tab:preset-nodes}: all eleven hand-built mappings rebuilt as presets from the
-same catalog & whether a mapping designed independently of the catalog fits without a new
-primitive \\
-(\ref{claim:facing}) magnetometer-free facing & derivation is implemented and used throughout development sessions
-& drift has not been measured against a ground-truth heading; bounded to short sessions by
-assumption, not measurement \\
-(\ref{claim:calibration}) mount-agnostic calibration & the correction transform is mount-independent by construction
-(\S\ref{sec:limitations}) & not yet tested across multiple physical mount positions on hardware \\
+Predictability (``in control, could predict'') & 3.4 (1.3) & 4 & 1--5 \\
+Physical comfort & 4.0 (1.1) & 4 & 2--5 \\
+Novelty (``new ways to make sound'') & 3.9 (1.0) & 4 & 2--5 \\
+Expressiveness through movement & 3.3 (1.3) & 3 & 1--5 \\
+Absorption (``less about how, more about music'') & 3.9 (1.0) & 4 & 2--5 \\
+Musical satisfaction & 3.6 (1.3) & 4 & 1--5 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Evidence from the Implemented System}
-Claims (\ref{claim:dag}), (\ref{claim:presets}), and (\ref{claim:calibration}) are, at present, supported by implementation-level
-evidence - the system as built and run by the author during development - rather than by an
-independent observer. The graph evaluator provisionally adds and removes edges, recomputes a
-topological order, and drives synthesis every audio block without recompilation or an audio dropout,
-exercised every time a preset is loaded or a wire is changed. Table~\ref{tab:preset-nodes}'s per-preset node counts are
-read directly off the constructed graphs, so claim (\ref{claim:presets})'s "eleven mappings, one catalog" result is a
-property of the code, not a reported impression - though the catalog grew alongside those eleven
-mappings, so its sufficiency for a mapping designed independently of the project remains open
-(\S\ref{sec:named-mappings}). Claim (\ref{claim:calibration})'s mount-independence follows from the two-stage calibration
-derivation holding for any physically valid sensor placement, a property we can state
-mathematically but have not yet stress-tested by remounting the enclosure at several positions.
-Claim (\ref{claim:facing}) is the weakest of the four: the facing heuristic runs correctly in every development
-session, but "correctly" here means matching the author's own sense of where the staff was
-pointing, not a logged, ground-truth comparison - drift is bounded to short sessions by assumption,
-not measurement. No human-subject data has been collected for this instrument, and none of the four
-claims should be read as validated by user testing until the protocol below, or something like it,
-has actually been run.
+Preferences were spread out: \preset{Azimut Kinetic} was chosen most often (3/10), then
+\preset{Wind Noise} and \preset{Lead+Drone} (2/10 each), and \preset{Spin Voices (Scale)} and
+\preset{Vocal Tract} once each. Reasons followed each preset's character: \preset{Azimut Kinetic}
+``matches best what I know from my martial art experience'', \preset{Wind Noise} needs ``no
+knowledge [...] in martial art or music'', and \preset{Lead+Drone} made melody easiest to steer.
+The tenth participant named no single preset (``All of them are great'') and pointed to live
+patching instead (``the ability to customize live and create new patches directly inside with the
+node things is great''). Another asked for the wiring interface to be easier, ``maybe some kind of
+tutorial''.
 
-\subsection{Planned Performer Evaluation}
-To test the parts of these claims that are inherently about performer experience rather than code
-behaviour - whether the graph is rewireable by someone other than its author, whether a
-Laban-driven preset reads as more physically legible than a simple one, whether the node picker
-scales to larger patches - we plan a semi-structured session with performers who have some staff,
-baton, or movement-flow background but no prior exposure to REMORA. The intended structure: a short
-calibration walkthrough; free play across a small span of existing presets chosen to range from a
-minimal mapping to a fully Laban-driven one; a guided patching task (retuning an exposed parameter,
-then rewiring which motion feature drives a sink); and a closing semi-structured interview.
-Candidate measures include calibration time, time to complete the guided rewire unassisted, think-
-aloud commentary during free play, a preference judgement between at least two presets with a
-reason, and any node-picker search difficulties observed or reported. Each measure is chosen to
-speak to a specific claim in Table~\ref{tab:claims-evidence} rather than to general usability. This protocol - not results -
-is what we currently have; running it, with informed consent handled as described in the Ethical
-Statement, is the immediate next step for this work.
+The clearest finding came unprompted. Three of ten participants reported that thrusts which felt
+physically decisive had no matching effect on the sound (``The thrust are not well detected'';
+``Add `thrust' detection support or fix the existing''). Section~\ref{sec:limitations} gives a
+probable cause. Other frustration was described as learning (``when a bit hard it's just a learning
+experience''), and one participant found the instrument fun but not, on its own, motivating to
+practise.
+
+\subsection{Not Yet Measured}
+\label{sec:not-measured}
+(i) \emph{End-to-end latency}, to replace the estimate above: a contact microphone on the staff
+and the plugin output, recorded on two channels of one interface. (ii) \emph{Packet rate, jitter,
+and loss}: logging inter-arrival times in the plugin. (iii) A timed, unassisted \emph{rewiring task}
+(retune a parameter, then change which feature drives a sink). (iv) A replay test for the presets
+and a remount test for the calibration. (v) Sessions with participants trained in b\^o or another
+martial art.
+% TODO (authors): link a demo video (anonymised for review) showing spins, a facing change, and
+% thrusts through one or two presets.
 
 \section{Discussion}
 
-\subsection{Advantages and Limitations}
+\subsection{Limitations}
 \label{sec:limitations}
-The generalisation into a graph buys expressiveness and shareability - eleven previously hand-coded
-mappings collapse into presets of one small dataflow language - at the cost of a patching step that
-performers used to fixed instruments do not otherwise have to take. The limitations below are ones
-the current build genuinely carries, not future work described in present tense.
+\textbf{Per-block analysis.} The analyzer runs once per audio block on the latest packet. At
+48\,kHz with 128-sample buffers, a block arrives every $\approx\!2.7$\,ms and a packet every
+10\,ms, so each packet is analysed about four times, and $\Delta t$ comes from the host clock
+rather than the sensor. Every derivative-based feature (onset, jerk, tip velocity, thrust jerk) then
+sees one large step followed by zeros, and its magnitude depends on the buffer size. For the thrust
+detector, the zero steps can create a false zero-crossing on a thrust's rising edge, and its peak
+envelope decay ($0.94$, meant per packet) is applied per block. We think this explains the pilot's
+thrust finding. The fix is to analyse only when the packet sequence counter advances and to send
+the sensor's timestamp in each packet. The tuned constants and the thrust detector will then need
+re-tuning.
 
-\textbf{Network deployment is manual.} REMORA joins the host device's own Wi-Fi hotspot rather than
-a dedicated access point, trading range and interference robustness for a one-step pairing setup.
-That convenience hides a real cost: the hotspot's Service Set Identifier (SSID)/password and the OSC
-destination IP address are constants compiled into the firmware. A phone hotspot
-does not guarantee the same IP across sessions, and pairing with a different host network means a
-different SSID and password entirely -
-either case currently requires editing the firmware source and reflashing the microcontroller over
-the USB before the staff will talk to the plugin again. There is no runtime
-Wi-Fi configuration, no
-network discovery of the receiving host, and no feedback if the join fails silently.
+\textbf{Heading.} The 6-axis Mahony filter keeps facing free of magnetic interference, but gives it
+no absolute reference, so yaw drift since calibration is uncorrected. We expect it to stay small
+over a set of a few tens of minutes but have not measured it, and there is no gesture yet to re-zero
+heading during a performance. The Mahony filter's fixed gain ($K_p = 30$) also treats the accelerometer as a
+gravity reference, which centripetal acceleration violates during fast spins; the resulting tilt
+error has not been measured.
 
-\textbf{Single IMU.} All orientation and motion-quality features come from one IMU with no
-magnetometer fusion; heading is deliberately kept relative to the calibration pose rather than
-magnetic north, since the magnetometer is unreliable this close to the staff's own electronics and
-typical stage rigs. That keeps facing free of magnetic interference, but it also means REMORA has no
-absolute reference at all - any yaw drift accumulated since calibration is invisible and
-uncorrected, and the facing feature is only ever as good as that session's calibration
-(\S\ref{sec:evaluation} bounds claim~\ref{claim:facing} to session lengths of tens of minutes on this basis, not a
-measured guarantee). Nothing in the current implementation prevents drift from growing unboundedly
-over a longer, uninterrupted rehearsal or set, and no re-calibration-on-demand gesture currently
-exists to correct it mid-performance; ground-truth heading logging would need to be added to the
-planned performer evaluation before that bound could be tightened.
+\textbf{Sensor position.} Calibration corrects rotation but not position along the staff, so the
+acceleration-based features depend on where the unit is mounted (\S\ref{sec:features}).
 
-\textbf{Graph interface complexity.} The node-graph editor is expressive for whoever is building or
-modifying a mapping, but it exposes that same complexity to a performer who only wants to select and
-play an existing preset - there is no simplified performance-only view that hides the graph until
-asked for. The interface currently serves instrument-builders and patch-authors more directly than
-first-time performers, and whether that cost is acceptable is a question the still-missing user
-study would need to answer.
+\textbf{Network.} The hotspot name, password, and destination IP are compiled into the firmware.
+Pairing with a different host computer, or a host whose hotspot uses a different IP, requires
+reflashing over USB. A laptop hotspot also limits range and is sensitive to interference. There is no
+discovery of the host and no feedback when joining fails.
 
-\textbf{Remaining software robustness gaps.} A few implementation-level issues would need attention
-before REMORA is exposed to inputs beyond the author's own testing: incoming OSC messages are read
-without confirming their argument types match what the receiver expects, dropped or reordered
-packets are not detected as such, and the handoff of a sensor snapshot from the network thread to
-the audio thread retries in a tight spin loop rather than degrading gracefully under contention. A
-related lock has since been addressed rather than left open: graph evaluation used to share a
-blocking lock with the UI thread editing the live patch, so a rewire mid-performance could stall the
-audio thread; \texttt{NodeGraph::evaluate} now takes a \texttt{ScopedTryLock} and simply reuses the
-previous block's mapping output on contention instead of blocking - the same graceful-degradation
-pattern the sensor-handoff spin loop above still lacks.
+\textbf{Interface.} The graph editor serves patch authors better than performers who only want to
+choose a preset; there is no simplified performance view.
 
-\textbf{Hardware.} The enclosure carries a 2000\,mAh LiPo battery, sized to comfortably outlast a
-single rehearsal or set at the firmware's steady 100\,Hz sampling rate, but runtime under REMORA's
-actual firmware has not been measured: no discharge test has been logged to date. That measurement
-- ideally several runs to a defined cutoff voltage, reported with variance - is needed before any
-runtime claim can be made or the battery sized with confidence for a full day of back-to-back
-performances.
+\textbf{Robustness.} Incoming OSC argument types are not checked, lost or reordered packets are not
+detected, and the hand-off of a sensor snapshot from the network thread to the audio thread retries
+in a spin loop rather than reusing the last value.
 
-\subsection{Future Improvements}
+\textbf{Battery.} Runtime on the 2000\,mAh battery has not been measured.
 
-\textbf{Wireless transport.} The hotspot-join scheme in \S\ref{sec:limitations} could be replaced
-with ESP-NOW: the staff-mounted ESP32 would send its sensor packets directly, peer-to-peer, to a
-second ESP32 tethered over USB to the host computer, which forwards them to the plugin over serial
-or a loopback OSC bridge. That removes the SSID/password/IP baked into firmware entirely - ESP-NOW
-pairs by MAC address rather than joining a network - and sidesteps the "new
-hotspot means reflash"
-problem, at the cost of adding a second microcontroller to the setup.
-
-\textbf{Other extensions.} Gesture-triggered mode switching, a merged rest/motion mapping, a two-IMU
-dual-tip configuration, further Laban Effort mapping targets, machine learning based discrete
-gesture recognition,
-and eventually exposing the node graph itself as a shareable/community patch format.
+\subsection{Future Work}
+\label{sec:future}
+The immediate steps are the per-packet analyzer and the measurements listed in
+\S\ref{sec:evaluation}. Replacing the hotspot with ESP-NOW, sending to a second ESP32 on the host's
+USB port, would remove network credentials from the firmware. Longer term, we plan a dual-IMU
+configuration (one per end of the staff, which would also let centripetal acceleration be separated
+from linear motion), gesture-triggered preset switching, and a shareable patch format.
 
 \section{Conclusions}
-REMORA is a wireless, IMU-driven b\^o staff instrument, but its contribution is architectural rather
-than being one more fixed gesture-to-sound mapping: the same small dataflow language - source,
-math, and sink node primitives, evaluated as a DAG once per audio block and rewireable without
-recompiling - reproduces all eleven mapping strategies developed over the course of the project as
-ordinary, live-editable presets (Table~\ref{tab:preset-nodes}), from a minimal tilt-to-pitch patch to the fully
-Laban-driven \preset{Martial} and \preset{Speed Gate} mappings, grounded in an explicit, code-traceable account of
-calibration, orientation tracking, and movement-quality extraction (\S\ref{sec:named-mappings}). The
-same architecture has since kept absorbing growth without another rewrite: a pluggable synthesis
-layer added granular and vocal-tract engines alongside the original additive one
-(\S\ref{sec:synthesis}), and four more presets were authored directly as graph patches rather than
-ported from hand-written code, taking the catalog to fifteen presets in current use.
-
-What remains uncertain is exactly what \S\ref{sec:evaluation} makes explicit: whether these claims hold for a
-performer other than the author, and whether the primitive catalog and facing estimate fare under
-conditions implementation-level evidence alone cannot settle. The most important next step for this
-work is therefore not another architectural extension but running the performer evaluation protocol
-outlined in \S\ref{sec:evaluation}.
+REMORA makes a b\^o staff into a musical instrument whose features (spin plane, spin direction,
+facing, lap count, thrust) come from the way a staff is handled. Its mapping is a patch that can be
+rewired while it plays, and the project's hand-coded mappings now live as presets of one node
+catalog. In a ten-person pilot, first-time players rated it comfortable and engaging and most often
+preferred a spin- and facing-driven preset. They also found that thrusts were poorly detected; we
+identify a probable cause and a fix. Next come that fix, measured latency and packet rate, a
+rewiring task, and sessions with trained martial artists.
 
 \begin{acks}
 This work was carried out during the first author's internship at CREATE, Aalborg University,
@@ -945,42 +632,31 @@ Denmark.
 \end{acks}
 
 \section{Supplementary Material}
-% TODO before submission: replace with the actual video URL.
+% TODO before submission: if NIME review is double-blind this cycle, anonymise the author block,
+% the GitHub URL, the Acknowledgments, and first-author references in the text.
 \begin{itemize}
-  \item \textbf{Video demonstration:} the staff, the calibration procedure, and several presets
-  played live - \url{https://youtu.be/PLACEHOLDER-REMORA-DEMO}
-  \item \textbf{Source and design files:} firmware, plugin source, OpenSCAD enclosure files, and all
-  eleven presets described in \S\ref{sec:named-mappings} -
+  \item \textbf{Source and design files:} firmware, plugin source, OpenSCAD enclosure, all fifteen
+  preset graphs, and the tool that counts each preset's nodes:
   \url{https://github.com/TimotheeDvt/REMORA}
 \end{itemize}
 
 \section{Ethical Statement}
-\textbf{Accessibility.} REMORA assumes a range of mobility and two-handed grip strength consistent
-with swinging a b\^o staff; it is not currently adapted for performers who cannot support or swing a
-1--1.5\,kg full-length staff, and no alternative mounting or reduced-effort variant has been
-explored - a real limitation of the instrument's physical form, not merely of the present build.
-The skill barrier is not uniform across the preset catalog, though: \preset{Simple} asks only for basic
-tilt and roll, while the Laban-driven presets (\preset{Martial}, \preset{Azimut}) reward accumulated
-staff-handling skill. Because every preset is authored in the same shared patching language
-(\S\ref{sec:named-mappings}), a facilitator can also build a reduced-effort mapping for someone
-without a staff background - a partial mitigation on the skill axis, not a solution to the physical
-one above.
+\textbf{Accessibility.} REMORA assumes the mobility and two-handed grip strength needed to swing a
+1--1.5\,kg staff, and no reduced-effort physical variant exists. The skill barrier varies across
+presets (\preset{Simple} needs only tilt and roll), and a facilitator can patch a simpler mapping
+for a newcomer, but this does not address the physical requirement.
 
-\textbf{Environmental impact.} The staff-mounted hardware - a 3D-printed/OpenSCAD-parametrised
-enclosure, a rechargeable LiPo battery, an ESP32-S2 microcontroller, and an MPU-9250 IMU - is held
-together with zip ties rather than adhesive (\S\ref{sec:limitations}, The Build), so the enclosure
-and electronics can be removed, reused, or recycled without damaging the staff. No lifecycle or
-embodied-carbon analysis of the components has been performed.
+\textbf{Environmental impact.} The enclosure is attached with zip ties, so the electronics and
+battery can be removed and reused. No lifecycle analysis has been performed.
 
-\textbf{Socio-economic fairness.} REMORA is built entirely on free/libre and open-source tools -
-JUCE, PlatformIO, and OpenSCAD - with an inexpensive, widely available microcontroller and IMU,
-keeping the reproduction cost and toolchain barrier low relative to proprietary DMI environments; the source and design files referenced in Supplementary Material
-are what make that reproduction actually possible.
+\textbf{Socio-economic fairness.} REMORA uses free and open-source tools (JUCE, PlatformIO,
+OpenSCAD) and inexpensive, widely available hardware, and all source and design files are public.
 
-\textbf{Human participants.} No human-participant data has been collected to date; all reported
-observations are the first author's own, and the performer evaluation outlined in
-\S\ref{sec:evaluation} has not yet been conducted. When it is run, participants will give informed
-consent, be referred to only by anonymised identifiers, and be free to withdraw at any point.
+\textbf{Human participants.} The pilot (\S\ref{sec:pilot}) involved ten adult volunteers who
+answered an anonymous questionnaire. No names or identifying data were recorded, free-text answers
+are quoted without attribution, and participants could stop at any time. Each participant gave
+verbal consent before the session.
+% TODO (authors): state whether institutional ethics review applied or was waived.
 
 \textbf{Use of Artificial Intelligence.} We disclose that a locally-run large language model (Mistral 7B) was used to help draft and edit
 portions of this manuscript's prose under the first author's direction and review. This disclosure
