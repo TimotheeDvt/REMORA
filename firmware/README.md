@@ -54,18 +54,20 @@ The PlatformIO environment is `sparkfun_esp32s2_thing_plus` (see `platformio.ini
 
 Declared in `platformio.ini`:
 
-- [hideakitai/MPU9250](https://github.com/hideakitai/MPU9250) - IMU driver, also computes the fused quaternion
+- [hideakitai/MPU9250](https://github.com/hideakitai/MPU9250) - IMU driver (its own filter is switched off; orientation comes from `src/GatedMahony.h`)
 - [CNMAT/OSC](https://github.com/CNMAT/OSC) - OSC message construction
 
 ## Wire Protocol
 
-UDP/OSC, sent from the board to `outIp:8000` (the host running the REMORA plugin); the board itself listens locally on port `8888`.
+UDP/OSC, sent from the board to port `8000` of the Wi-Fi gateway (the host running the hotspot and the REMORA plugin), or of `OSC_HOST_IP_VALUE` if defined in `secrets.h`; the board itself listens locally on port `8888`.
 
 | Address | Args | Sent |
 |---|---|---|
 | `/esp32/connected` | `<ip:string>` | Once, right after Wi-Fi connects |
-| `/esp32/imu` | `ax ay az gx gy gz mx my mz qw qx qy qz <ip:string>` (12 floats + string) | Every 10 ms (100 Hz), while `mpu.update()` has fresh data |
+| `/esp32/imu` | `ax ay az gx gy gz mx my mz qw qx qy qz <ip:string> <seq:int32> <t_us:int32>` (13 floats, string, 2 ints) | Every 10 ms (100 Hz) |
 
-`ax/ay/az` = accelerometer, `gx/gy/gz` = gyroscope, `mx/my/mz` = magnetometer, `qw/qx/qy/qz` = the fused orientation quaternion computed onboard by the MPU9250 library.
+`ax/ay/az` = accelerometer (g), `gx/gy/gz` = gyroscope (deg/s, tracked bias removed), `mx/my/mz` = magnetometer, `qw/qx/qy/qz` = the orientation quaternion, `seq` = packet counter (lost/reordered packet detection), `t_us` = sensor clock in microseconds (the plugin's time step).
+
+Orientation is a 6-axis Mahony filter (`src/GatedMahony.h`) run on every 200 Hz IMU sample. Its accelerometer correction fades out when the accelerometer is not reading gravity alone (|a| more than 0.1 g from 1 g, or rotation above 90 deg/s), because during spins centripetal acceleration on the staff reaches ~11 g. The gyro bias is averaged at boot (keep the staff still for ~1 s) and then tracked whenever the staff is still. The filter keeps the MPU9250 library's axis convention (x mirrored) so existing calibrations stay valid.
 
 If Wi-Fi drops mid-run, `loop()` detects it, halts sending, and blocks on reconnection before resuming the stream.
