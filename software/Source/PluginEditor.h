@@ -50,6 +50,7 @@ private:
   std::unique_ptr<DSPWindow> dspWindow;
 
   juce::TextButton calibrateButton;
+  juce::TextButton rezeroHeadingButton;
 
   BoStaffVisualizer boStaffVisualizer;
   CalibrationOverlay calibrationOverlay;
@@ -57,4 +58,4 @@ private:
   std::unique_ptr<juce::Drawable> logo;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(REMORAEditor)
-};
+};

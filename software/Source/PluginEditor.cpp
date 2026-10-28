@@ -95,6 +95,17 @@ REMORAEditor::REMORAEditor(REMORAProcessor &p)
   );
   addAndMakeVisible(calibrateButton);
 
+  // Removes accumulated yaw drift without redoing the three poses: point the staff forward, click.
+  styleButton(rezeroHeadingButton, "RE-ZERO HEADING", Palette::ButtonTheme::secondary,
+             [this] {
+               if (processor.rezeroHeading())
+                 debug.print.green("Heading re-zeroed: current staff direction is now forward.");
+               else
+                 debug.print.red("Re-zero heading failed: hold the staff closer to horizontal.");
+             }
+  );
+  addAndMakeVisible(rezeroHeadingButton);
+
   calibrationOverlay.onClicked = [this] { onCalibrateClicked(); };
   calibrationOverlay.setStepText("CALIBRATION REQUIRED",
                                  "Click to begin calibration", Palette::yellow);
@@ -235,7 +246,7 @@ void REMORAEditor::resized() {
   layoutRow(currentY, {&dspButton});
   currentY += itemH + padding;
 
-  layoutRow(currentY, {&calibrateButton});
+  layoutRow(currentY, {&calibrateButton, &rezeroHeadingButton});
   currentY += itemH + padding;
 
   // Staff visualizer once calibrated, else the calibration overlay - both occupy this same area.
@@ -401,4 +412,4 @@ void REMORAEditor::updateCalibrationVisibility() {
 
   boStaffVisualizer.setVisible(calibrationDone);
   calibrationOverlay.setVisible(!calibrationDone);
-}
+}
