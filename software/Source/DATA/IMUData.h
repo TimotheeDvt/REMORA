@@ -2,11 +2,19 @@
 
 #include <atomic>
 
+#include <cstdint>
+
 struct IMURawSnapshot {
   float ax, ay, az;
   float gx, gy, gz;
   float mx, my, mz;
   float qw, qx, qy, qz;
+  // Sensor clock (us) and packet counter sent by the firmware; hasSensorClock is false for older
+  // firmware that sends neither, in which case the host arrival time stands in for the sensor clock.
+  uint32_t sensorMicros = 0;
+  uint32_t sequence = 0;
+  bool hasSensorClock = false;
+  int64_t hostTicks = 0; // juce::Time high-resolution ticks at arrival
 };
 
 struct IMUData {
@@ -47,4 +55,4 @@ struct IMUData {
     unsigned s2 = seq.load(std::memory_order_acquire);
     return s1 == s2;
   }
-};
+};
