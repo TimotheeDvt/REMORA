@@ -46,6 +46,11 @@ public:
   int64_t getLastMessageReceivedTicks() const noexcept {
     return oscManager.getLastMessageReceivedTicks();
   }
+  const OscReceiverManager &getOscStats() const noexcept { return oscManager; }
+  // The log's preamble records the current calibration, so the log can be replayed offline.
+  bool startPacketLog(const juce::File &file);
+  void stopPacketLog() { oscManager.stopPacketLog(); }
+  bool isLoggingPackets() const noexcept { return oscManager.isLoggingPackets(); }
 
   SynthManager& getSynth() { return synth; }
 
@@ -63,6 +68,9 @@ public:
   void recordPoseC();
   // Returns false if the three poses were too close/coplanar to determine a physical axis with confidence.
   bool computeCorrection();
+  // Makes the staff's current heading the new "forward" (tilt calibration is kept). Returns false
+  // if the staff is too close to vertical for its heading to be defined.
+  bool rezeroHeading();
   int getCalibState() const { return calibState.load(); }
   MathHelpers::Quat getCalibratedQuat() const;
 
@@ -118,6 +126,8 @@ public:
 
 private:
   void timerCallback() override;
+  // Time since the previous packet, from the sensor clock when the firmware sends one.
+  float packetDeltaSeconds(const IMURawSnapshot &packet);
 
   OscReceiverManager oscManager;
   SynthManager synth;
@@ -163,9 +173,11 @@ private:
 
   std::array<OrientationPoint, 512> orientationHistory;
   std::atomic<size_t> historyWriteIndex{0};
-  int64_t lastHistoryPushTicks = 0;
+  std::array<IMURawSnapshot, ImuPacketFifo::kCapacity> pendingPackets{};
+  IMURawSnapshot previousPacket{};
+  bool hasPreviousPacket = false;
 
   mutable std::vector<OrientationPoint> recentOrientationsScratch;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(REMORAProcessor)
-};
+};

@@ -1,5 +1,5 @@
 #include "StaffMotionAnalyzer.h"
-#include "SynthManager.h"
+#include "StaffSoundParams.h"
 #include "../UI/DebugLog.h"
 #include <algorithm>
 #include <cmath>
@@ -7,29 +7,57 @@
 StaffMotionAnalyzer::DerivedMotionFrame StaffMotionAnalyzer::computeFrame(const StaffSoundParams& input_parameters) {
     DerivedMotionFrame frame;
 
-    calculateDeltaTime();
+    delta_time_seconds_ = input_parameters.deltaTimeSeconds > 0.f ? input_parameters.deltaTimeSeconds : 0.01f;
+    ticks_ = referenceTicks(delta_time_seconds_);
     frame.deltaTimeSeconds = delta_time_seconds_;
 
-    float tip_x, tip_y, tip_z;
-    updateTipPositionHistory(input_parameters, tip_x, tip_y, tip_z);
-    frame.tipX = tip_x;
-    frame.tipY = tip_y;
+    // Tip direction: the staff's +X in the calibrated world frame.
+    MathHelpers::rotateVectorByQuaternion(input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz,
+                                          1.f, 0.f, 0.f, tip_x_, tip_y_, tip_z_);
+    frame.tipX = tip_x_;
+    frame.tipY = tip_y_;
+    frame.tipZ = tip_z_;
 
-    calculateRotationAxisAtMidpoint(frame.rotationAxisX, frame.rotationAxisY, frame.rotationAxisZ);
+    // Rotation axis straight from the gyroscope (already in the world frame), minus the roll about
+    // the staff itself: w_perp = w - tip (tip . w). This is what the tip's motion traces out, without
+    // differentiating orientation.
+    const float wx = input_parameters.worldGyroX, wy = input_parameters.worldGyroY, wz = input_parameters.worldGyroZ;
+    const float along = wx * tip_x_ + wy * tip_y_ + wz * tip_z_;
+    const float px = wx - along * tip_x_, py = wy - along * tip_y_, pz = wz - along * tip_z_;
+    frame.spinRateDegPerSec = std::sqrt(px * px + py * py + pz * pz);
+    frame.rotationAxisX = px / kGyroscopeCeiling;
+    frame.rotationAxisY = py / kGyroscopeCeiling;
+    frame.rotationAxisZ = pz / kGyroscopeCeiling;
+    world_gyro_z_ = wz;
+    frame.worldGyroZ = wz;
 
-    updateGravityVector(input_parameters);
+    const float forward_alpha = coefficientFor(kForwardAxisSmoothingCoefficient, ticks_);
+    smoothed_forward_axis_x_ = MathHelpers::applyOnePoleFilter(smoothed_forward_axis_x_, tip_x_, forward_alpha);
+    smoothed_forward_axis_y_ = MathHelpers::applyOnePoleFilter(smoothed_forward_axis_y_, tip_y_, forward_alpha);
 
-    float dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, dynamic_accel_magnitude;
-    calculateDynamicAcceleration(input_parameters, dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, dynamic_accel_magnitude);
+    // Dynamic acceleration: specific force and gravity are both in the world frame, so this is a
+    // plain subtraction. During spins it is dominated by centripetal acceleration (w^2 r).
+    const float dynamic_accel_x = input_parameters.worldAccelX;
+    const float dynamic_accel_y = input_parameters.worldAccelY;
+    const float dynamic_accel_z = input_parameters.worldAccelZ - 1.0f;
+    const float dynamic_accel_magnitude = std::sqrt(dynamic_accel_x * dynamic_accel_x + dynamic_accel_y * dynamic_accel_y + dynamic_accel_z * dynamic_accel_z);
 
-    float velocity_magnitude = integrateVelocityForLabanWeight(dynamic_accel_x, dynamic_accel_y, dynamic_accel_z);
+    constexpr float kGravityConstant = 9.81f;
+    const float decay_coefficient = std::exp(-(delta_time_seconds_ * 1000.0f / kVelocityDecayHalfLifeMilliseconds) * 0.693147f);
+    velocity_x_ = (velocity_x_ + dynamic_accel_x * kGravityConstant * delta_time_seconds_) * decay_coefficient;
+    velocity_y_ = (velocity_y_ + dynamic_accel_y * kGravityConstant * delta_time_seconds_) * decay_coefficient;
+    velocity_z_ = (velocity_z_ + dynamic_accel_z * kGravityConstant * delta_time_seconds_) * decay_coefficient;
+    const float velocity_magnitude = std::sqrt(velocity_x_ * velocity_x_ + velocity_y_ * velocity_y_ + velocity_z_ * velocity_z_);
 
     const float gyroscope_magnitude = std::sqrt(input_parameters.gx * input_parameters.gx + input_parameters.gy * input_parameters.gy + input_parameters.gz * input_parameters.gz);
     frame.gyroscopeMagnitude = gyroscope_magnitude;
-    frame.smoothedGyroscopeMagnitude = updateGyroscopeMagnitude(gyroscope_magnitude);
+    smoothed_gyroscope_magnitude_ = MathHelpers::applyOnePoleFilter(smoothed_gyroscope_magnitude_, gyroscope_magnitude,
+                                                                    coefficientFor(kGyroscopeSmoothingCoefficient, ticks_));
+    frame.smoothedGyroscopeMagnitude = smoothed_gyroscope_magnitude_;
 
-    detectAxialThrustPeaks(input_parameters, dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, tip_x, tip_y, tip_z, gyroscope_magnitude);
-    frame.axialThrustPeakEnvelope = axialThrustPeakEnvelope();
+    const float axial_acceleration = dynamic_accel_x * tip_x_ + dynamic_accel_y * tip_y_ + dynamic_accel_z * tip_z_;
+    detectAxialThrustPeaks(axial_acceleration, gyroscope_magnitude);
+    frame.axialThrustPeakEnvelope = axial_thrust_peak_envelope_;
 
     frame.labanWeight = updateLabanWeight(velocity_magnitude);
     frame.labanTimeSuddenness = updateLabanTime(gyroscope_magnitude);
@@ -42,130 +70,20 @@ StaffMotionAnalyzer::DerivedMotionFrame StaffMotionAnalyzer::computeFrame(const 
 }
 
 void StaffMotionAnalyzer::prepare() {
-    delta_time_seconds_ = 1.0f / 100.0f;
-    last_timestamp_ticks_ = 0;
-
-    gravity_x_ = 0.f; gravity_y_ = 0.f; gravity_z_ = 1.f;
-    velocity_x_  = 0.f; velocity_y_  = 0.f; velocity_z_  = 0.f;
-
-    weight_envelope_ = 0.f;
-    previous_gyroscope_magnitude_ = 0.f;
-    suddenness_ = 0.f;
-    suddenness_envelope_ = 0.f;
-
-    previous_gyroscope_direction_x_ = 0.f; previous_gyroscope_direction_y_ = 0.f; previous_gyroscope_direction_z_ = 1.f;
-    axis_focus_ = 1.f;
-
-    previous_dynamic_acceleration_magnitude_ = 0.f;
-    flow_bound_envelope_ = 0.f;
-
-    smoothed_gyroscope_magnitude_ = 0.f;
-
-    for (int i = 0; i < 3; ++i) {
-        tip_position_x_history_[i] = 1.f;
-        tip_position_y_history_[i] = 0.f;
-        tip_position_z_history_[i] = 0.f;
-    }
-
-    smoothed_rotation_axis_x_ = 0.f;
-    smoothed_rotation_axis_y_ = 0.f;
-    smoothed_rotation_axis_z_ = 1.f;
-
-    smoothed_forward_axis_x_ = 1.f;
-    smoothed_forward_axis_y_ = 0.f;
-
-    is_rotation_axis_vertical_ = false;
-    rotation_spin_direction_  = 1.f;
-    was_rotation_axis_vertical_ = false;
-    previous_rotation_spin_direction_ = 1.f;
-
-    reference_azimuth_x_ = 1.f;
-    reference_azimuth_y_ = 0.f;
-    is_reference_azimuth_set_ = false;
-
-    is_facing_north_ = true;
-    previous_is_facing_north_ = true;
-
-    accumulated_spin_degrees_ = 0.f;
-    continuous_spin_count_ = 0;
-
-    axial_thrust_peak_envelope_ = 0.f;
-    previous_axial_acceleration_ = 0.f;
-    previous_axial_jerk_ = 0.f;
-    thrust_cooldown_seconds_ = 0.f;
+    *this = StaffMotionAnalyzer();
 }
 
-void StaffMotionAnalyzer::calculateDeltaTime() {
-    const juce::int64 current_time_ticks = juce::Time::getHighResolutionTicks();
-    if (last_timestamp_ticks_ != 0) {
-        double elapsed_seconds = juce::Time::highResolutionTicksToSeconds(current_time_ticks - last_timestamp_ticks_);
-        if (elapsed_seconds > 0.0001 && elapsed_seconds < 0.2) {
-            delta_time_seconds_ = static_cast<float>(elapsed_seconds);
-        }
-    }
-    last_timestamp_ticks_ = current_time_ticks;
-}
-
-void StaffMotionAnalyzer::updateTipPositionHistory(const StaffSoundParams& input_parameters, float& current_tip_x, float& current_tip_y, float& current_tip_z) {
-    MathHelpers::rotateVectorByQuaternion(input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz, 1.f, 0.f, 0.f, current_tip_x, current_tip_y, current_tip_z);
-
-    // shift ring buffer: [2]=oldest, [1]=mid, [0]=newest
-    tip_position_x_history_[2] = tip_position_x_history_[1]; tip_position_x_history_[1] = tip_position_x_history_[0]; tip_position_x_history_[0] = current_tip_x;
-    tip_position_y_history_[2] = tip_position_y_history_[1]; tip_position_y_history_[1] = tip_position_y_history_[0]; tip_position_y_history_[0] = current_tip_y;
-    tip_position_z_history_[2] = tip_position_z_history_[1]; tip_position_z_history_[1] = tip_position_z_history_[0]; tip_position_z_history_[0] = current_tip_z;
-}
-
-void StaffMotionAnalyzer::calculateRotationAxisAtMidpoint(float& axis_x, float& axis_y, float& axis_z) const {
-    // velocity_mean = (position[0] - position[2]) / 2 (central difference, 1-frame latency)
-    float velocity_mean_x = (tip_position_x_history_[0] - tip_position_x_history_[2]) * 0.5f;
-    float velocity_mean_y = (tip_position_y_history_[0] - tip_position_y_history_[2]) * 0.5f;
-    float velocity_mean_z = (tip_position_z_history_[0] - tip_position_z_history_[2]) * 0.5f;
-
-    // axis = position[1] cross_product velocity_mean (rotation axis at midpoint)
-    axis_x = tip_position_y_history_[1] * velocity_mean_z - tip_position_z_history_[1] * velocity_mean_y;
-    axis_y = tip_position_z_history_[1] * velocity_mean_x - tip_position_x_history_[1] * velocity_mean_z;
-    axis_z = tip_position_x_history_[1] * velocity_mean_y - tip_position_y_history_[1] * velocity_mean_x;
-}
-
-void StaffMotionAnalyzer::updateGravityVector(const StaffSoundParams& input_parameters) {
-    float gravity_x_temp, gravity_y_temp, gravity_z_temp;
-    MathHelpers::rotateVectorByQuaternion(input_parameters.qw, -input_parameters.qx, -input_parameters.qy, -input_parameters.qz, 0.f, 0.f, 1.f, gravity_x_temp, gravity_y_temp, gravity_z_temp);
-    constexpr float kGravitySmoothingAlpha = 0.10f; // Time Constant approx 90ms
-    gravity_x_ = MathHelpers::applyOnePoleFilter(gravity_x_, gravity_x_temp, kGravitySmoothingAlpha);
-    gravity_y_ = MathHelpers::applyOnePoleFilter(gravity_y_, gravity_y_temp, kGravitySmoothingAlpha);
-    gravity_z_ = MathHelpers::applyOnePoleFilter(gravity_z_, gravity_z_temp, kGravitySmoothingAlpha);
-}
-
-void StaffMotionAnalyzer::calculateDynamicAcceleration(const StaffSoundParams& input_parameters, float& dynamic_accel_x, float& dynamic_accel_y, float& dynamic_accel_z, float& dynamic_accel_magnitude) const {
-    dynamic_accel_x = input_parameters.ax - gravity_x_;
-    dynamic_accel_y = input_parameters.ay - gravity_y_;
-    dynamic_accel_z = input_parameters.az - gravity_z_;
-    dynamic_accel_magnitude = std::sqrt(dynamic_accel_x * dynamic_accel_x + dynamic_accel_y * dynamic_accel_y + dynamic_accel_z * dynamic_accel_z);
-}
-
-float StaffMotionAnalyzer::integrateVelocityForLabanWeight(float dynamic_accel_x, float dynamic_accel_y, float dynamic_accel_z) {
-    constexpr float kGravityConstant = 9.81f;
-    const float decay_coefficient = std::exp(-(delta_time_seconds_ * 1000.0f / kVelocityDecayHalfLifeMilliseconds) * 0.693147f);
-    velocity_x_ = (velocity_x_ + dynamic_accel_x * kGravityConstant * delta_time_seconds_) * decay_coefficient;
-    velocity_y_ = (velocity_y_ + dynamic_accel_y * kGravityConstant * delta_time_seconds_) * decay_coefficient;
-    velocity_z_ = (velocity_z_ + dynamic_accel_z * kGravityConstant * delta_time_seconds_) * decay_coefficient;
-
-    return std::sqrt(velocity_x_ * velocity_x_ + velocity_y_ * velocity_y_ + velocity_z_ * velocity_z_);
-}
-
-void StaffMotionAnalyzer::detectAxialThrustPeaks(const StaffSoundParams& input_parameters, float dynamic_accel_x, float dynamic_accel_y, float dynamic_accel_z, float tip_x, float tip_y, float tip_z, float gyroscope_magnitude) {
-    float dynamic_accel_world_x, dynamic_accel_world_y, dynamic_accel_world_z;
-    MathHelpers::rotateVectorByQuaternion(input_parameters.qw, input_parameters.qx, input_parameters.qy, input_parameters.qz, dynamic_accel_x, dynamic_accel_y, dynamic_accel_z, dynamic_accel_world_x, dynamic_accel_world_y, dynamic_accel_world_z);
-
-    // dot product(dynamic_accel_world, staff_world) - positive value means thrust along tip direction
-    float current_axial_acceleration = dynamic_accel_world_x * tip_x + dynamic_accel_world_y * tip_y + dynamic_accel_world_z * tip_z;
-    float current_axial_jerk = (current_axial_acceleration - previous_axial_acceleration_) / (delta_time_seconds_ + 1e-6f);
+void StaffMotionAnalyzer::detectAxialThrustPeaks(float current_axial_acceleration, float gyroscope_magnitude) {
+    // Signed jerk along the staff; positive acceleration means toward the tip.
+    const float current_axial_jerk = has_previous_axial_
+        ? (current_axial_acceleration - previous_axial_acceleration_) / delta_time_seconds_
+        : 0.f;
 
     if (thrust_cooldown_seconds_ > 0.f) {
         thrust_cooldown_seconds_ -= delta_time_seconds_;
     }
 
-    // Detect zero-crossing of signed jerk depending on the direction of acceleration
+    // Peak = zero-crossing of the signed jerk while the acceleration is beyond threshold.
     bool is_positive_peak = (current_axial_acceleration > kPeakAxialAccelerationThreshold) && (previous_axial_jerk_ > 0.f && current_axial_jerk <= 0.f);
     bool is_negative_peak = (current_axial_acceleration < -kPeakAxialAccelerationThreshold) && (previous_axial_jerk_ < 0.f && current_axial_jerk >= 0.f);
 
@@ -184,33 +102,26 @@ void StaffMotionAnalyzer::detectAxialThrustPeaks(const StaffSoundParams& input_p
 
     previous_axial_acceleration_ = current_axial_acceleration;
     previous_axial_jerk_ = current_axial_jerk;
-    axial_thrust_peak_envelope_ *= kPeakDecayCoefficient;
-}
-
-float StaffMotionAnalyzer::updateGyroscopeMagnitude(float gyroscope_magnitude) {
-    smoothed_gyroscope_magnitude_ = MathHelpers::applyOnePoleFilter(smoothed_gyroscope_magnitude_, gyroscope_magnitude, kGyroscopeSmoothingCoefficient);
-    return smoothed_gyroscope_magnitude_;
+    has_previous_axial_ = true;
+    axial_thrust_peak_envelope_ *= decayFor(kPeakDecayCoefficient, ticks_);
 }
 
 float StaffMotionAnalyzer::updateLabanWeight(float velocity_magnitude) {
     float target_weight = juce::jlimit(0.0f, 1.0f, velocity_magnitude * 0.25f);
-    if (target_weight > weight_envelope_) {
-        weight_envelope_ = MathHelpers::applyOnePoleFilter(weight_envelope_, target_weight, kWeightAttackCoefficient);
-    } else {
-        weight_envelope_ = MathHelpers::applyOnePoleFilter(weight_envelope_, target_weight, kWeightReleaseCoefficient);
-    }
+    const float coefficient = target_weight > weight_envelope_ ? kWeightAttackCoefficient : kWeightReleaseCoefficient;
+    weight_envelope_ = MathHelpers::applyOnePoleFilter(weight_envelope_, target_weight, coefficientFor(coefficient, ticks_));
     return weight_envelope_;
 }
 
 float StaffMotionAnalyzer::updateLabanTime(float gyroscope_magnitude) {
-    suddenness_ = (gyroscope_magnitude - previous_gyroscope_magnitude_) / (delta_time_seconds_ + 1e-6f);
+    const float suddenness = has_previous_gyroscope_magnitude_
+        ? (gyroscope_magnitude - previous_gyroscope_magnitude_) / delta_time_seconds_
+        : 0.f;
     previous_gyroscope_magnitude_ = gyroscope_magnitude;
-    float positive_suddenness = juce::jlimit(0.0f, 1.0f, std::max(0.0f, suddenness_) / 800.0f);
-    if (positive_suddenness > suddenness_envelope_) {
-        suddenness_envelope_ = MathHelpers::applyOnePoleFilter(suddenness_envelope_, positive_suddenness, 0.6f);
-    } else {
-        suddenness_envelope_ = MathHelpers::applyOnePoleFilter(suddenness_envelope_, positive_suddenness, kSuddennessSmoothingCoefficient);
-    }
+    has_previous_gyroscope_magnitude_ = true;
+    float positive_suddenness = juce::jlimit(0.0f, 1.0f, std::max(0.0f, suddenness) / 800.0f);
+    const float coefficient = positive_suddenness > suddenness_envelope_ ? kSuddennessAttackCoefficient : kSuddennessSmoothingCoefficient;
+    suddenness_envelope_ = MathHelpers::applyOnePoleFilter(suddenness_envelope_, positive_suddenness, coefficientFor(coefficient, ticks_));
     return juce::jlimit(0.0f, 1.0f, suddenness_envelope_);
 }
 
@@ -221,33 +132,50 @@ float StaffMotionAnalyzer::updateLabanSpace(const StaffSoundParams& input_parame
         float normal_z = input_parameters.gz;
         MathHelpers::normalize3DVector(normal_x, normal_y, normal_z);
         float dot_product = std::abs(normal_x * previous_gyroscope_direction_x_ + normal_y * previous_gyroscope_direction_y_ + normal_z * previous_gyroscope_direction_z_);
-        axis_focus_ = MathHelpers::applyOnePoleFilter(axis_focus_, dot_product, kAxisFocusSmoothingCoefficient);
+        axis_focus_ = MathHelpers::applyOnePoleFilter(axis_focus_, dot_product, coefficientFor(kAxisFocusSmoothingCoefficient, ticks_));
         previous_gyroscope_direction_x_ = normal_x;
         previous_gyroscope_direction_y_ = normal_y;
         previous_gyroscope_direction_z_ = normal_z;
     } else {
-        axis_focus_ = MathHelpers::applyOnePoleFilter(axis_focus_, 0.5f, 0.02f);
+        axis_focus_ = MathHelpers::applyOnePoleFilter(axis_focus_, 0.5f, coefficientFor(kAxisFocusRelaxCoefficient, ticks_));
     }
     return juce::jlimit(0.0f, 1.0f, axis_focus_);
 }
 
 void StaffMotionAnalyzer::updateLabanFlow(float dynamic_acceleration_magnitude, float& flow_bound, float& flow_free) {
-    float jerk_normalized = juce::jlimit(0.0f, 1.0f, std::abs(dynamic_acceleration_magnitude - previous_dynamic_acceleration_magnitude_) / (delta_time_seconds_ + 1e-6f) / 50.0f);
+    const float jerk = has_previous_dynamic_acceleration_
+        ? std::abs(dynamic_acceleration_magnitude - previous_dynamic_acceleration_magnitude_) / delta_time_seconds_
+        : 0.f;
+    float jerk_normalized = juce::jlimit(0.0f, 1.0f, jerk / 50.0f);
     previous_dynamic_acceleration_magnitude_ = dynamic_acceleration_magnitude;
-    flow_bound_envelope_ = MathHelpers::applyOnePoleFilter(flow_bound_envelope_, jerk_normalized, kFlowSmoothingCoefficient);
+    has_previous_dynamic_acceleration_ = true;
+    flow_bound_envelope_ = MathHelpers::applyOnePoleFilter(flow_bound_envelope_, jerk_normalized, coefficientFor(kFlowSmoothingCoefficient, ticks_));
 
     flow_bound = juce::jlimit(0.0f, 1.0f, flow_bound_envelope_);
     flow_free  = 1.0f - flow_bound;
 }
 
+bool StaffMotionAnalyzer::finishSpinClassification() {
+    bool spin_changed = false;
+    constexpr float kEps = 1e-6f;
+    if (is_rotation_axis_vertical_ != was_rotation_axis_vertical_ || std::abs(rotation_spin_direction_ - previous_rotation_spin_direction_) > kEps) {
+        was_rotation_axis_vertical_ = is_rotation_axis_vertical_;
+        previous_rotation_spin_direction_ = rotation_spin_direction_;
+        spin_changed = true;
+    }
+    return spin_changed;
+}
+
 bool StaffMotionAnalyzer::updateSpinClassificationByAbsoluteComponent(float axis_x, float axis_y, float axis_z) {
-    smoothed_rotation_axis_x_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_x_, axis_x, kRotationAxisSmoothingCoefficient);
-    smoothed_rotation_axis_y_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_y_, axis_y, kRotationAxisSmoothingCoefficient);
-    smoothed_rotation_axis_z_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_z_, axis_z, kRotationAxisSmoothingCoefficient);
+    const float alpha = coefficientFor(kRotationAxisSmoothingCoefficient, ticks_);
+    smoothed_rotation_axis_x_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_x_, axis_x, alpha);
+    smoothed_rotation_axis_y_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_y_, axis_y, alpha);
+    smoothed_rotation_axis_z_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_z_, axis_z, alpha);
 
     float perpendicular_magnitude = std::sqrt(smoothed_rotation_axis_x_ * smoothed_rotation_axis_x_ + smoothed_rotation_axis_y_ * smoothed_rotation_axis_y_);
     float parallel_magnitude = std::abs(smoothed_rotation_axis_z_);
 
+    // "Vertical" = the staff turns in a vertical plane, i.e. the rotation axis is mostly horizontal.
     is_rotation_axis_vertical_ = perpendicular_magnitude > parallel_magnitude;
 
     if (is_rotation_axis_vertical_) {
@@ -261,20 +189,14 @@ bool StaffMotionAnalyzer::updateSpinClassificationByAbsoluteComponent(float axis
         rotation_spin_direction_ = (smoothed_rotation_axis_z_ >= 0.f) ? 1.f : -1.f;
     }
 
-    bool spin_changed = false;
-    constexpr float kEps = 1e-6f;
-    if (is_rotation_axis_vertical_ != was_rotation_axis_vertical_ || std::abs(rotation_spin_direction_ - previous_rotation_spin_direction_) > kEps) {
-        was_rotation_axis_vertical_ = is_rotation_axis_vertical_;
-        previous_rotation_spin_direction_ = rotation_spin_direction_;
-        spin_changed = true;
-    }
-    return spin_changed;
+    return finishSpinClassification();
 }
 
 bool StaffMotionAnalyzer::updateSpinClassificationByReferenceAzimuth(float axis_x, float axis_y, float axis_z) {
-    smoothed_rotation_axis_x_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_x_, axis_x, kRotationAxisSmoothingCoefficient);
-    smoothed_rotation_axis_y_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_y_, axis_y, kRotationAxisSmoothingCoefficient);
-    smoothed_rotation_axis_z_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_z_, axis_z, kRotationAxisSmoothingCoefficient);
+    const float alpha = coefficientFor(kRotationAxisSmoothingCoefficient, ticks_);
+    smoothed_rotation_axis_x_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_x_, axis_x, alpha);
+    smoothed_rotation_axis_y_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_y_, axis_y, alpha);
+    smoothed_rotation_axis_z_ = MathHelpers::applyOnePoleFilter(smoothed_rotation_axis_z_, axis_z, alpha);
 
     float perpendicular_magnitude = std::sqrt(smoothed_rotation_axis_x_ * smoothed_rotation_axis_x_ + smoothed_rotation_axis_y_ * smoothed_rotation_axis_y_);
     float parallel_magnitude = std::abs(smoothed_rotation_axis_z_);
@@ -295,49 +217,46 @@ bool StaffMotionAnalyzer::updateSpinClassificationByReferenceAzimuth(float axis_
         rotation_spin_direction_ = (smoothed_rotation_axis_z_ >= 0.f) ? 1.f : -1.f;
     }
 
-    bool spin_changed = false;
-    constexpr float kEps = 1e-6f;
-    if (is_rotation_axis_vertical_ != was_rotation_axis_vertical_ || std::abs(rotation_spin_direction_ - previous_rotation_spin_direction_) > kEps) {
-        was_rotation_axis_vertical_ = is_rotation_axis_vertical_;
-        previous_rotation_spin_direction_ = rotation_spin_direction_;
-        spin_changed = true;
-    }
-    return spin_changed;
+    return finishSpinClassification();
 }
 
-bool StaffMotionAnalyzer::updateFacingClassification(float tip_x, float tip_y) {
-    smoothed_forward_axis_x_ = MathHelpers::applyOnePoleFilter(smoothed_forward_axis_x_, tip_x, kForwardAxisSmoothingCoefficient);
-    smoothed_forward_axis_y_ = MathHelpers::applyOnePoleFilter(smoothed_forward_axis_y_, tip_y, kForwardAxisSmoothingCoefficient);
-
+bool StaffMotionAnalyzer::updateFacingClassification(bool is_moving) {
+    // (d_x, d_y) is the normal of the line the staff works along. In a vertical-plane spin that is
+    // the horizontal rotation axis; when the staff points somewhere, it is the tip direction turned
+    // by 90deg (swapping x and y), so "pointing along x" and "spinning in a plane that contains x"
+    // give the same state.
     float facing_x, facing_y;
-    if (is_rotation_axis_vertical_) {
+    const float tip_horizontal = std::sqrt(tip_x_ * tip_x_ + tip_y_ * tip_y_);
+    if (is_moving && is_rotation_axis_vertical_) {
         facing_x = smoothed_rotation_axis_x_;
         facing_y = smoothed_rotation_axis_y_;
+    } else if (std::abs(world_gyro_z_) < kFacingMaxVerticalRateDegPerSec && tip_horizontal > kFacingMinHorizontalTip) {
+        facing_x = smoothed_forward_axis_y_;
+        facing_y = smoothed_forward_axis_x_;
     } else {
-        facing_x = smoothed_forward_axis_x_;
-        facing_y = smoothed_forward_axis_y_;
+        return false; // turning about the vertical (overhead spin, body turn) or staff near vertical: hold
     }
 
-    float abs_x = std::abs(facing_x);
-    float abs_y = std::abs(facing_y);
+    const float abs_x = std::abs(facing_x);
+    const float abs_y = std::abs(facing_y);
+    if (abs_x + abs_y < 1e-6f)
+        return false;
 
+    const bool previous = is_facing_north_;
     if (is_facing_north_) {
         is_facing_north_ = !(abs_y > abs_x * kFacingHysteresisRatio);
     } else {
         is_facing_north_ = (abs_x > abs_y * kFacingHysteresisRatio);
     }
-
-    bool facing_changed = (is_facing_north_ != previous_is_facing_north_);
-    previous_is_facing_north_ = is_facing_north_;
-    return facing_changed;
+    return is_facing_north_ != previous;
 }
 
-int StaffMotionAnalyzer::accumulateContinuousSpins(bool spin_classification_changed, float gyroscope_magnitude) {
+int StaffMotionAnalyzer::accumulateContinuousSpins(bool spin_classification_changed, float spin_rate_deg_per_sec) {
     if (spin_classification_changed) {
         accumulated_spin_degrees_ = 0.f;
         continuous_spin_count_ = 0;
     } else {
-        accumulated_spin_degrees_ += gyroscope_magnitude * delta_time_seconds_;
+        accumulated_spin_degrees_ += spin_rate_deg_per_sec * delta_time_seconds_;
         while (accumulated_spin_degrees_ >= 360.0f) {
             accumulated_spin_degrees_ -= 360.0f;
             continuous_spin_count_++;

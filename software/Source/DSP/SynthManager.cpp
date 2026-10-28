@@ -158,8 +158,16 @@ int SynthManager::addGraphMapping(const juce::String& name, std::unique_ptr<Grap
     return static_cast<int>(mappings.size()) - 1;
 }
 
-void SynthManager::processBlock(juce::AudioBuffer<float> &buffer,
-                                const StaffSoundParams& params)
+void SynthManager::processPacket(const StaffSoundParams& params)
+{
+    const int activeIndex = activeMappingIndex.load();
+    const juce::ScopedLock sl(mappingsLock);
+    if (activeIndex >= 0 && activeIndex < static_cast<int>(mappings.size()))
+        if (mappings[static_cast<size_t>(activeIndex)]->process(params, mappingOut))
+            mappingUpdatedSinceLastBlock = true;
+}
+
+void SynthManager::processBlock(juce::AudioBuffer<float> &buffer, bool isReceivingValidData)
 {
     buffer.clear();
     const int numSamples = buffer.getNumSamples();
@@ -170,7 +178,7 @@ void SynthManager::processBlock(juce::AudioBuffer<float> &buffer,
     constexpr float kNormalGainRampSeconds = 0.010f;
     constexpr float kDropoutFadeSeconds = 0.120f;
 
-    if (!params.isReceivingValidData) {
+    if (!isReceivingValidData) {
         if (wasReceivingValidData) {
             masterGain.reset(currentSampleRate, kDropoutFadeSeconds);
             wasReceivingValidData = false;
@@ -181,18 +189,10 @@ void SynthManager::processBlock(juce::AudioBuffer<float> &buffer,
             masterGain.reset(currentSampleRate, kNormalGainRampSeconds);
             wasReceivingValidData = true;
         }
-
-        const int activeIndex = activeMappingIndex.load();
-        bool updated = false;
-        {
-            const juce::ScopedLock sl(mappingsLock);
-            if (activeIndex >= 0 && activeIndex < static_cast<int>(mappings.size()))
-                updated = mappings[static_cast<size_t>(activeIndex)]->process(params, mappingOut);
-        }
-
-        if (updated)
+        if (mappingUpdatedSinceLastBlock)
             masterGain.setTargetValue(mappingOut.masterGain);
     }
+    mappingUpdatedSinceLastBlock = false;
 
     const bool engineActive[] = { mappingOut.additiveActive, mappingOut.granularActive, mappingOut.pinkTromboneActive };
 

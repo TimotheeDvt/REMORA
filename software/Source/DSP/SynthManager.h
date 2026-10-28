@@ -14,18 +14,7 @@
 #include <memory>
 #include <vector>
 
-struct StaffSoundParams {
-    float pitch = 0.f;
-    float roll  = 0.f;
-    float yaw   = 0.f;
-    float gx = 0.f, gy = 0.f, gz = 0.f;
-    float ax = 0.f, ay = 0.f, az = 0.f;
-    // Magnetometer (uT)
-    float mx = 0.f, my = 0.f, mz = 0.f;
-    // Calibrated - passed through so mappings can rotate vectors into world frame without Euler reconstruction errors.
-    float qw = 1.f, qx = 0.f, qy = 0.f, qz = 0.f;
-    bool  isReceivingValidData = false;
-};
+#include "StaffSoundParams.h"
 
 // Owns every synth engine (additive, granular, ...) and the active motion-to-parameter mapping.
 // Each block: evaluate the active mapping into one MappingOutput, let every engine render its own
@@ -37,8 +26,11 @@ public:
 
   void prepareToPlay(double sampleRate, int samplesPerBlock);
 
-  void processBlock(juce::AudioBuffer<float> &buffer,
-                    const StaffSoundParams& params);
+  // Evaluates the active mapping for one sensor packet. Called once per packet, in order, so every
+  // mapping runs at the sensor rate whatever the audio buffer size.
+  void processPacket(const StaffSoundParams& params);
+  // Renders one audio block from the parameters left by the latest processPacket().
+  void processBlock(juce::AudioBuffer<float> &buffer, bool isReceivingValidData);
 
   void setSoundEnabled(bool shouldBeEnabled);
   bool isSoundEnabled() const;
@@ -78,6 +70,7 @@ private:
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> masterGain{0.f};
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> muteGain{1.f};
   bool wasReceivingValidData = true;
+  bool mappingUpdatedSinceLastBlock = false;
 
   std::atomic<bool> soundEnabled{true};
 

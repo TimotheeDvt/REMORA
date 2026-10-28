@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "DSP/Calibration.h"
 
 REMORAProcessor::REMORAProcessor()
     : AudioProcessor(BusesProperties().withOutput(
@@ -57,55 +58,6 @@ void REMORAProcessor::recordPoseC() {
   calibState.store((int)(ok ? CalibState::Done : CalibState::Failed));
 }
 
-static bool computeAlignQuat(MathHelpers::Quat qA, MathHelpers::Quat qB, MathHelpers::Quat qC,
-                              MathHelpers::Quat &qOut) {
-  MathHelpers::Vec3 candidates[6] = {{1.f, 0.f, 0.f},  {-1.f, 0.f, 0.f},
-                                     {0.f, 1.f, 0.f},  {0.f, -1.f, 0.f},
-                                     {0.f, 0.f, 1.f},  {0.f, 0.f, -1.f}};
-
-  auto dot = [](MathHelpers::Vec3 a, MathHelpers::Vec3 b) {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-  };
-  auto abs_f = [](float x) { return x < 0.f ? -x : x; };
-
-  int bestIndex = -1;
-  float minError = 1e9f;
-
-  for (int i = 0; i < 6; ++i) {
-    const auto &L = candidates[i];
-    auto vA = MathHelpers::normalize(MathHelpers::rotate(L, qA));
-    auto vB = MathHelpers::normalize(MathHelpers::rotate(L, qB));
-    auto vC = MathHelpers::normalize(MathHelpers::rotate(L, qC));
-    float err = abs_f(dot(vA, vB)) + abs_f(dot(vB, vC)) + abs_f(dot(vC, vA));
-    float handedness = dot(MathHelpers::cross(vA, vB), vC);
-
-    // Ensure we maintain a right-handed coordinate system match
-    if (handedness < 0.f) {
-      if (err < minError) {
-        minError = err;
-        bestIndex = i;
-      }
-    }
-  }
-
-  if (bestIndex < 0) {
-    qOut = {1.f, 0.f, 0.f, 0.f}; // +X default
-    return false;
-  }
-
-  // Each case is the quaternion rotating canonical +X onto that axis; 0.70710678f = sin(45deg) = cos(45deg): w and axis component of a 90deg rotation.
-  switch (bestIndex) {
-    case 0: qOut = {1.f, 0.f, 0.f, 0.f}; break;                  // +X
-    case 1: qOut = {0.f, 0.f, 1.f, 0.f}; break;                  // -X
-    case 2: qOut = {0.70710678f, 0.f, 0.f, 0.70710678f}; break;  // +Y
-    case 3: qOut = {0.70710678f, 0.f, 0.f, -0.70710678f}; break; // -Y
-    case 4: qOut = {0.70710678f, 0.f, -0.70710678f, 0.f}; break; // +Z
-    case 5: qOut = {0.70710678f, 0.f, 0.70710678f, 0.f}; break;  // -Z
-    default: qOut = {1.f, 0.f, 0.f, 0.f}; break;
-  }
-  return true;
-}
-
 bool REMORAProcessor::computeCorrection() {
   MathHelpers::Quat qA{poseAw.load(), poseAx.load(), poseAy.load(),
                        poseAz.load()};
@@ -115,72 +67,67 @@ bool REMORAProcessor::computeCorrection() {
                        poseCz.load()};
 
   MathHelpers::Quat qAlign;
-  if (!computeAlignQuat(qA, qB, qC, qAlign))
+  if (!Calibration::computeAlignQuat(qA, qB, qC, qAlign))
     return false;
 
-  alignQuat.store(qAlign);
+  const auto qCorr = Calibration::computeCorrection(qA, qB, qAlign);
+  alignQuat.store(MathHelpers::multiply(qAlign, Calibration::computeRollFix(qA, qCorr, qAlign)));
+  corrQuat.store(qCorr);
+  return true;
+}
 
-  MathHelpers::Vec3 staffAxis = MathHelpers::rotate({1.f, 0.f, 0.f}, qAlign);
+bool REMORAProcessor::startPacketLog(const juce::File &file) {
+  auto quatLine = [](const char *name, MathHelpers::Quat q) {
+    return juce::String(name) + " " + juce::String(q.w, 7) + " " + juce::String(q.x, 7) + " " +
+           juce::String(q.y, 7) + " " + juce::String(q.z, 7);
+  };
+  return oscManager.startPacketLog(file, {quatLine("align", alignQuat.load()), quatLine("corr", corrQuat.load())});
+}
 
-  // What the sensor actually measured for each pose
-  auto b0 = MathHelpers::normalize(
-      MathHelpers::rotate(staffAxis, qA)); // measured "forward"
-  auto b1 = MathHelpers::normalize(
-      MathHelpers::rotate(staffAxis, qB)); // measured "up"
-
-  // What we WANT those directions to map to in virtual space
-  MathHelpers::Vec3 r0{1.f, 0.f, 0.f}; // virtual +X (forward)
-  MathHelpers::Vec3 r1{0.f, 0.f, 1.f}; // virtual +Z (up)
-
-  // Best-fit rotation R with R * b_i ~= r_i, built directly rather than via full SVD.
-
-  auto e0 = b0;
-  auto e1 = MathHelpers::normalize(
-      MathHelpers::cross(b0, b1)); // perp to b0 in the b0-b1 plane
-  auto e2 = MathHelpers::cross(e0, e1);
-
-  auto f0 = r0;
-  auto f1 = MathHelpers::normalize(MathHelpers::cross(r0, r1));
-  auto f2 = MathHelpers::cross(f0, f1);
-
-  // R = [f0 f1 f2] * [e0 e1 e2]^T - the rotation taking the measured frame to the virtual frame.
-  float R[3][3];
-  float fv[3][3] = {{f0.x, f1.x, f2.x}, {f0.y, f1.y, f2.y}, {f0.z, f1.z, f2.z}};
-  float ev[3][3] = {{e0.x, e1.x, e2.x}, {e0.y, e1.y, e2.y}, {e0.z, e1.z, e2.z}};
-  for (int i = 0; i < 3; ++i)
-    for (int j = 0; j < 3; ++j) {
-      R[i][j] = 0.f;
-      for (int k = 0; k < 3; ++k)
-        R[i][j] += fv[i][k] * ev[j][k]; // f col k row i * e col k row j
-    }
-
-  // R is row-major; fromMatrix expects columns, so index it transposed below.
-  MathHelpers::Vec3 col0{R[0][0], R[1][0], R[2][0]};
-  MathHelpers::Vec3 col1{R[0][1], R[1][1], R[2][1]};
-  MathHelpers::Vec3 col2{R[0][2], R[1][2], R[2][2]};
-  auto corr = MathHelpers::fromMatrix(col0, col1, col2);
-
-  corrQuat.store(corr);
+bool REMORAProcessor::rezeroHeading() {
+  MathHelpers::Quat corrected;
+  if (!Calibration::rezeroHeading(getCalibratedQuat(), corrQuat.load(), corrected))
+    return false;
+  corrQuat.store(corrected);
   return true;
 }
 
 MathHelpers::Quat REMORAProcessor::getCalibratedQuat() const {
   const auto &d = getIMUData();
   IMURawSnapshot snap;
-  while (!d.trySnapshot(snap)) {
-  }
-  MathHelpers::Quat q_raw = {snap.qw, snap.qx, snap.qy, snap.qz};
+  MathHelpers::Quat q_raw;
+  // Bounded retry: a torn read only shifts one UI frame, so never spin indefinitely.
+  bool consistent = false;
+  for (int attempt = 0; attempt < 16 && !consistent; ++attempt)
+    consistent = d.trySnapshot(snap);
+  if (consistent)
+    q_raw = {snap.qw, snap.qx, snap.qy, snap.qz};
+  else
+    q_raw = {d.qw.load(std::memory_order_relaxed), d.qx.load(std::memory_order_relaxed),
+             d.qy.load(std::memory_order_relaxed), d.qz.load(std::memory_order_relaxed)};
 
-  MathHelpers::Quat corr = corrQuat.load();
-  MathHelpers::Quat qAlign = alignQuat.load();
-
-  // Align local axis to X, then raw orientation, then global correction.
-  return MathHelpers::multiply(corr, MathHelpers::multiply(q_raw, qAlign));
+  return Calibration::calibrate(q_raw, corrQuat.load(), alignQuat.load());
 }
 
 void REMORAProcessor::prepareToPlay(double sampleRate,
                                           int samplesPerBlock) {
   synth.prepareToPlay(sampleRate, samplesPerBlock);
+}
+
+float REMORAProcessor::packetDeltaSeconds(const IMURawSnapshot &packet) {
+  constexpr float kNominalSeconds = 0.01f;
+  float dt = kNominalSeconds;
+  if (hasPreviousPacket) {
+    const double elapsed = (packet.hasSensorClock && previousPacket.hasSensorClock)
+        ? static_cast<uint32_t>(packet.sensorMicros - previousPacket.sensorMicros) * 1e-6
+        : juce::Time::highResolutionTicksToSeconds(packet.hostTicks - previousPacket.hostTicks);
+    // Outside this range the stream restarted or stalled; fall back to the nominal interval.
+    if (elapsed > 0.0005 && elapsed < 0.1)
+      dt = static_cast<float>(elapsed);
+  }
+  previousPacket = packet;
+  hasPreviousPacket = true;
+  return dt;
 }
 
 void REMORAProcessor::processBlock(juce::AudioBuffer<float> &buffer,
@@ -191,48 +138,36 @@ void REMORAProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       ? juce::Time::highResolutionTicksToSeconds(
             juce::Time::getHighResolutionTicks() - lastTicks) * 1000.0
       : 1e9;
-  bool isReceivingValidData = isOSCConnected() && (dataAgeMs < kMaxDataAgeMs);
+  const bool isReceivingValidData = isOSCConnected() && (dataAgeMs < kMaxDataAgeMs);
 
-  const auto calibratedQ = getCalibratedQuat();
+  // Every packet that arrived since the last block is analysed once, in order, with the time step
+  // measured by the sensor. A backlog (e.g. the audio device was paused) is cut to its newest
+  // packets so the mapping does not replay stale motion.
+  const int received = oscManager.getPacketFifo().pop(pendingPackets.data(), static_cast<int>(pendingPackets.size()));
+  constexpr int kMaxPacketsPerBlock = 16;
+  const int first = juce::jmax(0, received - kMaxPacketsPerBlock);
+  if (first > 0)
+    hasPreviousPacket = false;
 
-  if (isReceivingValidData && lastTicks != lastHistoryPushTicks) {
-    lastHistoryPushTicks = lastTicks;
+  const auto corr = corrQuat.load();
+  const auto align = alignQuat.load();
+  for (int i = first; i < received; ++i) {
+    const IMURawSnapshot &packet = pendingPackets[static_cast<size_t>(i)];
+    const StaffSoundParams params = Calibration::toStaffSoundParams(packet, corr, align, packetDeltaSeconds(packet));
+
     auto now = juce::Time::getMillisecondCounter();
     size_t idx = historyWriteIndex.load(std::memory_order_relaxed);
-    orientationHistory[idx % orientationHistory.size()] = {calibratedQ, now};
+    orientationHistory[idx % orientationHistory.size()] = {
+        MathHelpers::Quat{params.qw, params.qx, params.qy, params.qz}, now};
     historyWriteIndex.store(idx + 1, std::memory_order_release);
+
+    if (isReceivingValidData)
+      synth.processPacket(params);
   }
+  if (!isReceivingValidData)
+    hasPreviousPacket = false;
 
-  StaffSoundParams params;
-  params.isReceivingValidData = isReceivingValidData;
-
-  if (isReceivingValidData) {
-    auto euler = MathHelpers::toEuler(calibratedQ);
-    params.pitch = euler.pitch;
-    params.roll = euler.roll;
-    params.yaw = euler.yaw;
-
-    // Passed directly so mappings can rotate vectors into world frame without Euler reconstruction errors.
-    params.qw = calibratedQ.w;
-    params.qx = calibratedQ.x;
-    params.qy = calibratedQ.y;
-    params.qz = calibratedQ.z;
-
-    IMURawSnapshot snap;
-    while (!getIMUData().trySnapshot(snap)) {
-    }
-    params.gx = snap.gx;
-    params.gy = snap.gy;
-    params.gz = snap.gz;
-    params.ax = snap.ax;
-    params.ay = snap.ay;
-    params.az = snap.az;
-    params.mx = snap.mx;
-    params.my = snap.my;
-    params.mz = snap.mz;
-  }
-
-  synth.processBlock(buffer, params);
+  synth.processBlock(buffer, isReceivingValidData);
 }
 
 std::vector<OrientationPoint>
@@ -288,4 +223,4 @@ void REMORAProcessor::setStateInformation(const void *data, int sizeInBytes) {
     synth.uiGlobalVolume.store((float)xmlState->getDoubleAttribute("globalVolume", 1.0));
     setMappingStrategy(xmlState->getIntAttribute("mappingStrategy", getMappingStrategy()));
   }
-}
+}
