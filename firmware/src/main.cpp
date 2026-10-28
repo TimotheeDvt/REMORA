@@ -18,6 +18,7 @@ const uint16_t localPort = 8888;
 
 MPU9250 mpu;
 GatedMahony orientation;
+uint32_t packetSequence = 0;
 
 #define SEND_INTERVAL_MS 10 // 100 Hz transmission rate
 #define LED_PIN 13          // Blue STAT LED
@@ -159,13 +160,17 @@ void loop() {
     float my = mpu.getMagY();
     float mz = mpu.getMagZ();
 
-    // Build & Send OSC. Gyro is sent with the tracked bias removed.
+    // Build & Send OSC. Gyro is sent with the tracked bias removed. The sequence number lets the
+    // plugin detect lost or reordered packets; the timestamp (sensor clock, us) gives it the true
+    // time between samples instead of the Wi-Fi arrival time.
     OSCMessage msg("/esp32/imu");
     msg.add(ax).add(ay).add(az);
     msg.add(gx - orientation.biasX()).add(gy - orientation.biasY()).add(gz - orientation.biasZ());
     msg.add(mx).add(my).add(mz);
     msg.add(orientation.w()).add(orientation.x()).add(orientation.y()).add(orientation.z());
     msg.add(WiFi.localIP().toString().c_str());
+    msg.add((intOSC_t)packetSequence++);
+    msg.add((intOSC_t)nowMicros);
 
     Udp.beginPacket(outIp, outPort);
     msg.send(Udp);
